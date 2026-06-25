@@ -1,0 +1,44 @@
+name: update-wiki
+
+on:
+  schedule:
+    # Tous les soirs à 23h00 UTC
+    - cron: "0 23 * * *"
+  workflow_dispatch: # Permet aussi un lancement manuel depuis l'onglet Actions
+
+permissions:
+  contents: write
+
+jobs:
+  update-wiki:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout du dépôt
+        uses: actions/checkout@v4
+
+      - name: Installation de Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Installation de Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Traitement des nouveaux fichiers de /raw
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          claude -p "Traite tous les nouveaux fichiers du dossier /raw qui ne contiennent pas encore 'processed: true'. Suis scrupuleusement les instructions du fichier CLAUDE.md : extrais les concepts clés, mets à jour ou crée les pages de /wiki avec le template standard, n'efface jamais d'information existante, marque chaque fichier traité avec 'processed: true' et tiens index.md à jour." \
+            --permission-mode acceptEdits
+
+      - name: Commit et push des mises à jour du wiki
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Aucune mise à jour du wiki."
+          else
+            git commit -m "chore(wiki): mise à jour automatique du wiki depuis /raw"
+            git push
+          fi
