@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import { anthropic, CLAUDE_MODEL, isClaudeConfigured } from '@/lib/claude';
-import { getRelevantWikiFiles, parseResponse } from '@/lib/chat-context';
-import { listAllSources } from '@/lib/wiki-parser';
+import { getRelevantContext, parseResponse, listSources } from '@/lib/wiki-query';
 import {
   getConversationHistory,
   renameConversationIfDefault,
@@ -28,19 +27,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 1. Contexte wiki pertinent (système de fichiers local)
-  const wikiContext = await getRelevantWikiFiles(message, filters);
+  // 1. Contexte wiki pertinent (Supabase, source de vérité unique)
+  const { context: wikiContext } = await getRelevantContext(message, filters);
 
   // 2. System prompt
-  const systemPrompt = `Tu es un assistant qui répond aux questions sur un wiki de connaissances sur l'AI Coding.
+  const systemPrompt = `Tu es un assistant qui répond aux questions sur une base de connaissances sur l'AI Coding.
 
-Le wiki est organisé ainsi :
-- by-type/ : ressources classées par type (articles, réunions, interviews, etc.)
-- by-author/ : index par auteur
-- by-date/ : index par mois
-- by-topic/ : pages thématiques
-
-Voici le contenu pertinent du wiki pour cette question :
+Voici le contenu pertinent de la base pour cette question :
 ${wikiContext || '(aucun contenu pertinent trouvé)'}
 
 RÈGLES DE RÉPONSE :
@@ -83,9 +76,9 @@ RÈGLES DE RÉPONSE :
   // 5. Parse réponse → texte propre + sources
   const { text, sources: citedSources } = parseResponse(rawText);
 
-  // Hydrate les sources citées avec les vraies métadonnées du wiki (url, file_path, topics…)
+  // Hydrate les sources citées avec les vraies métadonnées (id, url, topics…)
   // en faisant correspondre par slug (puis par titre en repli).
-  const allSources = await listAllSources();
+  const allSources = await listSources();
   const sources = citedSources.map((c) => {
     const match =
       allSources.find((s) => s.slug === c.slug) ||

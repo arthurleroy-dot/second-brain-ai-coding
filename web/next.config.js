@@ -1,10 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Le front lit le wiki sur le système de fichiers local (../wiki, ../raw).
-  // On exclut donc gray-matter du bundling serveur agressif si besoin.
+  // Paquets Node lourds gardés hors du bundling serveur agressif :
+  // - gray-matter (migration / parsing markdown)
+  // - officeparser (extraction PDF/PPTX/DOCX, dépend de tesseract.js)
   experimental: {
-    serverComponentsExternalPackages: ['gray-matter'],
+    serverComponentsExternalPackages: ['gray-matter', 'officeparser'],
   },
 };
 

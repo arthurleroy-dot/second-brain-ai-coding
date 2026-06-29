@@ -3,12 +3,34 @@ import { Conversation, Message, Source } from '@/types';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export const supabaseConfigured = Boolean(url && anonKey);
 
+// Client public (clé anon) — lecture côté navigateur, persistance conversations.
 export const supabase: SupabaseClient | null = supabaseConfigured
   ? createClient(url!, anonKey!)
   : null;
+
+// Client admin (service role) — opérations serveur uniquement (upload, process,
+// migration). Bypasse la RLS. NE JAMAIS importer côté client.
+export const supabaseAdminConfigured = Boolean(url && serviceRoleKey);
+
+export const supabaseAdmin: SupabaseClient | null = supabaseAdminConfigured
+  ? createClient(url!, serviceRoleKey!, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+  : null;
+
+/** Renvoie le client admin ou lève une erreur explicite si non configuré. */
+export function requireAdmin(): SupabaseClient {
+  if (!supabaseAdmin) {
+    throw new Error(
+      'Supabase service role non configuré. Renseigne NEXT_PUBLIC_SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY dans .env.local.',
+    );
+  }
+  return supabaseAdmin;
+}
 
 // ---- Helpers à dégradation gracieuse ----
 // Si Supabase n'est pas configuré, ces fonctions renvoient des valeurs neutres

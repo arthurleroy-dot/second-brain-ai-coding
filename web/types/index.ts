@@ -7,7 +7,10 @@ export type ResourceType =
   | 'personal_note'
   | 'unknown';
 
+export type ResourceStatus = 'pending' | 'processing' | 'done' | 'error';
+
 export interface Source {
+  id?: string; // uuid Supabase (absent pour les sources citées par Claude non hydratées)
   slug: string;
   title: string;
   type: ResourceType;
@@ -17,7 +20,26 @@ export interface Source {
   deposited_by: string | null;
   topics: string[];
   needs_review: boolean;
-  file_path: string; // chemin relatif dans le wiki (by-type/...)
+  status?: ResourceStatus;
+  created_at?: string;
+  file_path?: string; // legacy : chemin relatif dans le wiki (by-type/...)
+}
+
+export interface ResourceContent {
+  summary: string | null;
+  full_content: string | null;
+  key_concepts: string[];
+  notable_quotes: string[];
+  key_figures: string[];
+}
+
+export type JobStatus = 'queued' | 'running' | 'done' | 'error';
+
+export interface ProcessingJob {
+  id: string;
+  resource_id: string;
+  status: JobStatus;
+  error_message: string | null;
 }
 
 export interface WikiTopic {

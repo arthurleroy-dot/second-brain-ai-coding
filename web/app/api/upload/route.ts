@@ -1,50 +1,39 @@
 import { NextRequest } from 'next/server';
-import { rawExists, writeRaw } from '@/lib/wiki-fs';
+import { requireAdmin } from '@/lib/supabase';
+import { slugify } from '@/lib/wiki-query';
+import { ResourceType } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
-const TEXT_EXT = ['.md', '.txt'];
-const BINARY_META_EXT = ['.pdf', '.pptx'];
+const ACCEPTED_EXT = ['.md', '.txt', '.pdf', '.pptx', '.docx'];
+const VALID_TYPES: ResourceType[] = [
+  'article',
+  'meeting_note',
+  'interview',
+  'presentation',
+  'transcript',
+  'personal_note',
+  'unknown',
+];
 
 function ext(name: string): string {
   const i = name.lastIndexOf('.');
   return i === -1 ? '' : name.slice(i).toLowerCase();
 }
 
-function minimalFrontmatter(): string {
-  return `---
-type: unknown
-author: ""
-date: ""
-url: ""
-deposited_by: ""
-topics: []
-needs_review: true
-processed: false
----
-
-`;
-}
-
-function sidecarContent(filename: string): string {
-  return `---
-source_file: "${filename}"
-type: unknown
-author: ""
-date: ""
-url: ""
-deposited_by: ""
-topics: []
-needs_review: true
-processed: false
----
-
-## Notes extraites automatiquement
-(à compléter par l'agent mainteneur lors du prochain run /process-raw)
-`;
+function uuid(): string {
+  // crypto.randomUUID est dispo dans le runtime Node de Next.
+  return crypto.randomUUID();
 }
 
 export async function POST(req: NextRequest) {
+  let db;
+  try {
+    db = requireAdmin();
+  } catch (e: any) {
+    return Response.json({ error: e.message }, { status: 503 });
+  }
+
   let form: FormData;
   try {
     form = await req.formData();
@@ -59,45 +48,91 @@ export async function POST(req: NextRequest) {
 
   const filename = file.name;
   const extension = ext(filename);
-
-  if (await rawExists(filename)) {
+  if (!ACCEPTED_EXT.includes(extension)) {
     return Response.json(
-      { error: `Un fichier nommé "${filename}" existe déjà dans /raw` },
-      { status: 409 },
+      { error: `Extension non supportée (${extension}). Acceptés : ${ACCEPTED_EXT.join(', ')}` },
+      { status: 400 },
     );
   }
 
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
+  // Métadonnées optionnelles du formulaire
+  const author = (form.get('author') as string)?.trim() || null;
+  const date = (form.get('date') as string)?.trim() || null;
+  const depositedBy = (form.get('deposited_by') as string)?.trim() || null;
+  const typeRaw = (form.get('type') as string)?.trim();
+  const type: ResourceType = VALID_TYPES.includes(typeRaw as ResourceType)
+    ? (typeRaw as ResourceType)
+    : 'unknown';
 
-  // Fichier texte : on préfixe un frontmatter minimal s'il n'en a pas déjà un.
-  if (TEXT_EXT.includes(extension)) {
-    const text = buffer.toString('utf-8');
-    const hasFrontmatter = text.trimStart().startsWith('---');
-    const content = hasFrontmatter ? text : minimalFrontmatter() + text;
-    const rel = await writeRaw(filename, content);
-    return Response.json({
-      ok: true,
-      path: rel,
-      message: hasFrontmatter
-        ? 'Fichier texte déposé.'
-        : 'Fichier texte déposé avec frontmatter minimal.',
+  // 1. Upload du fichier brut dans Storage
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const storagePath = `${uuid()}-${filename}`;
+  const { error: uploadErr } = await db.storage
+    .from('raw-files')
+    .upload(storagePath, buffer, {
+      contentType: file.type || 'application/octet-stream',
+      upsert: false,
     });
+  if (uploadErr) {
+    return Response.json(
+      { error: `Upload Storage échoué : ${uploadErr.message}` },
+      { status: 502 },
+    );
   }
 
-  // Fichier binaire : on écrit le binaire + un sidecar .meta.md.
-  const rel = await writeRaw(filename, buffer);
-  let sidecar: string | null = null;
-  if (BINARY_META_EXT.includes(extension)) {
-    sidecar = await writeRaw(`${filename}.meta.md`, sidecarContent(filename));
+  // 2. Crée la ressource (status pending)
+  const { data: resource, error: resErr } = await db
+    .from('resources')
+    .insert({
+      title: filename,
+      slug: slugify(filename),
+      type,
+      author,
+      date,
+      deposited_by: depositedBy,
+      status: 'pending',
+      needs_review: false,
+      storage_path: storagePath,
+    })
+    .select()
+    .single();
+  if (resErr || !resource) {
+    return Response.json(
+      { error: `Création ressource échouée : ${resErr?.message ?? 'inconnu'}` },
+      { status: 502 },
+    );
   }
+
+  // 3. Crée le job de traitement
+  const { data: job, error: jobErr } = await db
+    .from('processing_jobs')
+    .insert({ resource_id: resource.id, status: 'queued' })
+    .select()
+    .single();
+  if (jobErr || !job) {
+    return Response.json(
+      { error: `Création job échouée : ${jobErr?.message ?? 'inconnu'}` },
+      { status: 502 },
+    );
+  }
+
+  // 4. Déclenche le traitement en arrière-plan (non-bloquant)
+  // On NE PAS await : la requête part et la route répond immédiatement.
+  // (En local, le process Next persiste et exécute /api/process en parallèle.
+  //  En prod serverless, prévoir un worker/Edge Function — cf. plan.)
+  const origin = req.nextUrl.origin;
+  void fetch(`${origin}/api/process`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ job_id: job.id }),
+  }).catch(() => {
+    /* fire-and-forget : on ignore les erreurs réseau de déclenchement */
+  });
 
   return Response.json({
     ok: true,
-    path: rel,
-    sidecar,
-    message: sidecar
-      ? 'Fichier déposé + sidecar .meta.md créé.'
-      : 'Fichier déposé.',
+    resource_id: resource.id,
+    job_id: job.id,
+    status: 'pending',
   });
 }

@@ -1,4 +1,4 @@
-import { listAuthors, listDates } from '@/lib/wiki-parser';
+import { listAuthors, listDates } from '@/lib/wiki-query';
 
 export const dynamic = 'force-dynamic';
 

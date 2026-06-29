@@ -1,7 +1,5 @@
 import { NextRequest } from 'next/server';
-import { listAllSources, slugify } from '@/lib/wiki-parser';
-import { TYPE_TO_FOLDER } from '@/lib/ui';
-import { ResourceType } from '@/types';
+import { listSources, slugify, resolveType } from '@/lib/wiki-query';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,17 +10,15 @@ export async function GET(req: NextRequest) {
   const date = searchParams.get('date'); // préfixe YYYY ou YYYY-MM
   const filter = searchParams.get('filter'); // 'needs_review'
 
-  const all = await listAllSources();
+  const all = await listSources();
   const total = all.length;
   const needsReviewCount = all.filter((s) => s.needs_review).length;
 
   let sources = all;
 
   if (type) {
-    // accepte soit le ResourceType, soit le nom de dossier
-    sources = sources.filter(
-      (s) => s.type === type || TYPE_TO_FOLDER[s.type as ResourceType] === type,
-    );
+    const t = resolveType(type);
+    if (t) sources = sources.filter((s) => s.type === t);
   }
   if (author) {
     const a = author.toLowerCase();

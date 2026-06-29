@@ -59,13 +59,10 @@ export default function SourceChip({ source }: { source: Source }) {
               {source.topics.length > 0 && (
                 <div><span className="font-medium">Topics :</span> {source.topics.join(', ')}</div>
               )}
-              {source.file_path && (
-                <div><span className="font-medium">Fiche :</span> {source.file_path}</div>
-              )}
             </dl>
             <p className="mt-3 text-xs text-gray-400">
-              Aucune URL externe pour cette source. La fiche complète vit dans le wiki
-              ({source.file_path || 'chemin inconnu'}).
+              Aucune URL externe pour cette source. La fiche complète vit dans la base
+              de connaissances.
             </p>
             <button
               type="button"

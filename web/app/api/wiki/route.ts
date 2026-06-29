@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
-import { listTopics, slugify } from '@/lib/wiki-parser';
-import { wikiExists, writeWikiFile } from '@/lib/wiki-fs';
+import { listTopics, slugify } from '@/lib/wiki-query';
+import { requireAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,8 +9,7 @@ export async function GET() {
   return Response.json({ topics });
 }
 
-// Crée une ébauche de page thématique dans by-topic/.
-// L'enrichissement reste le rôle de l'agent mainteneur (/process-raw).
+// Crée une page thématique dans la table `topics`.
 export async function POST(req: NextRequest) {
   let title = '';
   try {
@@ -27,13 +26,27 @@ export async function POST(req: NextRequest) {
   if (!slug) {
     return Response.json({ error: 'Titre invalide' }, { status: 400 });
   }
-  const rel = `by-topic/${slug}.md`;
-  if (await wikiExists(rel)) {
+
+  let db;
+  try {
+    db = requireAdmin();
+  } catch (e: any) {
+    return Response.json({ error: e.message }, { status: 503 });
+  }
+
+  const { data: existing } = await db
+    .from('topics')
+    .select('slug')
+    .eq('slug', slug)
+    .maybeSingle();
+  if (existing) {
     return Response.json({ error: `Le thème "${slug}" existe déjà` }, { status: 409 });
   }
 
-  const content = `# ${title}\n\n## Résumé\n(ébauche créée depuis l'interface — à enrichir par l'agent mainteneur)\n\n## Concepts clés\n`;
-  await writeWikiFile(rel, content);
+  const { error } = await db.from('topics').insert({ slug, title });
+  if (error) {
+    return Response.json({ error: error.message }, { status: 502 });
+  }
 
-  return Response.json({ ok: true, slug, path: rel });
+  return Response.json({ ok: true, slug });
 }

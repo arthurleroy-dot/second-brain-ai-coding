@@ -54,7 +54,7 @@ export default function SourceList() {
             <p className="mb-3 text-xs text-gray-500">{filtered.length} source(s)</p>
             <div className="space-y-2">
               {filtered.map((s) => (
-                <SourceRow key={s.file_path} source={s} />
+                <SourceRow key={s.id ?? s.slug} source={s} />
               ))}
             </div>
           </>
