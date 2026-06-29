@@ -1,0 +1,6 @@
+# Front-end Next.js (web/) — artefacts et secrets
+web/node_modules/
+web/.next/
+web/out/
+web/.env.local
+web/*.tsbuildinfo
