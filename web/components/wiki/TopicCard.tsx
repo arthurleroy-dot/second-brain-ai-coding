@@ -12,7 +12,7 @@ export default function TopicCard({ topic }: { topic: WikiTopic }) {
 
   return (
     <a
-      href={`/sources?topic=${topic.slug}`}
+      href={`/wiki/${topic.slug}`}
       className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 hover:border-gray-300 hover:shadow-sm"
     >
       <div className="flex items-center gap-2">

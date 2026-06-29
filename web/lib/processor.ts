@@ -2,6 +2,7 @@ import { parseOffice } from 'officeparser';
 import { anthropic, CLAUDE_MODEL } from '@/lib/claude';
 import { requireAdmin } from '@/lib/supabase';
 import { slugify } from '@/lib/wiki-query';
+import { enrichTopicWithResource } from '@/lib/enrich-topic';
 
 // Slugs de topics canoniques (alignés sur le wiki existant).
 const TOPIC_SLUGS = [
@@ -247,6 +248,28 @@ export async function processJob(jobId: string): Promise<void> {
 
     // 7. Topics
     await linkTopics(resourceId, doc.topics);
+
+    // 7bis. Enrichissement des fiches thématiques by-topic/ (best-effort).
+    // On attend la fin (en parallèle) avant de clore le job : en environnement
+    // serverless, un fire-and-forget serait interrompu au retour de la requête.
+    if (doc.full_content) {
+      await Promise.allSettled(
+        doc.topics.map((topicSlug) =>
+          enrichTopicWithResource(topicSlug, {
+            title: finalTitle ?? topicSlug,
+            type: doc.type,
+            author: doc.author,
+            date: doc.date,
+            full_content: doc.full_content ?? '',
+            key_concepts: doc.key_concepts,
+            notable_quotes: doc.notable_quotes,
+            key_figures: doc.key_figures,
+          }).catch((err) => {
+            console.error(`Enrichissement topic "${topicSlug}" échoué:`, err);
+          }),
+        ),
+      );
+    }
 
     // 8. Job done
     await db
