@@ -1,4 +1,13 @@
+---
+type: article
+author: "Fortune"
+date: "2026-01"
+url: "https://fortune.com"
+deposited_by: ""
+topics: [agentic-coding, transformation-organisationnelle]
+needs_review: false
 processed: true
+---
 
 At Anthropic—an AI lab building some of the world’s most advanced models—engineers are no longer writing the code that powers their products; they’re outsourcing it to AI. The [head of Anthropic’s Claude Code, Boris Cherny,](https://fortune.com/2026/01/24/anthropic-boris-cherny-claude-code-non-coders-software-engineers/) has announced he hasn’t written any code in more than two months.
 

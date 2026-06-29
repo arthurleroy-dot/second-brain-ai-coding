@@ -2,6 +2,46 @@
 
 Historique chronologique des traitements. Chaque entrée commence par `## [YYYY-MM-DD]`.
 
+## [MIGRATION INITIALE] — 2026-06-29
+
+**Refonte de l'organisation du wiki** vers une arborescence multi-axes (`by-type/`, `by-author/`, `by-date/`, `by-topic/`) avec un standard de métadonnées sur toutes les sources. Aucune information existante supprimée (enrichissement / réorganisation uniquement).
+
+### Nouvelle arborescence
+- `by-type/` — **maison physique** des ressources : 1 fichier complet par source. Dossiers créés : `articles/`, `meeting-notes/`, `interviews/`, `presentations/`, `transcripts/`, `personal-notes/`, `unknown/` (chacun avec son `index.md`).
+- `by-author/` — index de **pointeurs** uniquement (10 auteurs + `unknown/`).
+- `by-date/` — index de **pointeurs** uniquement, par année puis par mois (+ `unknown/`).
+- `by-topic/` — les 6 pages thématiques existantes y ont été **déplacées** (contenu et noms conservés pour ne pas casser les `[[wikilinks]]` existants).
+
+### Ressources créées (13 fichiers dans `by-type/articles/`)
+Une fiche par source déposée dans `/raw` (7 PDF + 6 articles `.md`) :
+- Anthropic — `2026-agentic-coding-trends-report` (2026)
+- Deloitte — `2026-software-industry-outlook-deloitte-insights` (2026-02-12) · `state-of-ai-2026` (2026-01)
+- McKinsey — `rewiring-software-delivery-for-the-agentic-era` (2026-05) · `the-ai-revolution-in-software-development-final` (2026-04) · `unlocking-the-value-of-ai-in-software-development` (2025-11)
+- Accenture — `new-accenture-research-finds-that-companies-with-ai-led-processes-outperform-peers` (2024-10-10)
+- ECI Research — `ai-finops-in-2026-why-runtime-cost-governance-cant-wait` (2026)
+- First Line Software — `ai-software-development-what-changes-from-2026-to-2035` (2026-04)
+- Rick Pollick — `finops-for-ai-why-llm-cost-is-an-engineering-problem-not-a-finance-one` (2026)
+- CNBC — `microsoft-and-google-are-late-to-ai-coding` (2026-06)
+- Fortune — `top-engineers-at-anthropic-openai-ai-writes-100-percent-of-code` (2026-01)
+- LeanOps Tech — `traditional-finops-breaks-on-ai-workloads` (2026)
+
+### Métadonnées des sources `/raw`
+- 6 fichiers `.md` : frontmatter YAML complet ajouté (`type`, `author`, `date`, `url`, `deposited_by`, `topics`, `needs_review`, `processed`). `processed: true` conservé.
+- 7 PDF : création d'un sidecar `<nom>.pdf.meta.md` (métadonnées + notes extraites). Les anciens marqueurs `<nom>.pdf.processed` sont **conservés** comme trace ; les deux coexistent.
+
+### Index recréés / synchronisés
+- `wiki/index.md` — recréé avec les 4 axes de navigation.
+- `by-type/*/index.md`, `by-author/*/index.md`, `by-date/**/index.md` — générés.
+
+### Décisions de migration (documentées)
+- **Granularité** : 1 fiche = 1 source déposée dans `/raw`. Les citations externes contenues dans ces sources (Gartner, Menlo Ventures, Stanford HAI, FinOps Foundation, Veracode…) restent des citations dans les fiches/pages thématiques et ne deviennent pas des fiches autonomes.
+- **Type** : les 13 sources sont des `article` (rapports, billets, articles de presse) → toutes dans `by-type/articles/`. Les autres dossiers de type sont créés mais vides.
+- **Noms des pages thématiques** : conservés à l'identique (`finops-ia.md`, `outils-et-marche.md`, etc.) plutôt que renommés, afin de préserver les `[[wikilinks]]` déjà présents dans les pages.
+- **Dates partielles** : une source dont seule l'année est connue est classée sous `by-date/<année>/unknown/` et marquée `needs_review: true` (4 sources concernées). `by-date/unknown/` est réservé aux sources sans aucune date.
+
+### Marquage « processed »
+- Tous les fichiers `/raw` restent `processed: true` (aucun retraitement). La migration recrée la nouvelle arborescence sans changer ce statut.
+
 ## [2026-06-25]
 
 **Premier run** — traitement initial de tous les fichiers de `/raw`.
@@ -80,3 +120,26 @@ Historique chronologique des traitements. Chaque entrée commence par `## [YYYY-
 ### Méthode
 - 5 agents dédiés (un par page cible) ont enrichi en parallèle, sans conflit (fichiers distincts) ; `index.md` et `log.md` synchronisés ensuite par l'agent principal.
 - Règle d'or respectée : aucune information existante supprimée, enrichissement uniquement.
+
+## [ENRICHISSEMENT CONTENU COMPLET - 2026-06-29]
+
+Mise à jour du template de fiche dans `CLAUDE.md` (nouvelle section « Format d'un fichier de ressource individuel » : ajout des sections **Contenu complet**, **Citations et formulations notables**, **Données et chiffres clés**). Retraitement de **toutes** les fiches de `wiki/by-type/articles/` pour y intégrer une retranscription quasi intégrale de chaque source. Frontmatter et section « Liens connexes » conservés à l'identique dans chaque fiche ; aucun `index.md` ni page `by-topic/` modifié.
+
+### Fiches enrichies (13)
+- `microsoft-and-google-are-late-to-ai-coding.md` — CNBC, juin 2026 (~1 250 mots)
+- `top-engineers-at-anthropic-openai-ai-writes-100-percent-of-code.md` — Fortune, janvier 2026 (~1 100 mots)
+- `ai-finops-in-2026-why-runtime-cost-governance-cant-wait.md` — ECI Research, 2026 (~1 100 mots)
+- `rewiring-software-delivery-for-the-agentic-era.md` — McKinsey, mai 2026 (~1 900 mots)
+- `new-accenture-research-finds-that-companies-with-ai-led-processes-outperform-peers.md` — Accenture, oct. 2024 (~750 mots)
+- `the-ai-revolution-in-software-development-final.md` — McKinsey, avril 2026 (~2 300 mots)
+- `finops-for-ai-why-llm-cost-is-an-engineering-problem-not-a-finance-one.md` — Rick Pollick, 2026 (~1 700 mots)
+- `ai-software-development-what-changes-from-2026-to-2035.md` — First Line Software, avril 2026 (~3 500 mots)
+- `2026-software-industry-outlook-deloitte-insights.md` — Deloitte, févr. 2026 (~2 600 mots)
+- `traditional-finops-breaks-on-ai-workloads.md` — LeanOps Tech, 2026 (~2 600 mots)
+- `unlocking-the-value-of-ai-in-software-development.md` — McKinsey, nov. 2025 (~2 400 mots)
+- `2026-agentic-coding-trends-report.md` — Anthropic, 2026 (~3 600 mots, 18 pages PDF)
+- `state-of-ai-2026.md` — Deloitte, janvier 2026 (~3 800 mots, 40 pages PDF)
+
+### Méthode
+- 13 agents dédiés (un par fiche) lancés en parallèle, sans conflit (fichiers distincts). Sources PDF lues par tranches de pages jusqu'à couverture complète ; sources `.md` lues intégralement.
+- Règle d'or respectée : aucune information existante supprimée, enrichissement uniquement. Frontmatter (slug, type, author, date, url, deposited_by, topics, source_file, needs_review) inchangé partout.

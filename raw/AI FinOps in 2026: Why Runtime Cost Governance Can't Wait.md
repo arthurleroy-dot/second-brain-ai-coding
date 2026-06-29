@@ -1,4 +1,13 @@
+---
+type: article
+author: "ECI Research"
+date: "2026"
+url: "https://eci.com"
+deposited_by: ""
+topics: [finops-ia]
+needs_review: true
 processed: true
+---
 
 ## What’s Happening
 

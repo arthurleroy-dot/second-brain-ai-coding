@@ -1,4 +1,13 @@
+---
+type: article
+author: "First Line Software"
+date: "2026-04"
+url: "https://firstlinesoftware.com"
+deposited_by: ""
+topics: [finops-ia, transformation-organisationnelle, outils-et-marche, securite-et-risques]
+needs_review: false
 processed: true
+---
 
 ![AI-software-development-first-line-software](https://firstlinesoftware.com/wp-content/uploads/2026/04/pexels-werner-pfennig-6949978-scaled.jpg)
 
