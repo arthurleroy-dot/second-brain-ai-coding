@@ -219,16 +219,30 @@ export async function processJob(jobId: string): Promise<void> {
     // 4. Parse JSON
     const doc = parseClaudeJson(rawText);
 
-    // 5. Met à jour la ressource (conserve le titre formulaire si Claude n'en donne pas)
-    const finalTitle = doc.title || resource.title || null;
+    // 5. Met à jour la ressource.
+    // Précédence « l'humain gagne si rempli » : une métadonnée saisie dans le
+    // formulaire d'upload est autoritaire ; Claude ne comble que les champs vides.
+    // NB : on ne touche JAMAIS à `url` ici. L'URL provient uniquement du formulaire
+    // d'upload (champ saisi par l'utilisateur) ; elle n'est jamais déduite du contenu.
+    //
+    // Titre : un titre saisi par l'utilisateur l'emporte ; sinon Claude l'extrait ;
+    // sinon on retombe sur le nom de fichier. Le nom de fichier est récupéré depuis
+    // storage_path (`<uuid>-<filename>`, l'uuid v4 fait 36 caractères + un tiret).
+    const originalFilename = (resource.storage_path as string | null)?.slice(37) ?? '';
+    const humanTitle =
+      resource.title && resource.title !== originalFilename ? resource.title : null;
+    const finalTitle = humanTitle ?? doc.title ?? resource.title ?? null;
+    // Type : le choix explicite de l'utilisateur (≠ unknown) prime sur l'inférence.
+    const finalType =
+      resource.type && resource.type !== 'unknown' ? resource.type : doc.type;
     await db
       .from('resources')
       .update({
         title: finalTitle,
         slug: finalTitle ? slugify(finalTitle) : resource.slug,
-        type: doc.type,
-        author: doc.author ?? resource.author ?? null,
-        date: doc.date ?? resource.date ?? null,
+        type: finalType,
+        author: resource.author ?? doc.author ?? null,
+        date: resource.date ?? doc.date ?? null,
         topics: doc.topics,
         needs_review: doc.needs_review,
         status: 'done',
@@ -257,9 +271,9 @@ export async function processJob(jobId: string): Promise<void> {
         doc.topics.map((topicSlug) =>
           enrichTopicWithResource(topicSlug, {
             title: finalTitle ?? topicSlug,
-            type: doc.type,
-            author: doc.author,
-            date: doc.date,
+            type: finalType,
+            author: resource.author ?? doc.author,
+            date: resource.date ?? doc.date,
             full_content: doc.full_content ?? '',
             key_concepts: doc.key_concepts,
             notable_quotes: doc.notable_quotes,

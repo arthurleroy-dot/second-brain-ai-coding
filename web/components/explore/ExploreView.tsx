@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { User, Calendar, AlertTriangle } from 'lucide-react';
-import { AuthorEntry, DateEntry } from '@/types';
+import { User, Calendar, AlertTriangle, Layers } from 'lucide-react';
+import { AuthorEntry, DateEntry, TypeEntry } from '@/types';
+import { typeBadgeClass } from '@/lib/ui';
 
 export default function ExploreView() {
   const router = useRouter();
   const [authors, setAuthors] = useState<AuthorEntry[]>([]);
   const [dates, setDates] = useState<DateEntry[]>([]);
+  const [types, setTypes] = useState<TypeEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -17,6 +19,7 @@ export default function ExploreView() {
       .then((d) => {
         setAuthors(d.authors ?? []);
         setDates(d.dates ?? []);
+        setTypes(d.types ?? []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -31,6 +34,30 @@ export default function ExploreView() {
 
   return (
     <div className="h-full overflow-y-auto p-6">
+      {/* Par type de ressource */}
+      <section className="mb-8">
+        <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
+          <Layers size={16} className="text-gray-400" /> Par type de ressource
+        </h2>
+        <div className="flex flex-wrap gap-2">
+          {types.map((t) => (
+            <button
+              key={t.type}
+              type="button"
+              onClick={() => router.push(`/sources?type=${encodeURIComponent(t.folder)}`)}
+              className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-sm hover:border-gray-300"
+            >
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-medium ${typeBadgeClass(t.type)}`}
+              >
+                {t.label}
+              </span>
+              <span className="text-xs text-gray-400">{t.source_count}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         {/* Par auteur */}
         <section>

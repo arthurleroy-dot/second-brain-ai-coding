@@ -1,87 +1,86 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { Message as MessageType } from '@/types';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { ChatFilterState, Message as MessageType } from '@/types';
 import Message from '@/components/chat/Message';
 import InputBar from '@/components/chat/InputBar';
 import RightPanel from '@/components/chat/RightPanel';
 import ConversationHistory from '@/components/chat/ConversationHistory';
+import {
+  subscribe,
+  getState,
+  seedIfAbsent,
+  hydrateFromDb,
+  sendMessage,
+} from '@/lib/chat-stream-store';
 
 interface Props {
   conversationId: string | null;
   initialMessages?: MessageType[];
 }
 
-let localIdCounter = 0;
-function localId(): string {
-  localIdCounter += 1;
-  return `local-${localIdCounter}`;
-}
-
 export default function ChatWindow({ conversationId, initialMessages = [] }: Props) {
-  const [messages, setMessages] = useState<MessageType[]>(initialMessages);
-  const [loading, setLoading] = useState(false);
-  const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set());
+  const [filters, setFilters] = useState<ChatFilterState>({});
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Clé de store : l'id de la conversation persistée, ou une clé éphémère stable
+  // (par montage) pour le chat /chat sans id (non persisté).
+  const ephemeralKeyRef = useRef<string>('');
+  if (!ephemeralKeyRef.current) {
+    ephemeralKeyRef.current =
+      conversationId ?? `ephemeral-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+  const storeKey = conversationId ?? ephemeralKeyRef.current;
+
+  // S'abonne au store global : l'état (messages + flux) survit à la navigation
+  // et continue d'être alimenté en arrière-plan même quand ce composant est
+  // démonté. `getServerSnapshot` renvoie `undefined` → côté serveur et à
+  // l'hydratation on rend `initialMessages` (pas de mismatch d'hydratation).
+  const state = useSyncExternalStore(
+    subscribe,
+    () => getState(storeKey),
+    () => undefined,
+  );
+  const messages = state?.messages ?? initialMessages;
+  const loading = state?.loading ?? false;
+  const streaming = state?.streaming ?? false;
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, loading]);
 
-  const toggleFolder = (folder: string) => {
-    setSelectedFolders((prev) => {
-      const next = new Set(prev);
-      if (next.has(folder)) next.delete(folder);
-      else next.add(folder);
-      return next;
-    });
-  };
-
-  const handleSend = async (text: string) => {
-    const userMsg: MessageType = {
-      id: localId(),
-      role: 'user',
-      content: text,
-      sources: [],
-      created_at: new Date().toISOString(),
+  // Au montage : on initialise le store depuis le SSR, puis on recharge l'état
+  // réel depuis Supabase pour une conversation persistée. `hydrateFromDb`
+  // n'écrase JAMAIS un flux en cours (cf. store) : si on revient pendant une
+  // génération, on garde l'état live et on voit la réponse continuer.
+  useEffect(() => {
+    seedIfAbsent(storeKey, initialMessages);
+    if (!conversationId) return; // chat éphémère : rien à recharger
+    let cancelled = false;
+    fetch(`/api/conversations/${conversationId}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d?.conversation) {
+          hydrateFromDb(storeKey, d.conversation.messages ?? []);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
     };
-    setMessages((prev) => [...prev, userMsg]);
-    setLoading(true);
+    // initialMessages volontairement hors deps : seul un changement de
+    // conversation doit redéclencher le rechargement.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, storeKey]);
 
-    try {
-      const firstFolder = [...selectedFolders][0];
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text,
-          conversation_id: conversationId,
-          filters: firstFolder ? { type: firstFolder } : undefined,
-        }),
-      });
-      const data = await res.json();
-      const assistantMsg: MessageType = {
-        id: localId(),
-        role: 'assistant',
-        content: res.ok ? data.text : `⚠️ ${data.error ?? 'Erreur inconnue'}`,
-        sources: res.ok ? data.sources ?? [] : [],
-        created_at: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: localId(),
-          role: 'assistant',
-          content: '⚠️ Erreur réseau pendant la requête.',
-          sources: [],
-          created_at: new Date().toISOString(),
-        },
-      ]);
-    } finally {
-      setLoading(false);
-    }
+  const handleSend = (text: string) => {
+    // Délégué au store : le streaming vit hors du composant et continue même si
+    // on quitte la page.
+    const hasFilters =
+      (filters.types?.length ?? 0) > 0 ||
+      (filters.authors?.length ?? 0) > 0 ||
+      !!filters.date;
+    void sendMessage(storeKey, conversationId, text, hasFilters ? filters : undefined);
   };
 
   return (
@@ -111,10 +110,10 @@ export default function ChatWindow({ conversationId, initialMessages = [] }: Pro
           )}
         </div>
 
-        <InputBar onSend={handleSend} disabled={loading} />
+        <InputBar onSend={handleSend} disabled={loading || streaming} />
       </div>
 
-      <RightPanel selectedFolders={selectedFolders} onToggleFolder={toggleFolder} />
+      <RightPanel filters={filters} onChange={setFilters} />
     </div>
   );
 }

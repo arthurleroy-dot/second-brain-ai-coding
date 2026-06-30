@@ -11,6 +11,7 @@ export default async function ConversationPage({
   const conversation = await getConversation(params.id);
   return (
     <ChatWindow
+      key={params.id}
       conversationId={params.id}
       initialMessages={conversation?.messages ?? []}
     />

@@ -66,6 +66,23 @@ export interface Conversation {
   updated_at: string;
 }
 
+// Filtre date structuré : intervalle, avant une borne, ou après une borne.
+export type DateFilterMode = 'between' | 'before' | 'after';
+
+export interface DateFilter {
+  mode: DateFilterMode;
+  from?: string; // borne basse 'YYYY-MM' (between/after)
+  to?: string; // borne haute 'YYYY-MM' (between/before)
+}
+
+// Filtres actifs du panneau de chat. type/auteur sont multi-sélection (OR
+// intra-axe), les axes se combinent en ET. La date est un filtre structuré.
+export interface ChatFilterState {
+  types?: string[]; // dossiers by-type (ex: 'articles')
+  authors?: string[]; // noms d'auteur exacts, ou 'unknown'
+  date?: DateFilter;
+}
+
 // Type d'auteur/date pour les pages d'exploration
 export interface AuthorEntry {
   slug: string;
@@ -79,4 +96,11 @@ export interface DateEntry {
   label: string;
   source_count: number;
   is_unknown: boolean;
+}
+
+export interface TypeEntry {
+  type: ResourceType;
+  folder: string; // dossier by-type (valeur du filtre /sources?type=)
+  label: string;
+  source_count: number;
 }

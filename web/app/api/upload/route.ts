@@ -56,9 +56,16 @@ export async function POST(req: NextRequest) {
   }
 
   // Métadonnées optionnelles du formulaire
+  // Titre saisi par l'utilisateur (surtout utile pour les docs sans titre naturel :
+  // notes de réunion, interviews, présentations). Vide → on retombe sur le nom de
+  // fichier ; dans tous les cas Claude pourra l'affiner ensuite (cf. processor).
+  const titleInput = (form.get('title') as string)?.trim() || null;
   const author = (form.get('author') as string)?.trim() || null;
   const date = (form.get('date') as string)?.trim() || null;
   const depositedBy = (form.get('deposited_by') as string)?.trim() || null;
+  // URL fournie explicitement par l'utilisateur (fichiers texte uniquement,
+  // cf. UploadModal). Jamais déduite du contenu par Claude.
+  const url = (form.get('url') as string)?.trim() || null;
   const typeRaw = (form.get('type') as string)?.trim();
   const type: ResourceType = VALID_TYPES.includes(typeRaw as ResourceType)
     ? (typeRaw as ResourceType)
@@ -84,11 +91,12 @@ export async function POST(req: NextRequest) {
   const { data: resource, error: resErr } = await db
     .from('resources')
     .insert({
-      title: filename,
-      slug: slugify(filename),
+      title: titleInput ?? filename,
+      slug: slugify(titleInput ?? filename),
       type,
       author,
       date,
+      url,
       deposited_by: depositedBy,
       status: 'pending',
       needs_review: false,
