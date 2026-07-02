@@ -133,3 +133,15 @@ Les `index.md` de `by-type/`, `by-author/`, `by-date/` sont des tableaux (`> N r
 ## Commandes
 
 Le dossier `.claude/commands` (skills `process-raw`, `lint`, `save-answer`) contient des actions manuelles. Quand on te demande d'exécuter une commande, lis le fichier correspondant et applique ses instructions.
+
+## Contexte applicatif
+
+Le dossier `web/` contient une interface Next.js 14 (App Router) qui consomme le wiki en lecture directe depuis le filesystem. Ses points d'entrée principaux :
+
+- `web/lib/wiki-parser.ts` — parse le frontmatter YAML des fiches `by-type/` en objets `Source`
+- `web/lib/wiki-fs.ts` — accès sécurisé au filesystem (anti path-traversal)
+- `web/lib/wiki-query.ts` — filtres, slugification, résolution des types
+- `web/lib/chat-context.ts` — construit le contexte LLM à partir des pages wiki pertinentes
+- `web/app/api/upload/route.ts` — écrit dans `/raw` ; les fichiers y restent jusqu'au prochain run
+
+**Impact sur la qualité du wiki** : la qualité du chat et des pages `/sources/[id]` dépend directement de la complétude des fiches `by-type/`. Retranscription quasi intégrale (section `## Contenu complet`) et métadonnées précises améliorent la pertinence des réponses LLM.

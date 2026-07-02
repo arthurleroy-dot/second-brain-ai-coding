@@ -17,6 +17,10 @@ L'idée : chacun dépose ses trouvailles brutes (articles, notes, liens, réflex
 │   ├── by-topic/           # Pages thématiques de synthèse (transversales)
 │   ├── index.md            # Index général (4 axes de navigation)
 │   └── log.md              # Journal des runs
+├── web/                    # Interface web Next.js (chat, navigation, upload)
+│   ├── app/                # App Router (pages + API routes)
+│   ├── components/         # Composants React
+│   └── lib/                # Logique métier (wiki parser, LLM client, Supabase…)
 ├── CLAUDE.md               # Instructions de l'agent mainteneur
 ├── .github/workflows/
 │   └── update-wiki.yml     # GitHub Action nocturne
@@ -46,6 +50,33 @@ Le comportement précis de l'agent est défini dans [CLAUDE.md](CLAUDE.md).
 - **Outils et Marché** — éditeurs, CLIs, acteurs du marché.
 - **Transformation Organisationnelle** — adoption, montée en compétence, conduite du changement.
 - **Sécurité et Risques** — risques du code généré, fuites de données, conformité.
+- **Context Engineering** — gestion du contexte LLM, prompts systèmes, mémoire, RAG.
+
+## Interface web
+
+L'application Next.js dans `web/` offre quatre vues :
+
+| Vue | Route | Description |
+|-----|-------|-------------|
+| Chat | `/chat` | Conversations avec le wiki via LLM ; sources citées en temps réel |
+| Wiki | `/wiki` | Grille des thèmes ; détail d'un thème + sources associées |
+| Sources | `/sources` | Liste filtrée (type, auteur, date, `needs_review`) + vue complète |
+| Explorer | `/explore` | Navigation par auteur et par date avec compteurs |
+
+Un bouton d'upload permet de déposer un fichier directement depuis l'interface (écrit dans `/raw` ; traitement déclenché à la demande ou lors du prochain run nocturne).
+
+**Variables d'environnement** (`web/.env.local`) :
+
+```env
+ANTHROPIC_API_KEY=sk-ant-...          # obligatoire
+ANTHROPIC_BASE_URL=https://...        # optionnel — proxy LiteLLM
+NEXT_PUBLIC_SUPABASE_URL=https://...  # optionnel — historique des chats
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...     # optionnel
+```
+
+```bash
+cd web && npm install && npm run dev   # http://localhost:3000
+```
 
 ## Mise en route
 
