@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClipboardType, Info, UploadCloud, X } from 'lucide-react';
 import { ResourceType } from '@/types';
 import { typeLabel } from '@/lib/ui';
-import ProcessingStatus from './ProcessingStatus';
+import IngestStatus from './IngestStatus';
 
 interface Props {
   onClose: () => void;
@@ -25,7 +25,7 @@ const PASTE_TYPES: ResourceType[] = [
   'transcript',
 ];
 /** Types proposés en mode « uploader un fichier » (PDF / PPTX / DOCX). */
-const UPLOAD_TYPES: ResourceType[] = ['article', 'presentation', 'transcript', 'unknown'];
+const UPLOAD_TYPES: ResourceType[] = ['report_pdf', 'article', 'presentation', 'transcript', 'unknown'];
 
 const TITLE_HINT =
   'Pour un article, le titre est détecté de façon fiable par l’analyse. En revanche, ' +
@@ -54,6 +54,10 @@ export default function UploadModal({ onClose, onResolved }: Props) {
   const [depositedBy, setDepositedBy] = useState('');
   const [type, setType] = useState<ResourceType>('article');
 
+  // Entités liées (optionnel) — outils/clients mentionnés, cf. docs/entities.md.
+  const [entities, setEntities] = useState('');
+  const [granularity, setGranularity] = useState<'auto' | 'resource' | 'chunk'>('auto');
+
   // Spécifiques à chaque mode.
   const [text, setText] = useState('');
   const [url, setUrl] = useState('');
@@ -62,7 +66,7 @@ export default function UploadModal({ onClose, onResolved }: Props) {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [jobId, setJobId] = useState<string | null>(null);
+  const [submittedFile, setSubmittedFile] = useState<string | null>(null);
 
   // Prénom du déposant mémorisé d'un dépôt à l'autre.
   useEffect(() => {
@@ -132,6 +136,10 @@ export default function UploadModal({ onClose, onResolved }: Props) {
       // URL : pertinente seulement pour un article collé (sans PDF).
       if (mode === 'paste' && type === 'article' && url.trim())
         form.append('url', url.trim());
+      if (entities.trim()) {
+        form.append('entities', entities.trim());
+        form.append('entities_granularity', granularity);
+      }
 
       const res = await fetch('/api/upload', { method: 'POST', body: form });
       const data = await res.json();
@@ -139,7 +147,7 @@ export default function UploadModal({ onClose, onResolved }: Props) {
         setError(data.error ?? "Échec de l'upload");
         return;
       }
-      setJobId(data.job_id);
+      setSubmittedFile(data.file);
     } catch {
       setError("Erreur réseau pendant l'upload.");
     } finally {
@@ -164,15 +172,15 @@ export default function UploadModal({ onClose, onResolved }: Props) {
           </button>
         </div>
 
-        {jobId ? (
-          // ---- Vue traitement ----
+        {submittedFile ? (
+          // ---- Vue ingestion ----
           <div className="space-y-4">
             <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
               {displayName}
             </div>
-            <ProcessingStatus
-              jobId={jobId}
-              onResolved={(status) => onResolved?.(status, displayName)}
+            <IngestStatus
+              file={submittedFile}
+              onResolved={() => onResolved?.('done', displayName)}
             />
             <div className="flex justify-end">
               <button
@@ -344,6 +352,37 @@ export default function UploadModal({ onClose, onResolved }: Props) {
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
                 />
               </label>
+
+              <label className="text-xs text-gray-600">
+                Entités liées (optionnel — outils, clients…)
+                <input
+                  value={entities}
+                  onChange={(e) => setEntities(e.target.value)}
+                  placeholder="n8n, claude-code, databricks"
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+                />
+                <span className="mt-1 block text-[11px] text-gray-400">
+                  Séparées par des virgules. Laisse vide : l'agent les détecte
+                  automatiquement.
+                </span>
+              </label>
+
+              {entities.trim() && (
+                <label className="text-xs text-gray-600">
+                  Granularité du lien
+                  <select
+                    value={granularity}
+                    onChange={(e) =>
+                      setGranularity(e.target.value as 'auto' | 'resource' | 'chunk')
+                    }
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+                  >
+                    <option value="auto">Auto (l'agent décide)</option>
+                    <option value="resource">Ressource entière</option>
+                    <option value="chunk">Sections concernées</option>
+                  </select>
+                </label>
+              )}
             </div>
 
             {error && <p className="text-xs text-red-600">{error}</p>}

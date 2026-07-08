@@ -1,37 +1,81 @@
 import { NextRequest } from 'next/server';
-import { requireAdmin } from '@/lib/supabase';
-import { slugify } from '@/lib/wiki-query';
+import path from 'path';
 import { ResourceType } from '@/types';
+import {
+  commitFiles,
+  isGithubConfigured,
+  resolveAvailableRawName,
+  FileToCommit,
+} from '@/lib/github';
 
 export const dynamic = 'force-dynamic';
 
 const ACCEPTED_EXT = ['.md', '.txt', '.pdf', '.pptx', '.docx'];
-const VALID_TYPES: ResourceType[] = [
-  'article',
-  'meeting_note',
-  'interview',
-  'presentation',
-  'transcript',
-  'personal_note',
-  'unknown',
-];
+const MAX_BYTES = 50 * 1024 * 1024; // 50 Mo
+
+// ResourceType (UI) → source_type (vocabulaire wiki, cf. docs/wiki-spec.md).
+const TYPE_TO_SOURCE_TYPE: Record<ResourceType, string> = {
+  article: 'article',
+  report_pdf: 'report-pdf',
+  tweet: 'tweet',
+  meeting_note: 'meeting-notes',
+  interview: 'interview',
+  presentation: 'presentation',
+  transcript: 'transcript',
+  personal_note: 'personal-notes',
+  unknown: 'unknown',
+};
 
 function ext(name: string): string {
   const i = name.lastIndexOf('.');
   return i === -1 ? '' : name.slice(i).toLowerCase();
 }
 
-function uuid(): string {
-  // crypto.randomUUID est dispo dans le runtime Node de Next.
-  return crypto.randomUUID();
+/** Nettoie un nom de fichier d'upload (basename, sans caractères de chemin). */
+function safeName(name: string): string {
+  return path.basename(name).replace(/[\\/]/g, '').trim();
+}
+
+/** Scalaire YAML sûr pour une chaîne (guillemets doubles échappés). */
+function yamlStr(v: string): string {
+  return JSON.stringify(v);
+}
+
+function field(form: FormData, key: string): string | null {
+  const v = form.get(key);
+  return typeof v === 'string' && v.trim() ? v.trim() : null;
+}
+
+/** Construit le sidecar `<source>.meta.md` à partir des métadonnées du formulaire. */
+function buildSidecar(meta: {
+  title: string | null;
+  sourceType: string;
+  author: string | null;
+  date: string | null;
+  url: string | null;
+  depositedBy: string | null;
+  entities: string[];
+  granularity: string;
+}): string {
+  const lines: string[] = ['---'];
+  if (meta.title) lines.push(`title: ${yamlStr(meta.title)}`);
+  lines.push(`type: ${meta.sourceType}`);
+  if (meta.author) lines.push(`author: ${yamlStr(meta.author)}`);
+  if (meta.date) lines.push(`date: ${yamlStr(meta.date)}`);
+  if (meta.url) lines.push(`url: ${yamlStr(meta.url)}`);
+  if (meta.depositedBy) lines.push(`deposited_by: ${yamlStr(meta.depositedBy)}`);
+  if (meta.entities.length) lines.push(`entities: [${meta.entities.join(', ')}]`);
+  if (meta.entities.length) lines.push(`entities_granularity: ${meta.granularity}`);
+  lines.push('---', '');
+  return lines.join('\n');
 }
 
 export async function POST(req: NextRequest) {
-  let db;
-  try {
-    db = requireAdmin();
-  } catch (e: any) {
-    return Response.json({ error: e.message }, { status: 503 });
+  if (!isGithubConfigured()) {
+    return Response.json(
+      { error: 'Dépôt GitHub non configuré (GITHUB_TOKEN / GITHUB_REPO).' },
+      { status: 503 },
+    );
   }
 
   let form: FormData;
@@ -46,101 +90,65 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'Aucun fichier fourni' }, { status: 400 });
   }
 
-  const filename = file.name;
-  const extension = ext(filename);
-  if (!ACCEPTED_EXT.includes(extension)) {
+  const name = safeName(file.name);
+  const extension = ext(name);
+  if (!name || !ACCEPTED_EXT.includes(extension)) {
     return Response.json(
       { error: `Extension non supportée (${extension}). Acceptés : ${ACCEPTED_EXT.join(', ')}` },
       { status: 400 },
     );
   }
-
-  // Métadonnées optionnelles du formulaire
-  // Titre saisi par l'utilisateur (surtout utile pour les docs sans titre naturel :
-  // notes de réunion, interviews, présentations). Vide → on retombe sur le nom de
-  // fichier ; dans tous les cas Claude pourra l'affiner ensuite (cf. processor).
-  const titleInput = (form.get('title') as string)?.trim() || null;
-  const author = (form.get('author') as string)?.trim() || null;
-  const date = (form.get('date') as string)?.trim() || null;
-  const depositedBy = (form.get('deposited_by') as string)?.trim() || null;
-  // URL fournie explicitement par l'utilisateur (fichiers texte uniquement,
-  // cf. UploadModal). Jamais déduite du contenu par Claude.
-  const url = (form.get('url') as string)?.trim() || null;
-  const typeRaw = (form.get('type') as string)?.trim();
-  const type: ResourceType = VALID_TYPES.includes(typeRaw as ResourceType)
-    ? (typeRaw as ResourceType)
-    : 'unknown';
-
-  // 1. Upload du fichier brut dans Storage
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const storagePath = `${uuid()}-${filename}`;
-  const { error: uploadErr } = await db.storage
-    .from('raw-files')
-    .upload(storagePath, buffer, {
-      contentType: file.type || 'application/octet-stream',
-      upsert: false,
-    });
-  if (uploadErr) {
+  if (file.size > MAX_BYTES) {
     return Response.json(
-      { error: `Upload Storage échoué : ${uploadErr.message}` },
-      { status: 502 },
+      { error: `Fichier trop volumineux (max ${MAX_BYTES / 1024 / 1024} Mo).` },
+      { status: 413 },
     );
   }
 
-  // 2. Crée la ressource (status pending)
-  const { data: resource, error: resErr } = await db
-    .from('resources')
-    .insert({
-      title: titleInput ?? filename,
-      slug: slugify(titleInput ?? filename),
-      type,
+  // Métadonnées (précédence humaine : le sidecar est autoritaire côté agent).
+  const title = field(form, 'title');
+  const author = field(form, 'author');
+  const date = field(form, 'date');
+  const depositedBy = field(form, 'deposited_by');
+  const url = field(form, 'url');
+  const typeRaw = (field(form, 'type') ?? 'unknown') as ResourceType;
+  const sourceType = TYPE_TO_SOURCE_TYPE[typeRaw] ?? 'unknown';
+  const entities = (field(form, 'entities') ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase().replace(/\s+/g, '-'))
+    .filter(Boolean);
+  const granularity = field(form, 'entities_granularity') ?? 'auto';
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  try {
+    // Nom disponible dans raw/ (suffixe -2, -3… en cas de collision).
+    const finalName = await resolveAvailableRawName(name);
+    const sidecar = buildSidecar({
+      title,
+      sourceType,
       author,
       date,
       url,
-      deposited_by: depositedBy,
-      status: 'pending',
-      needs_review: false,
-      storage_path: storagePath,
-    })
-    .select()
-    .single();
-  if (resErr || !resource) {
+      depositedBy,
+      entities,
+      granularity,
+    });
+
+    const files: FileToCommit[] = [
+      { path: `raw/${finalName}`, content: buffer },
+      { path: `raw/${finalName}.meta.md`, content: sidecar },
+    ];
+    const { commitSha } = await commitFiles(
+      files,
+      `feat(raw): dépôt "${title ?? finalName}" via plateforme`,
+    );
+
+    return Response.json({ ok: true, file: finalName, commit_sha: commitSha });
+  } catch (e: any) {
     return Response.json(
-      { error: `Création ressource échouée : ${resErr?.message ?? 'inconnu'}` },
+      { error: `Commit GitHub échoué : ${e?.message ?? 'inconnu'}` },
       { status: 502 },
     );
   }
-
-  // 3. Crée le job de traitement
-  const { data: job, error: jobErr } = await db
-    .from('processing_jobs')
-    .insert({ resource_id: resource.id, status: 'queued' })
-    .select()
-    .single();
-  if (jobErr || !job) {
-    return Response.json(
-      { error: `Création job échouée : ${jobErr?.message ?? 'inconnu'}` },
-      { status: 502 },
-    );
-  }
-
-  // 4. Déclenche le traitement en arrière-plan (non-bloquant)
-  // On NE PAS await : la requête part et la route répond immédiatement.
-  // (En local, le process Next persiste et exécute /api/process en parallèle.
-  //  En prod serverless, prévoir un worker/Edge Function — cf. plan.)
-  const origin = req.nextUrl.origin;
-  void fetch(`${origin}/api/process`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ job_id: job.id }),
-  }).catch(() => {
-    /* fire-and-forget : on ignore les erreurs réseau de déclenchement */
-  });
-
-  return Response.json({
-    ok: true,
-    resource_id: resource.id,
-    job_id: job.id,
-    status: 'pending',
-  });
 }
