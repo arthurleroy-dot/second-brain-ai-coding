@@ -1,60 +1,70 @@
-# Wiki — AI Coding
+---
+type: index
+last_updated: "2026-07-03"
+resource_count: 13
+theme_count: 6
+author_count: 10
+---
 
-Second brain collaboratif sur l'AI Coding. Le wiki est organisé selon **quatre axes de navigation** complémentaires. Le **contenu complet de chaque ressource vit uniquement dans `by-type/`** ; `by-author/` et `by-date/` ne contiennent que des index de liens.
+## Thèmes (6)
 
-## Axes de navigation
-
-| Axe | Dossier | Contenu |
-|-----|---------|---------|
-| Par **type** | [by-type/](by-type/) | Maison physique des ressources (1 fichier complet par source) |
-| Par **auteur** | [by-author/](by-author/) | Index de liens, une page par auteur/organisation |
-| Par **date** | [by-date/](by-date/) | Index de liens, par année puis par mois |
-| Par **thème** | [by-topic/](by-topic/) | Pages thématiques de synthèse (transversales aux sources) |
-
-## Par type
-
-| Type | Index | Ressources |
-|------|-------|------------|
-| Articles | [by-type/articles/](by-type/articles/index.md) | 13 |
-| Meeting notes | [by-type/meeting-notes/](by-type/meeting-notes/index.md) | 0 |
-| Interviews | [by-type/interviews/](by-type/interviews/index.md) | 0 |
-| Présentations | [by-type/presentations/](by-type/presentations/index.md) | 0 |
-| Transcripts | [by-type/transcripts/](by-type/transcripts/index.md) | 0 |
-| Notes personnelles | [by-type/personal-notes/](by-type/personal-notes/index.md) | 0 |
-| Inconnu | [by-type/unknown/](by-type/unknown/index.md) | 0 |
-
-## Par auteur
-
-[Anthropic](by-author/anthropic/index.md) · [Deloitte](by-author/deloitte/index.md) · [McKinsey](by-author/mckinsey/index.md) · [Accenture](by-author/accenture/index.md) · [ECI Research](by-author/eci-research/index.md) · [First Line Software](by-author/first-line-software/index.md) · [Rick Pollick](by-author/rick-pollick/index.md) · [CNBC](by-author/cnbc/index.md) · [Fortune](by-author/fortune/index.md) · [LeanOps Tech](by-author/leanops-tech/index.md) · [Auteur inconnu](by-author/unknown/index.md)
-
-## Par date
-
-- [2024](by-date/2024/index.md) — 1 ressource
-- [2025](by-date/2025/index.md) — 1 ressource
-- [2026](by-date/2026/index.md) — 11 ressources (dont 4 au mois inconnu)
-- [Date inconnue](by-date/unknown/index.md) — 0 ressource
-
-## Par thème
-
-| Page | Description |
-|------|-------------|
-| [Agentic Coding](by-topic/agentic-coding.md) | Agents autonomes, équipes multi-agents coordonnées, agents long-running, usine d'agents, supervision humaine (human-in-the-loop), niveaux L1→L4, « 100 % du code écrit par l'IA » dans les labs et vibe coding. |
-| [FinOps IA](by-topic/finops-ia.md) | Consommation de tokens, paradoxe de Jevons, coût comme problème d'ingénierie, coût unitaire et boucle attribute/budget/gate/optimize, pourquoi le FinOps cloud casse sur l'IA, modèles de tarification et ROI. |
-| [Outils et Marché](by-topic/outils-et-marche.md) | Outils d'AI Coding (Claude Code, Copilot, Cursor, Antigravity…), course Microsoft/Google vs Anthropic/OpenAI, AI-natifs vs incumbents, M&A, mort du per-seat SaaS et prévisions de marché. |
-| [Transformation Organisationnelle](by-topic/transformation-organisationnelle.md) | Du codeur à l'orchestrateur, sprint 24 h, redimensionnement des équipes (-60 %), rôles AI-natifs, stratification du métier de dev, reckoning du consulting, upskilling, écart access↔activation. |
-| [Sécurité et Risques](by-topic/securite-et-risques.md) | Usage dual des agents, défense cyber agentique, première attaque IA-orchestrée (Claude Code), gouvernance des agents autonomes (21 % matures), code IA 2,74× plus vulnérable, hallucination, érosion des compétences. |
-| [Context Engineering](by-topic/context-engineering.md) | Spec-driven development, tâches agent-ready, handoffs machine-à-machine, knowledge graphs comme couche de mémoire IA, environnement standardisé et modulaire. |
-
-Voir aussi le [journal des runs](log.md).
+- [[themes/agentic-coding|Agentic Coding]] — 7 ressources · agentic factories, 4 niveaux 1×→20×, Cursor, IBM, LATAM Airlines
+- [[themes/context-engineering|Context Engineering]] — 3 ressources · knowledge graphs, spec-driven dev, agent-ready tasks
+- [[themes/finops-ia|FinOps IA]] — 8 ressources · paradoxe de Jevons, token attribution, FinOps parallèle pour LLMs
+- [[themes/outils-et-marche|Outils et Marché]] — 8 ressources · Claude Code vs Copilot vs Codex, marché $780B en 2030
+- [[themes/securite-et-risques|Sécurité et Risques]] — 5 ressources · IA souveraine, cybersécurité agentique, gouvernance agents
+- [[themes/transformation-organisationnelle|Transformation Organisationnelle]] — 8 ressources · 24h sprint, équipes 8-12→3-4, redesign emplois
 
 ---
 
-### Thèmes de départ
+## Auteurs (10)
 
-Ces thèmes servent de point de départ. Une page est créée dès qu'un fichier de `/raw` apporte du contenu sur l'un d'eux.
+- [[authors/accenture|Accenture]] — 1 ressource · 2024 · 9%→16% processus AI-led ; 2.5×/2.4×/3.3× vs pairs
+- [[authors/anthropic|Anthropic]] — 1 ressource · 2026 · 8 tendances agentic coding ; paradoxe 60/20%
+- [[authors/cnbc|CNBC]] — 1 ressource · 2026-06 · course AI coding : Anthropic en tête, Google/Microsoft en rattrapage
+- [[authors/deloitte|Deloitte]] — 2 ressources · 2026-01 & 2026-02 · State of AI + Software Industry Outlook
+- [[authors/eci-research|ECI Research]] — 1 ressource · 2026 · runtime cost governance ; FinOpsX 2026
+- [[authors/first-line-software|First Line Software]] — 1 ressource · 2026-04 · panorama IT 2026-2035 par secteur
+- [[authors/fortune|Fortune]] — 1 ressource · 2026-01 · Boris Cherny 100% AI code ; Dario Amodei 6-12 mois
+- [[authors/leanops-tech|LeanOps Tech]] — 1 ressource · 2026 · 23 entreprises IA : FinOps parallèle pour LLMs
+- [[authors/mckinsey|McKinsey]] — 3 ressources · 2025-11 & 2026-04 & 2026-05 · factory agentique ; 2 shifts + 3 enablers
+- [[authors/rick-pollick|Rick Pollick]] — 1 ressource · 2026 · coût LLM = problème d'ingénierie, pas de finance
 
-- **Agentic Coding** — agents autonomes, boucles agentiques, orchestration, workflows de code assisté par IA.
-- **FinOps IA** — coûts des modèles, optimisation de la consommation de tokens, ROI, budgétisation.
-- **Outils et Marché** — éditeurs, CLIs, extensions, acteurs et dynamiques du marché de l'AI Coding.
-- **Transformation Organisationnelle** — adoption en équipe, montée en compétence, processus, conduite du changement.
-- **Sécurité et Risques** — risques liés au code généré, fuites de données, conformité, bonnes pratiques de sécurité.
+---
+
+## Ressources (13)
+
+### Articles (6)
+
+- [[resources/ai-finops-2026-runtime-cost-governance-cant-wait|AI FinOps in 2026: Why Runtime Cost Governance Can't Wait]] — ECI Research · 2026 ⚠ · token comme unité économique invisible ; windshield vs rearview mirror
+- [[resources/finops-ai-llm-cost-engineering-not-finance|FinOps for AI: Why LLM Cost Is an Engineering Problem, Not a Finance One]] — Rick Pollick · 2026 ⚠ · paradoxe de Jevons ; 280× baisse prix tokens ; 5 leviers ingénierie
+- [[resources/traditional-finops-breaks-ai-workloads|Traditional FinOps Breaks On AI Workloads]] — LeanOps Tech · 2026 ⚠ · 7 points de rupture FinOps classique ; 23 entreprises ; $580K économisés
+- [[resources/microsoft-google-late-ai-coding-compete-growth|Microsoft and Google are late to AI coding]] — CNBC · 2026-06 · marché AI coding ; Antigravity 2.0, Gemini 3.5 Flash ; $50B en 5 ans
+- [[resources/top-engineers-anthropic-openai-ai-writes-100-pct-code|Top engineers at Anthropic, OpenAI say AI now writes 100% of their code]] — Fortune · 2026-01 · Boris Cherny 27 PRs/jour ; Dario Amodei 6-12 mois ; implications emploi
+- [[resources/ai-software-development-what-changes-2026-2035|AI Software Development: What Changes from 2026 to 2035]] — First Line Software · 2026-04 · $6.15T IT 2026 ; agentic AI 119% CAGR ; panorama décennal
+
+### Reports PDF (7)
+
+- [[resources/2026-agentic-coding-trends-report|Anthropic Agentic Coding Trends Report 2026]] — Anthropic · 2026 ⚠ · 8 tendances ; Rakuten 12.5M LOC ; TELUS 500K heures ; Zapier 89%
+- [[resources/2026-software-industry-outlook|2026 Software Industry Outlook]] — Deloitte · 2026-02-12 · marché $780B 2030 ; 60% TAM via agents ; cybersécurité agentique
+- [[resources/state-of-ai-2026-untapped-edge|State of AI in the Enterprise — The untapped edge]] — Deloitte · 2026-01 · 3 235 répondants ; untapped edge ; 23%→74% agentique ; IA souveraine
+- [[resources/accenture-research-ai-led-processes-outperform-peers|New Accenture Research Finds that Companies with AI-Led Processes Outperform Peers]] — Accenture · 2024-10-10 · 2 000 exécutifs ; 2.5×/2.4×/3.3× ; 4 actions clés
+- [[resources/unlocking-value-ai-software-development|Unlocking the value of AI in software development]] — McKinsey · 2025-11 · 300 cotées ; 2 shifts + 3 enablers ; Cursor case study ; +15pp top performers
+- [[resources/ai-revolution-software-development|The AI revolution in software development]] — McKinsey · 2026-04 · 4 niveaux 1×→20× ; factory 2 postes ; IBM 8 000 devs ; LATAM +50%
+- [[resources/rewiring-software-delivery-agentic-era|Rewiring software delivery for the agentic era]] — McKinsey · 2026-05 · sprint 24h ; 3-5× prod, 60% réduction équipes ; knowledge graphs
+
+---
+
+## Index par date
+
+- [[by-date/2024/2024|2024]] — 1 ressource
+- [[by-date/2025/2025|2025]] — 1 ressource
+- [[by-date/2026/2026|2026]] — 11 ressources (dont 4 date exacte inconnue)
+
+## Index par type
+
+→ [[types]]
+
+## Index par origine
+
+→ [[origin]]

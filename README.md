@@ -8,35 +8,37 @@ L'idée : chacun dépose ses trouvailles brutes (articles, notes, liens, réflex
 
 ```
 .
-├── raw/                    # Inbox : fichiers bruts (texte + frontmatter, ou PDF + sidecar .meta.md)
+├── raw/                    # Couche 1 : sources immuables (texte + frontmatter, ou PDF + sidecar .meta.md)
 │   └── README.md
-├── wiki/                   # Wiki structuré, maintenu par l'agent
-│   ├── by-type/            # MAISON PHYSIQUE : 1 fiche complète par ressource (articles/, …)
-│   ├── by-author/          # Index de pointeurs, une page par auteur
-│   ├── by-date/            # Index de pointeurs, par année puis par mois
-│   ├── by-topic/           # Pages thématiques de synthèse (transversales)
-│   ├── index.md            # Index général (4 axes de navigation)
+├── wiki/                   # Couche 2 & 3 : wiki structuré, maintenu par l'agent
+│   ├── resources/          # Couche 2 — CANONIQUE : 1 fiche complète par source brute
+│   ├── themes/             # Couche 3 — vue dérivée : liens vers chunks par thème
+│   ├── authors/            # Couche 3 — vue dérivée : table des ressources par auteur
+│   ├── by-date/            # Couche 3 — vue dérivée : index temporel (YYYY/YYYY-MM)
+│   ├── graph.json          # Export machine-readable (nodes + edges)
+│   ├── index.md            # Catalogue général (thèmes, auteurs, ressources)
+│   ├── types.md            # Index par type de source
+│   ├── origin.md           # Index par origine (interne/externe)
 │   └── log.md              # Journal des runs
 ├── web/                    # Interface web Next.js (chat, navigation, upload)
 │   ├── app/                # App Router (pages + API routes)
 │   ├── components/         # Composants React
 │   └── lib/                # Logique métier (wiki parser, LLM client, Supabase…)
 ├── CLAUDE.md               # Instructions de l'agent mainteneur
-├── .github/workflows/
-│   └── update-wiki.yml     # GitHub Action nocturne
 └── README.md               # Ce fichier
 ```
 
-Le wiki s'explore selon **quatre axes** : par **type** (`by-type/`, où vit le contenu complet), par **auteur** (`by-author/`), par **date** (`by-date/`) et par **thème** (`by-topic/`). `by-author/` et `by-date/` ne contiennent que des **liens** vers les fiches de `by-type/`.
+**Architecture en 3 couches :** `raw/` (immuable) → `wiki/resources/` (contenu intégral, canonique) → tout le reste (vues dérivées générées depuis les ressources). Le contenu n'est jamais dupliqué : `themes/` et `authors/` ne font que pointer vers les sections de `resources/`.
 
 ## Workflow
 
 1. **Vous déposez** un fichier brut dans [`/raw`](raw/README.md) — note, article, lien annoté, transcription… Aucun tri ni renommage manuel. Idéalement, renseignez l'**URL** et la **date** de la source.
 2. **L'agent traite** les nouveaux fichiers (texte sans `processed: true`, ou binaire sans sidecar `.meta.md` traité) :
    - il extrait les **métadonnées** (type, auteur, date, url, topics) et les concepts clés ;
-   - il crée une **fiche complète** par source dans [`by-type/`](wiki/by-type/) et ajoute les **pointeurs** dans `by-author/` et `by-date/` ;
-   - il enrichit les pages thématiques de [`by-topic/`](wiki/by-topic/) ;
-   - il n'efface jamais d'information existante, il **enrichit uniquement** ;
+   - il crée une **fiche ressource complète** dans [`wiki/resources/`](wiki/resources/) avec le contenu intégral annoté par chunk (`topics:` sur chaque section) ;
+   - il met à jour les **vues dérivées** : [`themes/`](wiki/themes/), [`authors/`](wiki/authors/), [`by-date/`](wiki/by-date/), `types.md`, `origin.md` ;
+   - il met à jour [`graph.json`](wiki/graph.json) (nodes + edges) ;
+   - il n'efface jamais de contenu existant, il **enrichit uniquement** ;
    - il marque chaque fichier traité (`processed: true` dans le frontmatter ou le sidecar) ;
    - il tient l'[index](wiki/index.md) et le [journal](wiki/log.md) à jour.
 3. **Automatisation** : la GitHub Action [`update-wiki.yml`](.github/workflows/update-wiki.yml) tourne **tous les soirs à 23h** (et peut être lancée à la main). Elle installe Claude Code, lui demande de traiter `/raw`, puis commit et push les mises à jour du wiki.

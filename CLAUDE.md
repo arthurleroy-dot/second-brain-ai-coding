@@ -1,147 +1,260 @@
-# CLAUDE.md — Agent mainteneur du wiki AI Coding
+# CLAUDE.md — Wiki "AI Coding Second Brain"
 
-Tu maintiens un **wiki collaboratif sur l'AI Coding**. À partir des fichiers déposés dans `/raw`, tu construis et enrichis un wiki structuré dans `/wiki`.
+Tu es l'agent responsable de la maintenance de ce wiki. Ce fichier est ta seule
+source de vérité. Lis-le en entier avant toute opération d'ingestion, de requête
+ou de lint. Mets-le à jour si de nouvelles conventions émergent.
 
-## Arborescence du wiki
+---
+
+## 1. Architecture en 3 couches
 
 ```
-/wiki/
-├── by-type/        ← MAISON PHYSIQUE : 1 fichier complet par ressource
-│   ├── articles/ meeting-notes/ interviews/ presentations/
-│   ├── transcripts/ personal-notes/ unknown/
-│   └── <type>/index.md + <type>/[slug].md
-├── by-author/      ← POINTEURS uniquement (index de liens)
-│   └── [auteur]/index.md   (+ unknown/)
-├── by-date/        ← POINTEURS uniquement (index de liens)
-│   └── [YYYY]/[YYYY-MM]/index.md   (+ [YYYY]/unknown/, + unknown/)
-├── by-topic/       ← pages thématiques de synthèse (transversales)
-│   └── agentic-coding.md finops-ia.md outils-et-marche.md
-│       transformation-organisationnelle.md securite-et-risques.md
-│       context-engineering.md
-├── index.md        ← index général (4 axes)
-└── log.md          ← journal des runs
+/raw/                          ← Couche 1 : sources immuables
+  README.md                    ← règles de dépôt (ne pas toucher)
+  *.md / *.pdf.meta.md         ← sources brutes (frontmatter only pour PDFs)
+
+/wiki/                         ← Couche 2 & 3
+  resources/                   ← Couche 2 : CANONIQUE — une page par source brute
+    <slug>.md                  ← contenu intégral, paraphrasé + annoté par chunk
+  themes/                      ← Couche 3 : vue dérivée — liens vers chunks
+    <slug-theme>.md
+  authors/                     ← Couche 3 : vue dérivée — table
+    <slug-auteur>.md
+  by-date/                     ← Couche 3 : vue dérivée — index temporel
+    <YYYY>/
+      index.md
+      <YYYY-MM>/
+        index.md
+  index.md                     ← catalogue général
+  graph.json                   ← export machine-readable
+  types.md                     ← index par type (article, report-pdf, etc.)
+  origin.md                    ← index par origine (interne/externe)
+  log.md                       ← journal append-only
+  _archive/                    ← archives des reconstructions passées
 ```
 
-**Règle fondamentale** : le contenu complet d'une ressource vit **uniquement** dans `by-type/[type]/[slug].md`. `by-author/` et `by-date/` ne contiennent que des `index.md` listant des liens vers `by-type/`.
+**Règle cardinale :** `resources/*.md` est la source de vérité du contenu.
+Toutes les autres pages sous `wiki/` sont des **vues dérivées** générées depuis
+les ressources. Ne jamais écrire de contenu original dans themes/, authors/,
+by-date/, types.md, origin.md.
 
-## Standard de métadonnées
+---
 
-Fichier texte `/raw` (`.md`, `.txt`) → frontmatter YAML en tête :
+## 2. Format des ressources (`/wiki/resources/<slug>.md`)
+
+### 2.1 Frontmatter
+
 ```yaml
 ---
-type: article | meeting_note | interview | presentation | transcript | personal_note
-author: "Nom ou organisation"   # vide ou "unknown" si inconnu
-date: "YYYY-MM-DD"               # vide si inconnue ; "YYYY" si seule l'année est connue
-url: "https://..."               # vide si absent
-deposited_by: "Prénom"           # membre de l'équipe ; vide si inconnu
-topics: [agentic-coding, finops-ia]
-needs_review: false              # true si une info manque ou est imprécise
-processed: false
+slug: <slug-stable>           # dérivé du titre, minuscules+tirets, max 60 chars, immuable
+title: "Titre complet"
+author: "Nom Auteur / Organisation"
+date: "2026-04"               # AAAA | AAAA-MM | AAAA-MM-JJ
+source_type: article          # article | report-pdf | tweet | interview | presentation | meeting-notes | transcript | personal-notes
+origin: externe               # interne | externe — déterminé par heuristique (voir §5)
+topics: [finops-ia, agentic-coding]   # union de tous les topics de sections
+url: "https://..."
+source_file: "<nom exact dans /raw>"
+needs_review: false           # true uniquement si origin non déductible (voir §5)
 ---
 ```
 
-Fichier binaire `/raw` (PDF, PPTX…) → sidecar `[nom-exact].meta.md` à côté, avec les mêmes champs + `source_file:` et une section `## Notes extraites automatiquement`. **Ne supprime jamais** le binaire ni ses marqueurs : ils servent de trace des sources.
+### 2.2 Chunk annotation
 
-Métadonnée manquante : `type`→`unknown`, `author`→`unknown`, `date` absente → pas de classement par date. Jamais de valeur inventée ; marque `needs_review: true`.
+Chaque section `##` ou `###` porte une ligne `topics:` immédiatement après le heading :
 
-## Workflow de traitement (par fichier de `/raw`)
+```markdown
+## Titre de section
+`topics: [finops-ia, agentic-coding]`
 
-1. **Déjà traité ?** Texte avec `processed: true`, ou binaire dont le sidecar `.meta.md` (ou l'ancien marqueur `.processed`) indique `processed: true` → **ignorer**.
-2. **Binaire sans sidecar** → crée `[nom].meta.md` (titre/auteur/date extraits ; incertain → vide + `needs_review: true`).
-3. **Extrais** les métadonnées et les concepts clés.
-4. **Détermine le classement** avec fallback (`unknown` si besoin).
-5. **Crée les dossiers manquants** toi-même (`by-type/[type]/`, `by-author/[auteur]/`, `by-date/[YYYY]/[YYYY-MM]/`).
-6. **Crée la fiche** `by-type/[type]/[slug].md` (slug = nom du fichier source en minuscules-tirets) avec le template ci-dessous.
-7. **Mets à jour les index** : `by-type/[type]/index.md`, `by-author/[auteur]/index.md`, `by-date/[YYYY]/[YYYY-MM]/index.md` (si date connue). Réévalue les compteurs « N ressource(s) ».
-8. **Enrichis les pages `by-topic/`** concernées avec les nouveaux concepts.
-9. **Marque comme traité** : texte → `processed: true` dans le frontmatter ; binaire → `processed: true` dans le sidecar.
-10. **Mets à jour** `wiki/index.md` et `wiki/log.md`.
+Contenu de la section...
+```
 
-## Granularité
+### 2.3 Contenu
 
-1 fiche = **1 source déposée dans `/raw`**. Les citations externes contenues dans une source (Gartner, Stanford HAI…) restent des citations, pas des fiches autonomes. 1 page `by-topic/` = **un thème stable** : plusieurs sources enrichissent la même page thématique.
+- **Intégral et fidèle** : reproduire toute l'information, chaque chiffre, chaque
+  exemple, chaque citation nommée. Paraphrase acceptable, raccourcissement non.
+- Pas de résumé court : une source longue → une page longue.
+- Fins de page : section `## Liens` avec wikilinks vers themes/ et authors/.
 
-## Règles d'or
+---
 
-- **Ne supprime JAMAIS** d'information existante dans `/wiki` : tu enrichis uniquement.
-- Le contenu complet vit dans `by-type/` ; `by-author/` et `by-date/` ne contiennent que des liens.
-- Reporte les **sources avec URL et date** dès qu'elles sont disponibles.
-- Métadonnée manquante → `unknown` / champ vide + `needs_review: true`. Jamais de valeur inventée.
-- **Contributeurs** : distingue l'**auteur de la source** (créateur du contenu) du **membre de l'équipe** qui a déposé le fichier (`deposited_by`).
-- **Cross-références** : relie les pages avec `[[nom-de-la-page]]` (les slugs `by-topic/` existants : `agentic-coding`, `finops-ia`, `outils-et-marche`, `transformation-organisationnelle`, `securite-et-risques`, `context-engineering`).
-- **Log** : à chaque run, ajoute dans `wiki/log.md` une entrée commençant par `## [YYYY-MM-DD]` (fichiers traités, fiches et pages créées/enrichies).
+## 3. Format des vues dérivées
 
-## Réponse aux questions en langage naturel
-
-Route selon l'axe : auteur → `by-author/[auteur]/index.md` ; date/mois → `by-date/[YYYY]/[YYYY-MM]/index.md` ; type → `by-type/[type]/index.md` ; thème → `by-topic/*.md`. Combine les axes si besoin (« McKinsey sur le FinOps » = `by-author/mckinsey/` ∩ `by-topic/finops-ia.md`). Cite toujours : titre, auteur, type, date (ou « date inconnue »), lien vers la fiche.
-
-## Format d'un fichier de ressource individuel
-
-Chaque ressource dans `by-type/[type]/[slug].md` suit ce template :
+### themes/<slug>.md
+**Pas de synthèse.** Seulement des liens vers les chunks des ressources qui
+couvrent ce thème, groupés par ressource.
 
 ```markdown
 ---
-slug: [slug-unique]
-type: [type]
-author: "[auteur]"
-date: "[YYYY-MM-DD ou vide]"
-url: "[url ou vide]"
-deposited_by: "[prénom ou vide]"
-topics: [liste]
-source_file: "[chemin vers /raw]"
-needs_review: false
+type: theme
+slug: finops-ia
+label: FinOps IA
+resource_count: N
+last_updated: "AAAA-MM-JJ"
 ---
 
-# [Titre de la ressource]
+## [[resources/<slug>|Titre de la ressource]]
+`date · source_type · origin — Auteur`
 
-## Résumé
-[3 à 5 lignes donnant le contexte général du document — qui l'a écrit, pourquoi, quel est son propos central]
-
-## Contenu complet
-[Retranscription quasi intégrale du document source.
-Règles strictes :
-- Ne résume PAS, ne condense PAS
-- Retranscris tous les arguments, sections, sous-sections dans leur ordre d'apparition
-- Inclus tous les chiffres, statistiques, pourcentages, dates mentionnés
-- Inclus toutes les citations et formulations notables entre guillemets
-- Inclus les tableaux, listes, frameworks, modèles décrits dans le document
-- Inclus les conclusions et recommandations
-- Si le document est structuré en parties, reproduis cette structure avec les mêmes titres
-- L'objectif est que n'importe quelle question sur un détail du document
-  puisse trouver sa réponse ici sans avoir à ouvrir le fichier source]
-
-## Concepts clés
-[Liste exhaustive des concepts, frameworks, termes techniques et idées principales
-présents dans le document — extraits du contenu complet ci-dessus]
-
-## Citations et formulations notables
-[Les phrases marquantes, définitions précises, ou formulations importantes
-du document original, entre guillemets avec indication de la section d'origine]
-
-## Données et chiffres clés
-[Tous les chiffres, statistiques, pourcentages, dates, et données quantitatives
-mentionnés dans le document, avec leur contexte]
-
-## Liens connexes
-- Topics : [[topic-1]] [[topic-2]]
-- Auteur : [lien vers by-author/[auteur]/index.md]
-- Date : [lien vers by-date/[YYYY]/[YYYY-MM]/index.md]
+- [[resources/<slug>#section-heading|Titre de section]] — take-away en 1 ligne
 ```
 
-Les `index.md` de `by-type/`, `by-author/`, `by-date/` sont des tableaux (`> N ressource(s)` + colonnes Titre/Auteur ou Type/Date/Topics/Fichier).
+### authors/<slug>.md
+Table des ressources de cet auteur/organisation.
 
-## Commandes
+```markdown
+---
+type: author
+slug: mckinsey
+label: McKinsey
+resource_count: N
+---
 
-Le dossier `.claude/commands` (skills `process-raw`, `lint`, `save-answer`) contient des actions manuelles. Quand on te demande d'exécuter une commande, lis le fichier correspondant et applique ses instructions.
+| Ressource | Date | Type | Origin | Topics |
+|-----------|------|------|--------|--------|
+| [[resources/<slug>\|Titre]] | 2026-05 | report-pdf | externe | agentic-coding, ... |
+```
 
-## Contexte applicatif
+### by-date/<YYYY>/<YYYY-MM>/index.md
+Table des ressources publiées ce mois-là. Idem pour `<YYYY>/index.md` (liste
+les mois + ressources sans date précise).
 
-Le dossier `web/` contient une interface Next.js 14 (App Router) qui consomme le wiki en lecture directe depuis le filesystem. Ses points d'entrée principaux :
+### graph.json
 
-- `web/lib/wiki-parser.ts` — parse le frontmatter YAML des fiches `by-type/` en objets `Source`
-- `web/lib/wiki-fs.ts` — accès sécurisé au filesystem (anti path-traversal)
-- `web/lib/wiki-query.ts` — filtres, slugification, résolution des types
-- `web/lib/chat-context.ts` — construit le contexte LLM à partir des pages wiki pertinentes
-- `web/app/api/upload/route.ts` — écrit dans `/raw` ; les fichiers y restent jusqu'au prochain run
+Types d'edges réels du graphe :
 
-**Impact sur la qualité du wiki** : la qualité du chat et des pages `/sources/[id]` dépend directement de la complétude des fiches `by-type/`. Retranscription quasi intégrale (section `## Contenu complet`) et métadonnées précises améliorent la pertinence des réponses LLM.
+| Edge | Source → Target | Signification |
+|------|------------------|----------------|
+| `written_by` | resource → author | Cette ressource a été écrite par cet auteur |
+| `has_type` | resource → source_type | Type de contenu de cette ressource |
+| `has_origin` | resource → origin | Origine interne ou externe |
+| `belongs_to_theme` | resource → theme | Cette ressource aborde ce thème |
+| `published_on` | resource → date | Date de publication |
+| `year_of` | date (mois) → date (année) | Hiérarchie temporelle |
+
+```json
+{
+  "generated": "AAAA-MM-JJ",
+  "nodes": [
+    {"id": "resource:<slug>", "type": "resource", "label": "..."},
+    {"id": "theme:<slug>", "type": "theme", "label": "..."},
+    {"id": "author:<slug>", "type": "author", "label": "..."},
+    {"id": "type:article", "type": "source_type", "label": "Article"},
+    {"id": "origin:externe", "type": "origin", "label": "Externe"},
+    {"id": "date:2026", "type": "date", "label": "2026", "granularity": "year"},
+    {"id": "date:2026-04", "type": "date", "label": "2026-04", "granularity": "month", "year": "2026"}
+  ],
+  "edges": [
+    {"source": "resource:<slug>", "target": "author:<slug>", "relation": "written_by"},
+    {"source": "resource:<slug>", "target": "type:article", "relation": "has_type"},
+    {"source": "resource:<slug>", "target": "origin:externe", "relation": "has_origin"},
+    {"source": "resource:<slug>", "target": "theme:<slug>", "relation": "belongs_to_theme"},
+    {"source": "resource:<slug>", "target": "date:2026-04", "relation": "published_on"},
+    {"source": "date:2026-04", "target": "date:2026", "relation": "year_of"}
+  ]
+}
+```
+Ne pas ajouter d'arête `has_origin` si `origin` est inconnu pour une ressource.
+Une date `AAAA-MM-JJ` se normalise au niveau mois pour l'edge `published_on` (cible `date:AAAA-MM`).
+Mettre à jour (ajouter nodes+edges) à chaque ingestion — ne pas régénérer de zéro.
+
+---
+
+## 4. Règles de slug
+
+- Dérivé du **titre** (pas du nom de fichier `/raw`).
+- Minuscules, tirets, sans accents, max ~60 caractères.
+- **Immuable** une fois assigné — renommer casse les wikilinks.
+- Exemples : `ai-finops-2026-runtime-cost-governance-cant-wait`,
+  `rewiring-software-delivery-agentic-era`.
+
+---
+
+## 5. Heuristique origin
+
+| Indice dans la source | → origin |
+|-----------------------|----------|
+| meeting-notes, personal-notes, transcript interne | `interne` |
+| article signé d'un tiers, rapport PDF d'un cabinet, tweet public, interview | `externe` |
+| ambiguïté impossible à lever sans l'humain | `""` + `needs_review: true` |
+
+**Ne jamais déduire origin depuis le nom de l'auteur ou le contenu.**
+Si incertain : laisser vide, `needs_review: true`, noter dans le résumé de run.
+
+**Règle `needs_review` (déclencheur unique) :**
+
+Le seul déclencheur :
+- Origin non déductible : l'heuristique §5 ne permet pas de trancher entre interne et externe
+
+Ce qui ne déclenche PAS needs_review :
+- Date année-seule (ex : "2026")
+- URL manquante
+- source_file manquant
+- Topics absents (l'agent les déduit toujours depuis le contenu)
+- Doublon suspect (cas trop rare et géré autrement)
+
+Le flag tombe à false dès que l'humain a tranché sur l'origin.
+
+---
+
+## 6. Thèmes courants (à utiliser en priorité)
+
+`finops-ia` · `agentic-coding` · `transformation-organisationnelle` ·
+`outils-et-marche` · `securite-et-risques` · `context-engineering`
+
+Créer un nouveau thème seulement si le contenu ne rentre vraiment dans aucun
+des six existants.
+
+---
+
+## 7. Workflow d'ingestion (par fichier `/raw`)
+
+1. Lire le fichier en entier.
+2. Déterminer : type, auteur, date, topics, url, origin (heuristique §5).
+3. Créer `/wiki/resources/<slug>.md` avec contenu intégral et chunk annotations.
+4. Pour chaque topic : mettre à jour `/wiki/themes/<topic>.md` (ajouter l'entrée
+   ressource + liens vers sections concernées).
+5. Créer ou mettre à jour `/wiki/authors/<slug-auteur>.md` (ajouter ligne dans table).
+6. Ajouter entrées dans `types.md`, `origin.md`, `by-date/`.
+7. Mettre à jour `index.md`.
+8. Ajouter entrée dans `log.md`.
+9. Ajouter nodes/edges dans `graph.json`.
+10. Passer `processed: true` dans le frontmatter du fichier `/raw`.
+
+Traiter tout le lot sans demander validation à chaque fichier.
+Résumé final : nb ressources créées, tensions détectées, `needs_review` à résoudre.
+
+---
+
+## 8. Workflow de requête (lecture par paliers)
+
+1. Lire `wiki/index.md` → repérer les pages pertinentes.
+2. Lire les pages `themes/` ou `authors/` concernées (souvent suffisant).
+3. Si détail manquant : ouvrir les pages `resources/` liées.
+4. Si vérification fine nécessaire (chiffre exact, citation) : ouvrir `/raw`.
+
+Citer en référençant les pages du wiki, pas le fichier brut.
+
+---
+
+## 9. Workflow de lint (sur demande)
+
+Vérifier et rapporter :
+- Ressources sans lien vers un thème/auteur (orphelines).
+- Thèmes avec une seule source ou aucune depuis > 6 mois.
+- Ressources avec `needs_review: true` non résolu.
+- `graph.json` désynchronisé avec les pages `.md`.
+- Concepts récurrents sans page de thème dédiée.
+
+Ajouter une entrée `lint` dans `log.md`.
+
+---
+
+## 10. Ce que tu ne dois jamais faire
+
+- Réorganiser `/raw`.
+- Écrire du contenu original dans themes/, authors/, by-date/, types.md, origin.md.
+- Déduire `origin` depuis le nom de l'auteur, l'URL ou le contenu.
+- Raccourcir le contenu d'une ressource pour "faire court" — la fidélité prime.
+- Créer un nouveau slug différent de celui déjà assigné à une ressource existante.

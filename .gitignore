@@ -4,3 +4,9 @@ web/.next/
 web/out/
 web/.env.local
 web/*.tsbuildinfo
+
+# macOS
+.DS_Store
+
+# Config Obsidian locale (workspace, cache) — non versionnée
+wiki/.obsidian/
