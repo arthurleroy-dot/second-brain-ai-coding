@@ -1,5 +1,7 @@
 export type ResourceType =
   | 'article'
+  | 'report_pdf'
+  | 'tweet'
   | 'meeting_note'
   | 'interview'
   | 'presentation'
@@ -19,10 +21,12 @@ export interface Source {
   url: string | null;
   deposited_by: string | null;
   topics: string[];
+  entities?: string[]; // slugs d'entités liées (registre wiki/entities)
   needs_review: boolean;
   status?: ResourceStatus;
   created_at?: string;
-  file_path?: string; // legacy : chemin relatif dans le wiki (by-type/...)
+  source_file?: string | null; // nom du fichier de contenu dans /raw
+  file_path?: string; // chemin relatif dans le wiki (resources/<slug>.md)
 }
 
 export interface ResourceContent {

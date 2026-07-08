@@ -2,6 +2,8 @@ import { ResourceType } from '@/types';
 
 export const TYPE_LABELS: Record<ResourceType, string> = {
   article: 'Article',
+  report_pdf: 'Rapport PDF',
+  tweet: 'Tweet',
   meeting_note: 'Réunion',
   interview: 'Interview',
   presentation: 'Présentation',
@@ -14,6 +16,8 @@ export const TYPE_LABELS: Record<ResourceType, string> = {
 export const TYPE_BADGE: Record<ResourceType, string> = {
   meeting_note: 'bg-[#E1F5EE] text-[#0F6E56]',
   article: 'bg-blue-50 text-blue-700',
+  report_pdf: 'bg-[#EAF0FB] text-[#2952A3]',
+  tweet: 'bg-sky-50 text-sky-700',
   interview: 'bg-[#FAEEDA] text-[#633806]',
   presentation: 'bg-[#FBEAF0] text-[#993556]',
   transcript: 'bg-violet-50 text-violet-700',
@@ -29,19 +33,23 @@ export function typeBadgeClass(t: ResourceType): string {
   return TYPE_BADGE[t] ?? TYPE_BADGE.unknown;
 }
 
-// Mapping dossier by-type <-> ResourceType (pour les filtres UI)
+// Valeur du filtre /sources?type= — on utilise directement le ResourceType.
 export const TYPE_TO_FOLDER: Record<ResourceType, string> = {
-  article: 'articles',
-  meeting_note: 'meeting-notes',
-  interview: 'interviews',
-  presentation: 'presentations',
-  transcript: 'transcripts',
-  personal_note: 'personal-notes',
+  article: 'article',
+  report_pdf: 'report_pdf',
+  tweet: 'tweet',
+  meeting_note: 'meeting_note',
+  interview: 'interview',
+  presentation: 'presentation',
+  transcript: 'transcript',
+  personal_note: 'personal_note',
   unknown: 'unknown',
 };
 
 export const ALL_TYPES: ResourceType[] = [
   'article',
+  'report_pdf',
+  'tweet',
   'meeting_note',
   'interview',
   'presentation',

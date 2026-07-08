@@ -5,200 +5,31 @@ import {
   DateEntry,
   ResourceType,
   Source,
+  TypeEntry,
   WikiTopic,
 } from '@/types';
-import {
-  listWikiDir,
-  listWikiSubdirs,
-  readWikiFile,
-} from '@/lib/wiki-fs';
+import { listWikiDir, readWikiFile } from '@/lib/wiki-fs';
+import { ALL_TYPES, TYPE_TO_FOLDER, typeLabel } from '@/lib/ui';
 
-const BY_TYPE = 'by-type';
-const BY_AUTHOR = 'by-author';
-const BY_DATE = 'by-date';
-const BY_TOPIC = 'by-topic';
+const RESOURCES = 'resources';
+const THEMES = 'themes';
+const ENTITIES = 'entities';
 
-// Dossiers by-type/ → ResourceType
-const FOLDER_TO_TYPE: Record<string, ResourceType> = {
-  articles: 'article',
-  'meeting-notes': 'meeting_note',
-  interviews: 'interview',
-  presentations: 'presentation',
-  transcripts: 'transcript',
-  'personal-notes': 'personal_note',
-  unknown: 'unknown',
-};
-
-// Valeurs possibles du champ `type` dans le frontmatter → ResourceType normalisé
-const RAW_TYPE_TO_TYPE: Record<string, ResourceType> = {
+// Valeurs du champ `source_type` (frontmatter wiki) → ResourceType (web).
+const SOURCE_TYPE_TO_TYPE: Record<string, ResourceType> = {
   article: 'article',
-  meeting_note: 'meeting_note',
-  'meeting-notes': 'meeting_note',
+  'report-pdf': 'report_pdf',
+  report_pdf: 'report_pdf',
+  tweet: 'tweet',
   interview: 'interview',
   presentation: 'presentation',
+  'meeting-notes': 'meeting_note',
+  meeting_note: 'meeting_note',
   transcript: 'transcript',
-  personal_note: 'personal_note',
   'personal-notes': 'personal_note',
+  personal_note: 'personal_note',
   unknown: 'unknown',
 };
-
-function normalizeType(rawType: unknown, folder: string): ResourceType {
-  if (typeof rawType === 'string' && RAW_TYPE_TO_TYPE[rawType.trim()]) {
-    return RAW_TYPE_TO_TYPE[rawType.trim()];
-  }
-  return FOLDER_TO_TYPE[folder] ?? 'unknown';
-}
-
-function firstH1(body: string): string | null {
-  for (const line of body.split('\n')) {
-    const m = line.match(/^#\s+(.+?)\s*$/);
-    if (m) return m[1].trim();
-  }
-  return null;
-}
-
-function cleanStr(v: unknown): string | null {
-  if (typeof v !== 'string') return null;
-  const t = v.trim();
-  if (!t || t.toLowerCase() === 'unknown') return null;
-  return t;
-}
-
-/** Parse le contenu d'une fiche by-type/<folder>/<file>.md → Source. */
-export function parseResource(
-  content: string,
-  relFilePath: string,
-): Source {
-  const { data, content: body } = matter(content);
-  const folder = relFilePath.split('/')[1] ?? 'unknown'; // by-type/<folder>/...
-  const fileBase = path.basename(relFilePath, '.md');
-
-  const topics = Array.isArray(data.topics)
-    ? data.topics.map((t: unknown) => String(t).trim()).filter(Boolean)
-    : [];
-
-  return {
-    slug: cleanStr(data.slug) ?? fileBase,
-    title: firstH1(body) ?? (cleanStr(data.slug) ?? fileBase),
-    type: normalizeType(data.type, folder),
-    author: cleanStr(data.author),
-    date: cleanStr(data.date),
-    url: cleanStr(data.url),
-    deposited_by: cleanStr(data.deposited_by),
-    topics,
-    needs_review: data.needs_review === true,
-    file_path: relFilePath,
-  };
-}
-
-/** Liste toutes les ressources du wiki (by-type/<folder>/*.md, hors index.md). */
-export async function listAllSources(): Promise<Source[]> {
-  const folders = await listWikiSubdirs(BY_TYPE);
-  const sources: Source[] = [];
-
-  for (const folder of folders) {
-    const files = await listWikiDir(`${BY_TYPE}/${folder}`);
-    for (const file of files) {
-      if (!file.endsWith('.md') || file === 'index.md') continue;
-      const rel = `${BY_TYPE}/${folder}/${file}`;
-      const content = await readWikiFile(rel);
-      if (!content) continue;
-      sources.push(parseResource(content, rel));
-    }
-  }
-
-  // Tri : plus récent d'abord (dates manquantes en fin)
-  return sources.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
-}
-
-function titleFromTopicBody(body: string, slug: string): string {
-  return firstH1(body) ?? slug;
-}
-
-/** Liste les pages thématiques (by-topic/*.md) avec compteur de sources. */
-export async function listTopics(): Promise<WikiTopic[]> {
-  const files = await listWikiDir(BY_TOPIC);
-  const allSources = await listAllSources();
-  const topics: WikiTopic[] = [];
-
-  for (const file of files) {
-    if (!file.endsWith('.md') || file === 'index.md') continue;
-    const slug = path.basename(file, '.md');
-    const content = await readWikiFile(`${BY_TOPIC}/${file}`);
-    const sources = allSources.filter((s) => s.topics.includes(slug));
-    topics.push({
-      slug,
-      title: titleFromTopicBody(content, slug),
-      source_count: sources.length,
-      sources,
-      last_updated: null,
-    });
-  }
-
-  return topics.sort((a, b) => a.title.localeCompare(b.title));
-}
-
-/** Liste les auteurs (dossiers by-author/) avec compteur de sources. */
-export async function listAuthors(): Promise<AuthorEntry[]> {
-  const dirs = await listWikiSubdirs(BY_AUTHOR);
-  const allSources = await listAllSources();
-
-  const entries: AuthorEntry[] = dirs.map((dir) => {
-    // Le dossier auteur correspond au nom (slugifié) ; on compte par correspondance souple.
-    const matches = allSources.filter((s) => {
-      const a = (s.author ?? 'unknown').toLowerCase();
-      return slugify(a) === dir.toLowerCase() || a === dir.toLowerCase();
-    });
-    // Nom d'affichage : on préfère le libellé réel de l'auteur (ex: "McKinsey") au slug du dossier.
-    const realName = matches.find((s) => s.author)?.author;
-    return {
-      slug: dir,
-      name: dir === 'unknown' ? 'Auteur inconnu' : realName ?? dir,
-      source_count: matches.length,
-    };
-  });
-
-  return entries.sort((a, b) => a.name.localeCompare(b.name));
-}
-
-/** Liste les entrées de date (by-date/<YYYY>/<YYYY-MM>) avec compteurs. */
-export async function listDates(): Promise<DateEntry[]> {
-  const years = await listWikiSubdirs(BY_DATE);
-  const allSources = await listAllSources();
-  const entries: DateEntry[] = [];
-
-  for (const year of years) {
-    if (year === 'unknown') {
-      const count = allSources.filter((s) => !s.date).length;
-      entries.push({
-        year: 'unknown',
-        month: null,
-        label: 'Date inconnue',
-        source_count: count,
-        is_unknown: true,
-      });
-      continue;
-    }
-    const months = await listWikiSubdirs(`${BY_DATE}/${year}`);
-    for (const month of months) {
-      const isUnknownMonth = month === 'unknown';
-      const count = allSources.filter((s) => {
-        if (!s.date) return false;
-        if (isUnknownMonth) return s.date === year; // année seule connue
-        return s.date.startsWith(month); // "YYYY-MM" préfixe
-      }).length;
-      entries.push({
-        year,
-        month: isUnknownMonth ? null : month,
-        label: isUnknownMonth ? `${year} (mois inconnu)` : month,
-        source_count: count,
-        is_unknown: isUnknownMonth,
-      });
-    }
-  }
-
-  return entries.sort((a, b) => (b.month ?? b.year).localeCompare(a.month ?? a.year));
-}
 
 export function slugify(s: string): string {
   return s
@@ -207,4 +38,215 @@ export function slugify(s: string): string {
     .replace(/\p{Diacritic}/gu, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+function cleanStr(v: unknown): string | null {
+  if (typeof v !== 'string') return v == null ? null : String(v);
+  const t = v.trim();
+  if (!t || t.toLowerCase() === 'unknown') return null;
+  return t;
+}
+
+function arr(v: unknown): string[] {
+  return Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : [];
+}
+
+function normalizeType(rawType: unknown): ResourceType {
+  if (typeof rawType === 'string' && SOURCE_TYPE_TO_TYPE[rawType.trim()]) {
+    return SOURCE_TYPE_TO_TYPE[rawType.trim()];
+  }
+  return 'unknown';
+}
+
+/** Récupère les entités déclarées en chunk (`entities: [...]` sous un heading). */
+function extractChunkEntities(body: string): string[] {
+  const out: string[] = [];
+  const re = /^`entities:\s*\[([^\]]*)\]`\s*$/;
+  for (const line of body.split('\n')) {
+    const m = line.trim().match(re);
+    if (m) out.push(...m[1].split(',').map((s) => s.trim()).filter(Boolean));
+  }
+  return out;
+}
+
+export interface ParsedResource {
+  source: Source;
+  body: string; // markdown sans le frontmatter
+}
+
+/** Parse une ressource `resources/<slug>.md` → Source + corps markdown. */
+export function parseResource(content: string, slugFallback: string): ParsedResource {
+  const { data, content: body } = matter(content);
+
+  const feEntities = arr(data.entities);
+  const entities = [...new Set([...feEntities, ...extractChunkEntities(body)])];
+
+  const source: Source = {
+    slug: cleanStr(data.slug) ?? slugFallback,
+    title: cleanStr(data.title) ?? cleanStr(data.slug) ?? slugFallback,
+    type: normalizeType(data.source_type ?? data.type),
+    author: cleanStr(data.author),
+    date: cleanStr(data.date),
+    url: cleanStr(data.url),
+    deposited_by: cleanStr(data.deposited_by),
+    topics: arr(data.topics),
+    entities,
+    needs_review: data.needs_review === true,
+    source_file: cleanStr(data.source_file),
+    file_path: `${RESOURCES}/${cleanStr(data.slug) ?? slugFallback}.md`,
+  };
+
+  return { source, body };
+}
+
+/** Toutes les ressources du wiki (resources/*.md), triées par date décroissante. */
+export async function listAllSources(): Promise<Source[]> {
+  const files = await listWikiDir(RESOURCES);
+  const sources: Source[] = [];
+  for (const file of files) {
+    if (!file.endsWith('.md')) continue;
+    const content = await readWikiFile(`${RESOURCES}/${file}`);
+    if (!content.trim()) continue;
+    sources.push(parseResource(content, path.basename(file, '.md')).source);
+  }
+  return sources.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
+}
+
+/** Une ressource complète (métadonnées + corps markdown), ou null si absente. */
+export async function getResource(slug: string): Promise<ParsedResource | null> {
+  const content = await readWikiFile(`${RESOURCES}/${slug}.md`);
+  if (!content.trim()) return null;
+  return parseResource(content, slug);
+}
+
+export interface SourceDetail {
+  source: Source;
+  body: string;
+  rawFile: string | null; // nom du fichier de contenu dans /raw (pour le proxy)
+  isPdf: boolean;
+}
+
+/** Détail d'une ressource par slug (lecture fs). */
+export async function getSourceDetail(slug: string): Promise<SourceDetail | null> {
+  const parsed = await getResource(slug);
+  if (!parsed) return null;
+  const rawFile = parsed.source.source_file ?? null;
+  const isPdf = !!rawFile && rawFile.toLowerCase().endsWith('.pdf');
+  return { source: parsed.source, body: parsed.body, rawFile, isPdf };
+}
+
+/** Pages thématiques (themes/*.md) avec compteur de sources. */
+export async function listTopics(): Promise<WikiTopic[]> {
+  const files = await listWikiDir(THEMES);
+  const all = await listAllSources();
+  const topics: WikiTopic[] = [];
+  for (const file of files) {
+    if (!file.endsWith('.md') || file.startsWith('_')) continue;
+    const content = await readWikiFile(`${THEMES}/${file}`);
+    const { data } = matter(content);
+    const slug = cleanStr(data.slug) ?? path.basename(file, '.md');
+    const title = cleanStr(data.label) ?? slug;
+    const sources = all.filter((s) => s.topics.includes(slug));
+    topics.push({
+      slug,
+      title,
+      source_count: sources.length,
+      sources,
+      last_updated: cleanStr(data.last_updated),
+    });
+  }
+  return topics.sort((a, b) => a.title.localeCompare(b.title));
+}
+
+/** Auteurs distincts (dérivés des ressources) avec compteurs. */
+export async function listAuthors(): Promise<AuthorEntry[]> {
+  const sources = await listAllSources();
+  const byAuthor = new Map<string, { name: string; count: number }>();
+  for (const s of sources) {
+    const name = s.author ?? 'unknown';
+    const slug = name === 'unknown' ? 'unknown' : slugify(name);
+    const cur = byAuthor.get(slug) ?? {
+      name: name === 'unknown' ? 'Auteur inconnu' : name,
+      count: 0,
+    };
+    cur.count += 1;
+    byAuthor.set(slug, cur);
+  }
+  return [...byAuthor.entries()]
+    .map(([slug, v]) => ({ slug, name: v.name, source_count: v.count }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Types de ressource présents (dérivés des ressources) avec compteurs. */
+export async function listTypes(): Promise<TypeEntry[]> {
+  const sources = await listAllSources();
+  const counts = new Map<ResourceType, number>();
+  for (const s of sources) {
+    const t = (s.type as ResourceType) ?? 'unknown';
+    counts.set(t, (counts.get(t) ?? 0) + 1);
+  }
+  return ALL_TYPES.filter((t) => counts.has(t)).map((t) => ({
+    type: t,
+    folder: TYPE_TO_FOLDER[t],
+    label: typeLabel(t),
+    source_count: counts.get(t) ?? 0,
+  }));
+}
+
+/** Entrées de date (par mois, année seule, inconnu) dérivées des ressources. */
+export async function listDates(): Promise<DateEntry[]> {
+  const sources = await listAllSources();
+  const months = new Map<string, number>();
+  const yearsOnly = new Map<string, number>();
+  let unknown = 0;
+
+  for (const s of sources) {
+    const d = s.date;
+    if (!d) unknown += 1;
+    else if (d.length >= 7) {
+      const ym = d.slice(0, 7);
+      months.set(ym, (months.get(ym) ?? 0) + 1);
+    } else {
+      const y = d.slice(0, 4);
+      yearsOnly.set(y, (yearsOnly.get(y) ?? 0) + 1);
+    }
+  }
+
+  const entries: DateEntry[] = [];
+  for (const [ym, count] of months) {
+    entries.push({ year: ym.slice(0, 4), month: ym, label: ym, source_count: count, is_unknown: false });
+  }
+  for (const [y, count] of yearsOnly) {
+    entries.push({ year: y, month: null, label: `${y} (mois inconnu)`, source_count: count, is_unknown: true });
+  }
+  if (unknown > 0) {
+    entries.push({ year: 'unknown', month: null, label: 'Date inconnue', source_count: unknown, is_unknown: true });
+  }
+  return entries.sort((a, b) => (b.month ?? b.year).localeCompare(a.month ?? a.year));
+}
+
+export interface EntityEntry {
+  slug: string;
+  label: string;
+  entity_type: string;
+  aliases: string[];
+}
+
+/** Registre des entités (entities/*.md, hors _candidates). */
+export async function listEntities(): Promise<EntityEntry[]> {
+  const files = await listWikiDir(ENTITIES);
+  const entities: EntityEntry[] = [];
+  for (const file of files) {
+    if (!file.endsWith('.md') || file.startsWith('_')) continue;
+    const content = await readWikiFile(`${ENTITIES}/${file}`);
+    const { data } = matter(content);
+    const slug = cleanStr(data.slug) ?? path.basename(file, '.md');
+    entities.push({
+      slug,
+      label: cleanStr(data.label) ?? slug,
+      entity_type: cleanStr(data.entity_type) ?? 'entity',
+      aliases: arr(data.aliases),
+    });
+  }
+  return entities.sort((a, b) => a.label.localeCompare(b.label));
 }
