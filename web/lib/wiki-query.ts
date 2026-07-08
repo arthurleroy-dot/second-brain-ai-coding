@@ -1,6 +1,4 @@
-import { SupabaseClient } from '@supabase/supabase-js';
 import { ChatFilterState, ResourceType, Source } from '@/types';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { ALL_TYPES, TYPE_TO_FOLDER, typeLabel } from '@/lib/ui';
 import {
   getSourceDetail,
@@ -11,6 +9,7 @@ import {
   listTypes,
   slugify,
 } from '@/lib/wiki-parser';
+import { getRelevantContext } from '@/lib/chat-context';
 
 // Façade de lecture du wiki : le contenu vit dans les fichiers markdown
 // (wiki/), lus par wiki-parser. On ré-exporte sous les mêmes noms que
@@ -24,6 +23,9 @@ export {
   listDates,
 };
 export type { SourceDetail } from '@/lib/wiki-parser';
+
+// Contexte de chat : sélection depuis le wiki markdown (lib/chat-context).
+export { getRelevantContext };
 
 /** Toutes les ressources (alias fs de l'ancien listSources Supabase). */
 export const listSources = listAllSources;
@@ -40,108 +42,6 @@ export function resolveType(value: string): ResourceType | null {
     ([, folder]) => folder === value,
   );
   return entry ? entry[0] : null;
-}
-
-// ---------------------------------------------------------------------------
-// Chat — sélection du contexte.
-// TRANSITOIRE : encore basé sur Supabase. Réécrit en lecture markdown en phase 6
-// (docs/platform.md §5). Renvoie un contexte vide si Supabase n'est pas configuré.
-// ---------------------------------------------------------------------------
-
-function readClient(): SupabaseClient | null {
-  return supabaseAdmin ?? supabase ?? null;
-}
-
-function rowToSource(r: any): Source {
-  const title = r.title ?? '(sans titre)';
-  return {
-    id: r.id,
-    slug: r.slug ?? slugify(title),
-    title,
-    type: (r.type as ResourceType) ?? 'unknown',
-    author: r.author ?? null,
-    date: r.date ?? null,
-    url: r.url ?? null,
-    deposited_by: r.deposited_by ?? null,
-    topics: Array.isArray(r.topics) ? r.topics : [],
-    needs_review: r.needs_review === true,
-    status: r.status,
-    created_at: r.created_at,
-  };
-}
-
-export async function getRelevantContext(
-  message: string,
-  filters?: ChatFilters,
-  detectionText?: string,
-): Promise<{ context: string; sources: Source[] }> {
-  const db = readClient();
-  if (!db) return { context: '', sources: [] };
-
-  const lower = (detectionText ?? message).toLowerCase();
-
-  let query = db
-    .from('resources')
-    .select('*, resource_content(*)')
-    .eq('status', 'done');
-
-  if (filters?.types?.length) {
-    const resolved = filters.types
-      .map((f) => resolveType(f))
-      .filter((t): t is ResourceType => !!t);
-    if (resolved.length) query = query.in('type', resolved);
-  }
-  if (filters?.topic) query = query.contains('topics', [filters.topic]);
-
-  const explicitAuthor = !!filters?.authors?.length;
-  if (explicitAuthor) {
-    const names = filters!.authors!.filter((a) => a !== 'unknown');
-    const wantsUnknown = filters!.authors!.includes('unknown');
-    const ors: string[] = [];
-    if (names.length) {
-      const quoted = names.map((n) => `"${n.replace(/"/g, '\\"')}"`).join(',');
-      ors.push(`author.in.(${quoted})`);
-    }
-    if (wantsUnknown) ors.push('author.is.null');
-    if (ors.length) query = query.or(ors.join(','));
-  }
-
-  if (filters?.date) {
-    const { mode, from, to } = filters.date;
-    if ((mode === 'after' || mode === 'between') && from) query = query.gte('date', from);
-    if ((mode === 'before' || mode === 'between') && to) query = query.lte('date', `${to}-31`);
-  }
-
-  if (!explicitAuthor) {
-    const { data: authorRows } = await db
-      .from('resources')
-      .select('author')
-      .eq('status', 'done');
-    const authors = [
-      ...new Set((authorRows ?? []).map((r: any) => r.author).filter(Boolean)),
-    ] as string[];
-    const mentioned = authors.find((a) => lower.includes(a.toLowerCase()));
-    if (mentioned) query = query.eq('author', mentioned);
-  }
-
-  const { data, error } = await query.limit(5);
-  if (error || !data) return { context: '', sources: [] };
-
-  const sources = data.map(rowToSource);
-  const context = data
-    .map((r: any) => {
-      const content = Array.isArray(r.resource_content)
-        ? r.resource_content[0]
-        : r.resource_content;
-      const body = content?.full_content ?? content?.summary ?? '';
-      return `=== ${r.title} (${r.type} — ${r.author ?? 'auteur inconnu'} — ${
-        r.date ?? 'date inconnue'
-      }) ===\n${body}`;
-    })
-    .filter(Boolean)
-    .join('\n\n---\n\n');
-
-  return { context, sources };
 }
 
 /** Décrit les filtres actifs en une phrase lisible (pour le prompt système). */
