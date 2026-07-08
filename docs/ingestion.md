@@ -105,8 +105,11 @@ Le pipeline est piloté par `.github/workflows/ingest.yml` :
 - **Détection** : un step shell calcule la liste des fichiers à traiter (§1) et
   la passe au prompt. Liste vide → run skippé.
 - **Agent** : `claude -p "$(cat .github/prompts/ingest-prompt.md)"`
-  `--permission-mode acceptEdits`. Un `.claude/settings.json` versionné **refuse**
-  toute écriture hors `wiki/` (double ceinture avec le `git add wiki/`).
+  `--permission-mode acceptEdits --settings .github/ingest-settings.json`. Ce
+  fichier de settings **dédié à l'Action** refuse toute écriture hors `wiki/`
+  (double ceinture avec le `git add wiki/`). Il n'est chargé QUE dans l'Action —
+  jamais dans les sessions de dev (le `.claude/settings.json` partagé ne contient
+  aucun deny bloquant).
 - **Commit** : `git add wiki/ && git commit && git pull --rebase && git push`
   (le rebase encaisse un éventuel commit d'upload concurrent).
 - **Échec** : ouvre une issue GitHub. Pas de retry dans le run — le cron nocturne

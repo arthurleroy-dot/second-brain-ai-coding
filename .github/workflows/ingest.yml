@@ -70,7 +70,11 @@ jobs:
 
           ## Fichiers à ingérer lors de ce run (noms exacts dans raw/) :
           ${PENDING}"
-          claude -p "$PROMPT" --permission-mode acceptEdits
+          # --settings : garde-fou dédié à l'Action (deny toute écriture hors wiki/).
+          # Double ceinture avec le `git add wiki/` de l'étape suivante.
+          claude -p "$PROMPT" \
+            --permission-mode acceptEdits \
+            --settings .github/ingest-settings.json
 
       - name: Commit du wiki
         if: steps.detect.outputs.count != '0'
