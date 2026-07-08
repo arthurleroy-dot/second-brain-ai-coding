@@ -14,17 +14,21 @@ L'idée : chacun dépose ses trouvailles brutes (articles, notes, liens, réflex
 │   ├── resources/          # Couche 2 — CANONIQUE : 1 fiche complète par source brute
 │   ├── themes/             # Couche 3 — vue dérivée : liens vers chunks par thème
 │   ├── authors/            # Couche 3 — vue dérivée : table des ressources par auteur
+│   ├── entities/           # Couche 3 — registre des liens (outils, clients…) + _candidates.md
 │   ├── by-date/            # Couche 3 — vue dérivée : index temporel (YYYY/YYYY-MM)
 │   ├── graph.json          # Export machine-readable (nodes + edges)
 │   ├── index.md            # Catalogue général (thèmes, auteurs, ressources)
 │   ├── types.md            # Index par type de source
 │   ├── origin.md           # Index par origine (interne/externe)
+│   ├── _ingested.json      # Manifeste : quels fichiers /raw ont déjà été ingérés
 │   └── log.md              # Journal des runs
 ├── web/                    # Interface web Next.js (chat, navigation, upload)
 │   ├── app/                # App Router (pages + API routes)
 │   ├── components/         # Composants React
-│   └── lib/                # Logique métier (wiki parser, LLM client, Supabase…)
-├── CLAUDE.md               # Instructions de l'agent mainteneur
+│   └── lib/                # Logique métier (wiki parser, LLM client, GitHub, Supabase…)
+├── docs/                   # Spécifications détaillées (lues à la demande par l'agent)
+├── tasks/                  # todo.md (plan courant) + lessons.md
+├── CLAUDE.md               # Carte du projet + règles cardinales (renvoie vers docs/)
 └── README.md               # Ce fichier
 ```
 
@@ -32,18 +36,17 @@ L'idée : chacun dépose ses trouvailles brutes (articles, notes, liens, réflex
 
 ## Workflow
 
-1. **Vous déposez** un fichier brut dans [`/raw`](raw/README.md) — note, article, lien annoté, transcription… Aucun tri ni renommage manuel. Idéalement, renseignez l'**URL** et la **date** de la source.
-2. **L'agent traite** les nouveaux fichiers (texte sans `processed: true`, ou binaire sans sidecar `.meta.md` traité) :
-   - il extrait les **métadonnées** (type, auteur, date, url, topics) et les concepts clés ;
-   - il crée une **fiche ressource complète** dans [`wiki/resources/`](wiki/resources/) avec le contenu intégral annoté par chunk (`topics:` sur chaque section) ;
-   - il met à jour les **vues dérivées** : [`themes/`](wiki/themes/), [`authors/`](wiki/authors/), [`by-date/`](wiki/by-date/), `types.md`, `origin.md` ;
-   - il met à jour [`graph.json`](wiki/graph.json) (nodes + edges) ;
-   - il n'efface jamais de contenu existant, il **enrichit uniquement** ;
-   - il marque chaque fichier traité (`processed: true` dans le frontmatter ou le sidecar) ;
+1. **Vous déposez** un fichier brut dans [`/raw`](raw/README.md) — depuis l'interface web (qui le committe pour vous), ou directement en git. Aucun tri ni renommage manuel. `/raw` est **immuable** : on n'y modifie jamais rien ensuite.
+2. **L'agent traite** les nouveaux fichiers (ceux absents de [`wiki/_ingested.json`](wiki/_ingested.json)) :
+   - il extrait les **métadonnées** (le sidecar `.meta.md` saisi à l'upload prime, sinon inférence) et le contenu ;
+   - il crée une **fiche ressource complète** dans [`wiki/resources/`](wiki/resources/) avec le contenu intégral annoté par chunk (`topics:` et `entities:` sur chaque section) ;
+   - il met à jour les **vues dérivées** : [`themes/`](wiki/themes/), [`authors/`](wiki/authors/), [`entities/`](wiki/entities/), [`by-date/`](wiki/by-date/), `types.md`, `origin.md` ;
+   - il met à jour [`graph.json`](wiki/graph.json) (nodes + edges, dont les entités) ;
+   - il enregistre le fichier comme traité dans `wiki/_ingested.json` (il **ne modifie jamais** `/raw`) ;
    - il tient l'[index](wiki/index.md) et le [journal](wiki/log.md) à jour.
-3. **Automatisation** : la GitHub Action [`update-wiki.yml`](.github/workflows/update-wiki.yml) tourne **tous les soirs à 23h** (et peut être lancée à la main). Elle installe Claude Code, lui demande de traiter `/raw`, puis commit et push les mises à jour du wiki.
+3. **Automatisation** : la GitHub Action [`ingest.yml`](.github/workflows/ingest.yml) se déclenche **à chaque commit dans `raw/**`** (donc à chaque upload), plus un **cron nocturne** (23h) qui rattrape les dépôts manuels et les runs échoués. Elle lance un agent Claude Code qui n'écrit que dans `wiki/`, puis commit et push.
 
-Le comportement précis de l'agent est défini dans [CLAUDE.md](CLAUDE.md).
+Le comportement de l'agent est défini dans [CLAUDE.md](CLAUDE.md) (carte) et [`docs/`](docs/) (spécifications). Git est la **seule source de vérité du wiki** — Supabase ne stocke que l'historique du chat.
 
 ## Thèmes de départ
 
@@ -65,15 +68,22 @@ L'application Next.js dans `web/` offre quatre vues :
 | Sources | `/sources` | Liste filtrée (type, auteur, date, `needs_review`) + vue complète |
 | Explorer | `/explore` | Navigation par auteur et par date avec compteurs |
 
-Un bouton d'upload permet de déposer un fichier directement depuis l'interface (écrit dans `/raw` ; traitement déclenché à la demande ou lors du prochain run nocturne).
+Un bouton d'upload permet de déposer un fichier directement depuis l'interface : la plateforme **committe le fichier dans `/raw`** (via l'API GitHub) avec un sidecar `.meta.md` (titre, type, auteur, date, url, entités). Ce commit déclenche l'ingestion. La modale affiche l'avancement (« en attente → en cours → ingéré »).
 
-**Variables d'environnement** (`web/.env.local`) :
+La plateforme lit le wiki **directement depuis les fichiers markdown** (aucune base intermédiaire). Les PDF sont servis par un proxy (`/api/raw/...`) depuis git.
+
+**Variables d'environnement** (`web/.env.local`, voir [`.env.local.example`](web/.env.local.example)) :
 
 ```env
-ANTHROPIC_API_KEY=sk-ant-...          # obligatoire
-ANTHROPIC_BASE_URL=https://...        # optionnel — proxy LiteLLM
-NEXT_PUBLIC_SUPABASE_URL=https://...  # optionnel — historique des chats
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...     # optionnel
+ANTHROPIC_API_KEY=          # chat (clé LiteLLM ou Anthropic)
+ANTHROPIC_BASE_URL=         # proxy LiteLLM (optionnel)
+NEXT_PUBLIC_SUPABASE_URL=   # historique du chat (conversations/messages)
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+GITHUB_TOKEN=               # PAT fine-grained (Contents R/W) — upload + proxy PDF
+GITHUB_REPO=owner/repo
+SITE_PASSWORD=              # protection d'accès (vide en local = ouvert)
+SITE_SECRET=                # clé de signature du cookie
 ```
 
 ```bash
@@ -84,12 +94,21 @@ cd web && npm install && npm run dev   # http://localhost:3000
 
 ### Contribuer
 
-Déposez un fichier dans `/raw` (idéalement avec l'URL et la date de la source), committez, et laissez l'agent faire le reste lors de son prochain passage.
+Déposez une source depuis l'interface web (bouton d'upload), ou committez un fichier dans `/raw` en git. L'agent fait le reste au prochain passage de l'Action.
 
-### Configuration de l'automatisation
+### Automatisation (GitHub Actions)
 
-La GitHub Action nécessite un secret de dépôt :
+Secrets à configurer (Settings → Secrets and variables → Actions) :
 
-- `ANTHROPIC_API_KEY` — votre clé API Anthropic (Settings → Secrets and variables → Actions).
+- `ANTHROPIC_API_KEY` — clé pour l'agent d'ingestion.
+- `ANTHROPIC_BASE_URL` *(optionnel)* — si l'agent passe par un proxy LiteLLM.
 
-Vous pouvez aussi déclencher le traitement manuellement depuis l'onglet **Actions** (workflow « update-wiki », bouton *Run workflow*).
+L'Action [`ingest.yml`](.github/workflows/ingest.yml) tourne à chaque commit dans `raw/**`, au cron de 23h, et à la demande (onglet **Actions** → *Run workflow*).
+
+### Déploiement (Vercel)
+
+- **Root Directory** : `web`. Activer **« Include files outside root directory »** (nécessaire pour lire `../wiki`).
+- Renseigner les variables d'environnement ci-dessus dans le projet Vercel.
+- Chaque commit du wiki (par l'agent) redéploie automatiquement → contenu frais.
+
+Détails d'architecture : [`docs/platform.md`](docs/platform.md).
