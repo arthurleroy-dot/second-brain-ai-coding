@@ -22,8 +22,8 @@ export const supabase: SupabaseClient | null = supabaseConfigured
   ? createClient(url!, anonKey!, { global: { fetch: noStoreFetch } })
   : null;
 
-// Client admin (service role) — opérations serveur uniquement (upload, process,
-// migration). Bypasse la RLS. NE JAMAIS importer côté client.
+// Client admin (service role) — écriture serveur des messages (bypasse la RLS).
+// NE JAMAIS importer côté client.
 export const supabaseAdminConfigured = Boolean(url && serviceRoleKey);
 
 export const supabaseAdmin: SupabaseClient | null = supabaseAdminConfigured
@@ -32,16 +32,6 @@ export const supabaseAdmin: SupabaseClient | null = supabaseAdminConfigured
       global: { fetch: noStoreFetch },
     })
   : null;
-
-/** Renvoie le client admin ou lève une erreur explicite si non configuré. */
-export function requireAdmin(): SupabaseClient {
-  if (!supabaseAdmin) {
-    throw new Error(
-      'Supabase service role non configuré. Renseigne NEXT_PUBLIC_SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY dans .env.local.',
-    );
-  }
-  return supabaseAdmin;
-}
 
 // ---- Helpers à dégradation gracieuse ----
 // Si Supabase n'est pas configuré, ces fonctions renvoient des valeurs neutres
