@@ -21,9 +21,16 @@ dans le wiki.
   du contenu — uniquement du sidecar.
 - Slugs immuables. Fidélité du contenu > brièveté (reproduis chiffres, exemples,
   citations ; paraphrase mais ne raccourcis pas).
-- Entités : alias connu → lien automatique ; écriture inconnue → entrée dans
-  `wiki/entities/_candidates.md` (NE crée PAS l'entité). Applique aussi les
-  décisions déjà cochées dans `_candidates.md` par un humain.
+- Liens/entités (confiance graduée, cf. docs/entities.md §4) :
+  - le sidecar peut déclarer un bloc `links:` TYPÉ (`tool: [...]`, `client: [...]`).
+    Une entité déclarée avec son type → crée-la/lie-la DIRECTEMENT avec ce
+    `entity_type`, même nouvelle (sauf conflit avec une entité existante d'un
+    autre type → candidate) ;
+  - nom sans type (ancien `entities:` plat) ou détecté dans le contenu : alias
+    connu → lien auto ; inconnu → `wiki/entities/_candidates.md` (NE crée PAS,
+    propose un type) ;
+  - avant toute création, dédoublonne (vérifie label/aliases existants).
+  Applique aussi les décisions déjà cochées dans `_candidates.md` par un humain.
 - `needs_review: true` UNIQUEMENT si l'origin (interne/externe) n'est pas
   déductible — jamais pour une date/url/topic manquant.
 

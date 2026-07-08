@@ -46,6 +46,36 @@ function field(form: FormData, key: string): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/** Parse le champ `links` (JSON : { type → [noms] }) en map slugifiée et nettoyée. */
+function parseLinks(raw: string | null): Record<string, string[]> {
+  if (!raw) return {};
+  let obj: unknown;
+  try {
+    obj = JSON.parse(raw);
+  } catch {
+    return {};
+  }
+  const out: Record<string, string[]> = {};
+  if (obj && typeof obj === 'object') {
+    for (const [type, names] of Object.entries(obj as Record<string, unknown>)) {
+      const t = slugify(type);
+      if (!t || !Array.isArray(names)) continue;
+      const slugs = [...new Set(names.map((n) => slugify(String(n))).filter(Boolean))];
+      if (slugs.length) out[t] = slugs;
+    }
+  }
+  return out;
+}
+
 /** Construit le sidecar `<source>.meta.md` à partir des métadonnées du formulaire. */
 function buildSidecar(meta: {
   title: string | null;
@@ -54,7 +84,7 @@ function buildSidecar(meta: {
   date: string | null;
   url: string | null;
   depositedBy: string | null;
-  entities: string[];
+  links: Record<string, string[]>;
   granularity: string;
 }): string {
   const lines: string[] = ['---'];
@@ -64,8 +94,13 @@ function buildSidecar(meta: {
   if (meta.date) lines.push(`date: ${yamlStr(meta.date)}`);
   if (meta.url) lines.push(`url: ${yamlStr(meta.url)}`);
   if (meta.depositedBy) lines.push(`deposited_by: ${yamlStr(meta.depositedBy)}`);
-  if (meta.entities.length) lines.push(`entities: [${meta.entities.join(', ')}]`);
-  if (meta.entities.length) lines.push(`entities_granularity: ${meta.granularity}`);
+  const linkTypes = Object.keys(meta.links);
+  if (linkTypes.length) {
+    // Bloc `links:` typé — chaque clé = entity_type, valeur = liste de slugs.
+    lines.push('links:');
+    for (const t of linkTypes) lines.push(`  ${t}: [${meta.links[t].join(', ')}]`);
+    lines.push(`entities_granularity: ${meta.granularity}`);
+  }
   lines.push('---', '');
   return lines.join('\n');
 }
@@ -113,10 +148,7 @@ export async function POST(req: NextRequest) {
   const url = field(form, 'url');
   const typeRaw = (field(form, 'type') ?? 'unknown') as ResourceType;
   const sourceType = TYPE_TO_SOURCE_TYPE[typeRaw] ?? 'unknown';
-  const entities = (field(form, 'entities') ?? '')
-    .split(',')
-    .map((s) => s.trim().toLowerCase().replace(/\s+/g, '-'))
-    .filter(Boolean);
+  const links = parseLinks(field(form, 'links'));
   const granularity = field(form, 'entities_granularity') ?? 'auto';
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -131,7 +163,7 @@ export async function POST(req: NextRequest) {
       date,
       url,
       depositedBy,
-      entities,
+      links,
       granularity,
     });
 

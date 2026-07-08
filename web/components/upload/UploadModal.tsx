@@ -5,6 +5,7 @@ import { ClipboardType, Info, UploadCloud, X } from 'lucide-react';
 import { ResourceType } from '@/types';
 import { typeLabel } from '@/lib/ui';
 import IngestStatus from './IngestStatus';
+import LinkPicker, { LinksValue } from './LinkPicker';
 
 interface Props {
   onClose: () => void;
@@ -54,9 +55,10 @@ export default function UploadModal({ onClose, onResolved }: Props) {
   const [depositedBy, setDepositedBy] = useState('');
   const [type, setType] = useState<ResourceType>('article');
 
-  // Entités liées (optionnel) — outils/clients mentionnés, cf. docs/entities.md.
-  const [entities, setEntities] = useState('');
+  // Liens typés (optionnel) — { type d'entité → noms }, cf. docs/entities.md.
+  const [links, setLinks] = useState<LinksValue>({});
   const [granularity, setGranularity] = useState<'auto' | 'resource' | 'chunk'>('auto');
+  const hasLinks = Object.values(links).some((names) => names.length > 0);
 
   // Spécifiques à chaque mode.
   const [text, setText] = useState('');
@@ -136,8 +138,11 @@ export default function UploadModal({ onClose, onResolved }: Props) {
       // URL : pertinente seulement pour un article collé (sans PDF).
       if (mode === 'paste' && type === 'article' && url.trim())
         form.append('url', url.trim());
-      if (entities.trim()) {
-        form.append('entities', entities.trim());
+      if (hasLinks) {
+        // Ne garde que les types réellement renseignés.
+        const clean: LinksValue = {};
+        for (const [t, names] of Object.entries(links)) if (names.length) clean[t] = names;
+        form.append('links', JSON.stringify(clean));
         form.append('entities_granularity', granularity);
       }
 
@@ -353,23 +358,11 @@ export default function UploadModal({ onClose, onResolved }: Props) {
                 />
               </label>
 
-              <label className="text-xs text-gray-600">
-                Entités liées (optionnel — outils, clients…)
-                <input
-                  value={entities}
-                  onChange={(e) => setEntities(e.target.value)}
-                  placeholder="n8n, claude-code, databricks"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
-                />
-                <span className="mt-1 block text-[11px] text-gray-400">
-                  Séparées par des virgules. Laisse vide : l'agent les détecte
-                  automatiquement.
-                </span>
-              </label>
+              <LinkPicker value={links} onChange={setLinks} />
 
-              {entities.trim() && (
+              {hasLinks && (
                 <label className="text-xs text-gray-600">
-                  Granularité du lien
+                  Granularité des liens
                   <select
                     value={granularity}
                     onChange={(e) =>

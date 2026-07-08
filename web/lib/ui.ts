@@ -62,3 +62,19 @@ export function formatDate(date: string | null): string {
   if (!date) return 'date inconnue';
   return date;
 }
+
+// Libellés d'affichage des types d'entités (entity_type). Extensible : tout
+// nouveau type inconnu retombe sur une capitalisation du slug.
+const ENTITY_TYPE_LABELS: Record<string, string> = {
+  tool: 'Outils',
+  client: 'Clients',
+  person: 'Personnes',
+  company: 'Entreprises',
+  concept: 'Concepts',
+};
+
+export function entityTypeLabel(type: string): string {
+  if (ENTITY_TYPE_LABELS[type]) return ENTITY_TYPE_LABELS[type];
+  const t = type.replace(/-/g, ' ');
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}

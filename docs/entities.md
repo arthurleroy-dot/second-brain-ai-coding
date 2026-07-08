@@ -36,7 +36,30 @@ Seed initial (`entity_type: tool`) : `n8n`, `claude-code`, `databricks`, `supaba
 
 ---
 
-## 2. Granularité d'un lien
+## 2. Déclaration des liens à l'upload (sidecar `links:`)
+
+L'uploadeur peut déclarer des liens **typés** dans le sidecar `.meta.md`, via un
+bloc `links:` dont chaque clé est un `entity_type` :
+
+```yaml
+links:
+  tool: [n8n, claude-code]
+  client: [acme-corp]
+entities_granularity: auto   # auto | resource | chunk
+```
+
+Le formulaire d'upload s'auto-étend : il lit les `entity_type` déjà présents dans
+le registre (endpoint `/api/entities`) et propose leurs entités en autocomplétion ;
+un nouveau type de lien peut être créé à la volée. Le type déclaré est
+**autoritaire pour une entité nouvelle** (il dit à l'agent avec quel `entity_type`
+la créer).
+
+Rétro-compat : un ancien sidecar avec `entities: [n8n]` (liste plate, sans type)
+reste accepté — l'agent traite ces noms comme « type non spécifié » (§4).
+
+---
+
+## 3. Granularité d'un lien
 
 Deux niveaux, selon la précision voulue :
 
@@ -44,6 +67,10 @@ Deux niveaux, selon la précision voulue :
   ressource. La ressource entière est reliée.
 - **Chunk → entité** : ligne `` `entities: [n8n]` `` sous le heading de la
   section, à côté de `topics:`. Seule cette section est reliée.
+
+> Dans les fiches `resources/`, les liens restent une **liste plate de slugs**
+> (`entities: [...]`) — le type de chaque entité vit dans son fichier de registre
+> `wiki/entities/<slug>.md`, jamais répété dans chaque ressource.
 
 Comment la granularité est décidée :
 - déclarée par l'utilisateur à l'upload via `entities_granularity` du sidecar
@@ -53,17 +80,27 @@ Comment la granularité est décidée :
 
 ---
 
-## 3. Garde-fou hybride (alias connu vs inconnu)
+## 4. Confiance graduée (création vs candidate)
 
-À l'ingestion, pour chaque mention potentielle d'entité détectée dans le contenu :
+À l'ingestion, le traitement dépend de ce qui a été déclaré :
 
-- **Écriture reconnue** (match insensible à la casse et aux accents sur `label`
-  ou `aliases` d'une entité existante) → **lien créé automatiquement**.
-- **Écriture inconnue** → **ne pas créer l'entité**. Ajouter une entrée dans
-  `wiki/entities/_candidates.md` (sas de décision humaine).
+1. **Entité + type déclarés explicitement** (bloc `links:` du sidecar) → l'agent
+   **crée et lie directement** l'entité avec ce `entity_type`, même nouvelle
+   (on fait confiance au choix humain). **Sauf** si le nom correspond à une entité
+   existante d'un **autre** type (conflit) → alors candidate.
+2. **Nom déclaré sans type** (ancien `entities:` plat) ou **détecté dans le
+   contenu** :
+   - écriture reconnue (match casse/accents sur `label`/`aliases` d'une entité
+     existante) → **lien automatique** ;
+   - écriture inconnue → **ne pas créer** : entrée dans
+     `wiki/entities/_candidates.md` (l'agent peut **proposer** un `entity_type`,
+     l'humain confirme).
+3. **Rien déclaré** → l'agent ne lie que les entités **déjà connues** détectées
+   dans le texte ; toute nouvelle entité va en candidate.
 
-Ce canal est **distinct** de `needs_review` (réservé à l'ambiguïté d'origin,
-wiki-spec.md §5). Une entité candidate ne met jamais `needs_review: true`.
+Avant toute création, vérifier qu'aucune entité existante ne correspond
+(dédoublonnage `n8n` vs `n8n.io`). Ce canal candidate est **distinct** de
+`needs_review` (réservé à l'ambiguïté d'origin, wiki-spec.md §5).
 
 ### Format de `wiki/entities/_candidates.md`
 
@@ -89,7 +126,7 @@ Application des décisions par l'agent au run suivant :
 
 ---
 
-## 4. Graphe (`graph.json`)
+## 5. Graphe (`graph.json`)
 
 - **Node** : `{"id": "entity:<slug>", "type": "entity", "entity_type": "tool", "label": "n8n"}`.
   Le namespace d'ID est toujours `entity:` (jamais `tool:` / `client:`) → l'ID

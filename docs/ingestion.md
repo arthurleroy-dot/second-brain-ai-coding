@@ -54,10 +54,14 @@ author: "Auteur / Organisation"
 date: "2026-07"
 url: "https://..."
 deposited_by: "Prénom"
-entities: [n8n, claude-code]  # entités déclarées explicitement (optionnel)
+links:                        # liens TYPÉS déclarés (optionnel) — voir entities.md
+  tool: [n8n, claude-code]
+  client: [acme-corp]
 entities_granularity: auto    # auto | resource | chunk
 ---
 ```
+
+(Ancien format encore accepté : `entities: [n8n]` — liste plate sans type.)
 
 **Précédence « l'humain gagne si rempli » :** une métadonnée saisie dans le
 sidecar est autoritaire ; l'agent ne comble que les champs vides par inférence.
