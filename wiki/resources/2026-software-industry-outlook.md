@@ -7,7 +7,7 @@ source_type: report-pdf
 origin: externe
 topics: [outils-et-marche, transformation-organisationnelle, securite-et-risques, finops-ia]
 url: "https://www.deloitte.com/us/en/insights/industry/technology-media-telecom-outlooks/software-industry-outlook.html"
-source_file: "2026 Software Industry Outlook | Deloitte Insights.pdf.meta.md"
+source_file: "2026 Software Industry Outlook | Deloitte Insights.pdf"
 needs_review: false
 ---
 

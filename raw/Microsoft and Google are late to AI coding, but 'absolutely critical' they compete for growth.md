@@ -6,7 +6,6 @@ url: "https://www.cnbc.com"
 deposited_by: ""
 topics: [outils-et-marche]
 needs_review: false
-processed: true
 ---
 
 Key Points

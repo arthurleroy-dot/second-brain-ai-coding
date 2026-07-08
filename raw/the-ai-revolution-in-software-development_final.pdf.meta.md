@@ -7,7 +7,6 @@ url: "https://www.mckinsey.com"
 deposited_by: ""
 topics: [agentic-coding, transformation-organisationnelle, context-engineering, finops-ia, outils-et-marche]
 needs_review: false
-processed: true
 ---
 
 ## Notes extraites automatiquement

@@ -7,7 +7,6 @@ url: "https://www.mckinsey.com"
 deposited_by: ""
 topics: [outils-et-marche, transformation-organisationnelle, context-engineering, finops-ia]
 needs_review: false
-processed: true
 ---
 
 ## Notes extraites automatiquement

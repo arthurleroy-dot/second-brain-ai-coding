@@ -7,7 +7,6 @@ url: "https://www.deloitte.com/us/en/insights/industry/technology-media-telecom-
 deposited_by: ""
 topics: [outils-et-marche, transformation-organisationnelle, securite-et-risques, finops-ia]
 needs_review: false
-processed: true
 ---
 
 ## Notes extraites automatiquement

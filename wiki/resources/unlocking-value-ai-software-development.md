@@ -7,7 +7,7 @@ source_type: report-pdf
 origin: externe
 topics: [outils-et-marche, transformation-organisationnelle, context-engineering, finops-ia]
 url: "https://www.mckinsey.com"
-source_file: "unlocking-the-value-of-ai-in-software-development.pdf.meta.md"
+source_file: "unlocking-the-value-of-ai-in-software-development.pdf"
 needs_review: false
 ---
 

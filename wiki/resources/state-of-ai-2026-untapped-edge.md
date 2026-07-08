@@ -7,7 +7,7 @@ source_type: report-pdf
 origin: externe
 topics: [outils-et-marche, transformation-organisationnelle, securite-et-risques, finops-ia]
 url: "https://www.deloitte.com/us/state-of-ai"
-source_file: "state-of-ai-2026.pdf.meta.md"
+source_file: "state-of-ai-2026.pdf"
 needs_review: false
 ---
 

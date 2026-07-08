@@ -7,7 +7,7 @@ source_type: report-pdf
 origin: externe
 topics: [agentic-coding, transformation-organisationnelle, context-engineering]
 url: "https://www.mckinsey.com"
-source_file: "rewiring-software-delivery-for-the-agentic-era.pdf.meta.md"
+source_file: "rewiring-software-delivery-for-the-agentic-era.pdf"
 needs_review: false
 ---
 

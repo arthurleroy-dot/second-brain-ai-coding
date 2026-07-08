@@ -7,7 +7,7 @@ source_type: report-pdf
 origin: externe
 topics: [agentic-coding, outils-et-marche, securite-et-risques]
 url: "https://www.anthropic.com"
-source_file: "2026 Agentic Coding Trends Report.pdf.meta.md"
+source_file: "2026 Agentic Coding Trends Report.pdf"
 needs_review: false
 ---
 

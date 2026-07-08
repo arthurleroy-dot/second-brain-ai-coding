@@ -6,7 +6,6 @@ url: "https://leanopstech.com"
 deposited_by: ""
 topics: [finops-ia]
 needs_review: true
-processed: true
 ---
 
 ## FinOps for AI Workloads in 2026: Why Traditional Cloud FinOps Practices Fail On LLMs

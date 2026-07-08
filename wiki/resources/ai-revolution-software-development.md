@@ -7,7 +7,7 @@ source_type: report-pdf
 origin: externe
 topics: [agentic-coding, transformation-organisationnelle, context-engineering, finops-ia, outils-et-marche]
 url: "https://www.mckinsey.com"
-source_file: "the-ai-revolution-in-software-development_final.pdf.meta.md"
+source_file: "the-ai-revolution-in-software-development_final.pdf"
 needs_review: false
 ---
 

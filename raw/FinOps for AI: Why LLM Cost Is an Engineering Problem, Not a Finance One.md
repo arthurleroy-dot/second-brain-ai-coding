@@ -6,7 +6,6 @@ url: "https://rickpollick.com"
 deposited_by: ""
 topics: [finops-ia]
 needs_review: true
-processed: true
 ---
 
 [FinOps for AI: Why LLM Cost Is an Engineering Problem, Not a Finance One](https://rickpollick.com/_next/image?url=%2Fimages%2Ffinops-ai-hero.png&w=3840&q=75)

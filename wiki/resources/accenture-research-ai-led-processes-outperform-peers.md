@@ -7,7 +7,7 @@ source_type: report-pdf
 origin: externe
 topics: [transformation-organisationnelle]
 url: "https://www.accenture.com/foresight"
-source_file: "new-accenture-research-finds-that-companies-with-ai-led-processes-outperform-peers.pdf.meta.md"
+source_file: "new-accenture-research-finds-that-companies-with-ai-led-processes-outperform-peers.pdf"
 needs_review: false
 ---
 

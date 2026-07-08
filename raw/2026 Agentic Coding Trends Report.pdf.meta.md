@@ -7,7 +7,6 @@ url: "https://www.anthropic.com"
 deposited_by: ""
 topics: [agentic-coding, outils-et-marche, securite-et-risques]
 needs_review: true
-processed: true
 ---
 
 ## Notes extraites automatiquement

@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "files": {
+    "2026 Agentic Coding Trends Report.pdf": {
+      "slug": "2026-agentic-coding-trends-report",
+      "ingested_at": "2026-07-08",
+      "run": "baseline"
+    },
+    "2026 Software Industry Outlook | Deloitte Insights.pdf": {
+      "slug": "2026-software-industry-outlook",
+      "ingested_at": "2026-07-08",
+      "run": "baseline"
+    },
+    "new-accenture-research-finds-that-companies-with-ai-led-processes-outperform-peers.pdf": {
+      "slug": "accenture-research-ai-led-processes-outperform-peers",
+      "ingested_at": "2026-07-08",
+      "run": "baseline"
+    },
+    "AI FinOps in 2026: Why Runtime Cost Governance Can't Wait.md": {
+      "slug": "ai-finops-2026-runtime-cost-governance-cant-wait",
+      "ingested_at": "2026-07-08",
+      "run": "baseline"
+    },
+    "the-ai-revolution-in-software-development_final.pdf": {
+      "slug": "ai-revolution-software-development",
+      "ingested_at": "2026-07-08",
+      "run": "baseline"
+    },
+    "AI Software Development: What Changes from 2026 to 2035.md": {
+      "slug": "ai-software-development-what-changes-2026-2035",
+      "ingested_at": "2026-07-08",
+      "run": "baseline"
+    },
+    "FinOps for AI: Why LLM Cost Is an Engineering Problem, Not a Finance One.md": {
+      "slug": "finops-ai-llm-cost-engineering-not-finance",
+      "ingested_at": "2026-07-08",
+      "run": "baseline"
+    },
+    "Microsoft and Google are late to AI coding, but 'absolutely critical' they compete for growth.md": {
+      "slug": "microsoft-google-late-ai-coding-compete-growth",
+      "ingested_at": "2026-07-08",
+      "run": "baseline"
+    },
+    "rewiring-software-delivery-for-the-agentic-era.pdf": {
+      "slug": "rewiring-software-delivery-agentic-era",
+      "ingested_at": "2026-07-08",
+      "run": "baseline"
+    },
+    "state-of-ai-2026.pdf": {
+      "slug": "state-of-ai-2026-untapped-edge",
+      "ingested_at": "2026-07-08",
+      "run": "baseline"
+    },
+    "Top engineers at Anthropic, OpenAI say AI now writes 100% of their code—with big implications for the future of software development jobs.md": {
+      "slug": "top-engineers-anthropic-openai-ai-writes-100-pct-code",
+      "ingested_at": "2026-07-08",
+      "run": "baseline"
+    },
+    "Traditional FinOps Breaks On AI Workloads.md": {
+      "slug": "traditional-finops-breaks-ai-workloads",
+      "ingested_at": "2026-07-08",
+      "run": "baseline"
+    },
+    "unlocking-the-value-of-ai-in-software-development.pdf": {
+      "slug": "unlocking-value-ai-software-development",
+      "ingested_at": "2026-07-08",
+      "run": "baseline"
+    }
+  }
+}

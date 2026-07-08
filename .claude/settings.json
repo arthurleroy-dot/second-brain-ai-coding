@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "deny": [
+      "Write(raw/**)",
+      "Edit(raw/**)",
+      "Write(web/**)",
+      "Edit(web/**)",
+      "Write(.github/**)",
+      "Edit(.github/**)",
+      "Write(.claude/**)",
+      "Edit(.claude/**)",
+      "Write(docs/**)",
+      "Edit(docs/**)"
+    ]
+  }
+}

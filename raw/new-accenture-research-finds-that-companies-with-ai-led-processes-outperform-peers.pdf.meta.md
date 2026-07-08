@@ -7,7 +7,6 @@ url: "https://www.accenture.com/foresight"
 deposited_by: ""
 topics: [transformation-organisationnelle]
 needs_review: false
-processed: true
 ---
 
 ## Notes extraites automatiquement
