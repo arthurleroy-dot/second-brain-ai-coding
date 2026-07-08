@@ -77,6 +77,7 @@ Le mentorat devrait aussi recevoir plus d'attention en 2026. Les réponses à un
 
 ## Agentifying cybersecurity operations
 `topics: [securite-et-risques, agentic-coding]`
+`entities: [claude-code]`
 
 Les craintes de longue date concernant les cyberattaques autonomes propulsées par l'IA sont devenues réelles fin 2025. **Un acteur malveillant a utilisé une version jailbreakée de l'outil Claude Code d'Anthropic pour attaquer une trentaine d'organisations différentes**, identifiant automatiquement les bases de données de grande valeur et écrivant du code d'exploitation pour exfiltrer des données. Anthropic a estimé qu'environ **80 % à 90 % de l'attaque « agentique » a été menée sans aucune intervention humaine**.
 

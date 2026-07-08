@@ -54,6 +54,7 @@ AI workloads break all three:
 
 ## The 7 Traditional FinOps Practices That Fail On AI
 `topics: [finops-ia]`
+`entities: [claude-code]`
 
 ### Failure 1: Cost Explorer Doesn't See Inside LLM API Calls
 
@@ -144,6 +145,7 @@ These need to live in your AI cost tracking system, not in cloud FinOps tools.
 
 ## What AI FinOps Actually Looks Like (The Practice You Need To Build)
 `topics: [finops-ia]`
+`entities: [claude-code]`
 
 A working AI FinOps practice in 2026 has these components:
 

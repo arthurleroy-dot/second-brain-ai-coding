@@ -67,6 +67,7 @@ La manière dont nous interagissons avec les ordinateurs connaît l'un de ses ch
 
 ## Capability trends: What agents can do
 `topics: [agentic-coding, outils-et-marche]`
+`entities: [claude-code]`
 
 ### Trend 2 — Single agents evolve into coordinated teams
 
@@ -127,6 +128,7 @@ La première vague d'agentic coding visait à aider les ingénieurs logiciels pr
 
 ## Impact trends: What agents may change in 2026
 `topics: [agentic-coding, outils-et-marche, transformation-organisationnelle]`
+`entities: [claude-code]`
 
 ### Trend 6 — Productivity gains reshape software development economics
 

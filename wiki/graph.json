@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-03",
+  "generated": "2026-07-08",
   "nodes": [
     {"id": "resource:ai-finops-2026-runtime-cost-governance-cant-wait", "type": "resource", "label": "AI FinOps in 2026: Why Runtime Cost Governance Can't Wait", "date": "2026"},
     {"id": "resource:finops-ai-llm-cost-engineering-not-finance", "type": "resource", "label": "FinOps for AI: Why LLM Cost Is an Engineering Problem, Not a Finance One", "date": "2026"},
@@ -20,6 +20,7 @@
     {"id": "theme:outils-et-marche", "type": "theme", "label": "Outils et Marché"},
     {"id": "theme:securite-et-risques", "type": "theme", "label": "Sécurité et Risques"},
     {"id": "theme:context-engineering", "type": "theme", "label": "Context Engineering"},
+    {"id": "entity:claude-code", "type": "entity", "entity_type": "tool", "label": "Claude Code"},
     {"id": "author:eci-research", "type": "author", "label": "ECI Research"},
     {"id": "author:rick-pollick", "type": "author", "label": "Rick Pollick"},
     {"id": "author:leanops-tech", "type": "author", "label": "LeanOps Tech"},
@@ -130,6 +131,13 @@
     {"source": "resource:unlocking-value-ai-software-development", "target": "theme:transformation-organisationnelle", "relation": "belongs_to_theme"},
     {"source": "resource:unlocking-value-ai-software-development", "target": "theme:context-engineering", "relation": "belongs_to_theme"},
     {"source": "resource:unlocking-value-ai-software-development", "target": "theme:finops-ia", "relation": "belongs_to_theme"},
+
+    {"source": "resource:top-engineers-anthropic-openai-ai-writes-100-pct-code", "target": "entity:claude-code", "relation": "mentions"},
+    {"source": "resource:microsoft-google-late-ai-coding-compete-growth", "target": "entity:claude-code", "relation": "mentions"},
+    {"source": "resource:2026-software-industry-outlook", "target": "entity:claude-code", "relation": "mentions", "sections": ["agentifying-cybersecurity-operations"]},
+    {"source": "resource:2026-agentic-coding-trends-report", "target": "entity:claude-code", "relation": "mentions", "sections": ["capability-trends-what-agents-can-do", "impact-trends-what-agents-may-change-in-2026"]},
+    {"source": "resource:unlocking-value-ai-software-development", "target": "entity:claude-code", "relation": "mentions", "sections": ["two-key-shifts-to-unlock-ais-full-potential-in-software-development"]},
+    {"source": "resource:traditional-finops-breaks-ai-workloads", "target": "entity:claude-code", "relation": "mentions", "sections": ["the-7-traditional-finops-practices-that-fail-on-ai", "what-ai-finops-actually-looks-like-the-practice-you-need-to-build"]},
 
     {"source": "date:2024-10", "target": "date:2024", "relation": "year_of"},
     {"source": "date:2025-11", "target": "date:2025", "relation": "year_of"},

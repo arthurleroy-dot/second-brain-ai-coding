@@ -6,6 +6,7 @@ date: "2026-01"
 source_type: article
 origin: externe
 topics: [agentic-coding, transformation-organisationnelle]
+entities: [claude-code]
 url: "https://fortune.com"
 source_file: "Top engineers at Anthropic, OpenAI say AI now writes 100% of their code—with big implications for the future of software development jobs.md"
 needs_review: false

@@ -56,6 +56,7 @@ Pour chaque pratique, la part décroît des top vers les bottom performers (top 
 
 ## Two key shifts to unlock AI's full potential in software development
 `topics: [agentic-coding, transformation-organisationnelle]`
+`entities: [claude-code]`
 
 ### Shift 1 — Prioritize end-to-end implementations of use cases across the PDLC
 
