@@ -14,7 +14,8 @@ drop table if exists resources cascade;
 drop table if exists topics cascade;
 -- (Les policies "public_read" de ces tables tombent avec les tables.)
 
--- Storage : vider puis supprimer le bucket des fichiers bruts (les binaires
--- vivent maintenant dans git sous raw/).
-delete from storage.objects where bucket_id = 'raw-files';
-delete from storage.buckets where id = 'raw-files';
+-- Storage : le bucket des fichiers bruts (`raw-files`) n'est plus utilisé — les
+-- binaires vivent désormais dans git sous raw/. Supabase INTERDIT la suppression
+-- directe en SQL (trigger storage.protect_delete → « Direct deletion from storage
+-- tables is not allowed »). Vider/supprimer le bucket via le Dashboard Storage
+-- (⋯ → Empty bucket, puis Delete bucket) ou l'API Storage. Étape optionnelle.
