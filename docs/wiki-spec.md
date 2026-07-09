@@ -24,7 +24,7 @@ est décrit dans [ingestion.md](ingestion.md) ; le système d'entités dans
     <slug-auteur>.md
   entities/                    ← Couche 3 : registre des liens (outils, clients, …)
     <slug>.md                  ← voir entities.md
-    _candidates.md             ← sas de décision humaine pour entités inconnues
+    _candidates.json           ← file des candidates (contrat lu par la plateforme)
   by-date/                     ← Couche 3 : vue dérivée — index temporel
     <YYYY>/<YYYY>.md
     <YYYY>/<YYYY-MM>/<YYYY-MM>.md
@@ -222,7 +222,7 @@ Ce qui ne déclenche **PAS** `needs_review` :
 - URL manquante
 - source_file manquant
 - Topics absents (l'agent les déduit toujours depuis le contenu)
-- Entité inconnue → va dans `entities/_candidates.md`, canal **distinct** (voir entities.md)
+- Entité inconnue → va dans `entities/_candidates.json`, canal **distinct** (voir entities.md)
 
 Le flag tombe à `false` dès que l'humain a tranché sur l'origin.
 
@@ -255,7 +255,7 @@ Vérifier et rapporter :
 - Ressources sans lien vers un thème/auteur (orphelines).
 - Thèmes avec une seule source ou aucune depuis > 6 mois.
 - Ressources avec `needs_review: true` non résolu.
-- Entités en attente dans `entities/_candidates.md`.
+- Entités en attente dans `entities/_candidates.json` (ou `wiki:verify` en erreur).
 - `graph.json` désynchronisé avec les pages `.md`.
 - `_ingested.json` désynchronisé : fichier `/raw` sans entrée, ou entrée pointant
   vers une ressource inexistante, ou `source_file` d'une ressource absent du manifeste.

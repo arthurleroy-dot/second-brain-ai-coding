@@ -108,3 +108,38 @@ export interface TypeEntry {
   label: string;
   source_count: number;
 }
+
+// Entité candidate : nom détecté à l'ingestion mais absent du registre. Sas de
+// décision humaine, matérialisé dans wiki/entities/_candidates.json.
+export interface CandidateSeenIn {
+  resource: string; // slug de la ressource où le nom apparaît
+  section: string | null; // heading-slug (null = niveau ressource)
+  context: string; // extrait d'une ligne décrivant la mention
+}
+
+export interface SuggestedAlias {
+  slug: string; // entité existante du registre à laquelle le nom ressemble
+  label: string;
+  score: number; // proximité 0..1 (tri décroissant)
+}
+
+export type CandidateStatus = 'pending' | 'merge_alias' | 'create' | 'reject';
+
+export interface CandidateDecision {
+  target_slug: string | null; // cible d'une fusion (merge_alias)
+  entity_type: string | null; // type choisi (create)
+  slug: string | null; // slug de la nouvelle entité (create)
+}
+
+export interface Candidate {
+  name: string; // forme représentative détectée
+  normalized: string; // clé d'identité/dédoublonnage
+  variants: string[]; // toutes les écritures vues
+  note?: string | null; // contexte humain optionnel (ex. faux positif écarté)
+  seen_in: CandidateSeenIn[];
+  suggested_aliases: SuggestedAlias[]; // « ressemble à » (entités proches)
+  suggested_types: string[]; // types suggérés — ⊆ entity_types existants
+  status: CandidateStatus;
+  decision: CandidateDecision;
+  updated_at: string | null;
+}

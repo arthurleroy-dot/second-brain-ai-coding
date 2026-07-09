@@ -3,13 +3,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Tags } from 'lucide-react';
 
 const TITLES: Record<string, string> = {
   '/chat': 'Chat',
   '/wiki': 'Wiki — Thèmes',
   '/sources': 'Sources',
   '/explore': 'Explorer',
+  '/entities': 'Entités',
 };
 
 function titleFor(pathname: string): string {
@@ -21,6 +22,7 @@ export default function TopBar() {
   const pathname = usePathname();
   const [total, setTotal] = useState<number | null>(null);
   const [needsReview, setNeedsReview] = useState<number>(0);
+  const [pending, setPending] = useState<number>(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,6 +32,13 @@ export default function TopBar() {
         if (cancelled) return;
         setTotal(d.total ?? d.sources?.length ?? 0);
         setNeedsReview(d.needs_review ?? 0);
+      })
+      .catch(() => {});
+    fetch('/api/candidates')
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        setPending(d.pending ?? 0);
       })
       .catch(() => {});
     return () => {
@@ -51,6 +60,15 @@ export default function TopBar() {
           >
             <AlertTriangle size={12} />
             {needsReview} à vérifier
+          </Link>
+        )}
+        {pending > 0 && (
+          <Link
+            href="/entities"
+            className="flex items-center gap-1 rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+          >
+            <Tags size={12} />
+            {pending} entité{pending > 1 ? 's' : ''} en attente
           </Link>
         )}
       </div>

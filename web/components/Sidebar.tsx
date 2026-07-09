@@ -7,6 +7,7 @@ import {
   BookOpen,
   Files,
   Compass,
+  Tags,
   Upload,
   Settings,
 } from 'lucide-react';
@@ -17,6 +18,7 @@ const NAV = [
   { href: '/wiki', icon: BookOpen, label: 'Wiki' },
   { href: '/sources', icon: Files, label: 'Sources' },
   { href: '/explore', icon: Compass, label: 'Explorer' },
+  { href: '/entities', icon: Tags, label: 'Entités' },
 ];
 
 export default function Sidebar() {

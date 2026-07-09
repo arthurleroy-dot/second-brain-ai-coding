@@ -186,6 +186,24 @@ export async function fetchIngestManifest(): Promise<Record<string, { slug: stri
   }
 }
 
+/**
+ * Déclenche le workflow d'ingestion (workflow_dispatch) pour que l'agent applique
+ * une décision de candidate committée. Nécessite un token avec la permission
+ * Actions:write. Renvoie false (sans lever) si l'appel échoue — le cron nocturne
+ * reste le filet de rattrapage.
+ */
+export async function dispatchIngest(): Promise<boolean> {
+  if (!isGithubConfigured()) return false;
+  try {
+    await ghJson('POST', `/actions/workflows/ingest.yml/dispatches`, {
+      ref: githubBranch(),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Vrai si un run du workflow d'ingestion est en cours ou en file. */
 export async function hasActiveIngestRun(): Promise<boolean> {
   try {

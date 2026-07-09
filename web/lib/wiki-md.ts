@@ -20,7 +20,8 @@ export function wikilinksToMarkdown(md: string): string {
 
     if (kind === 'resources') return `[${label}](/sources/${slug})`;
     if (kind === 'themes') return `[${label}](/wiki/${slug})`;
-    // authors / by-date / entities : pas de page dédiée → texte simple.
+    if (kind === 'entities') return `[${label}](/entities/${slug})`;
+    // authors / by-date : pas de page dédiée → texte simple.
     return label;
   });
 }

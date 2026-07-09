@@ -14,7 +14,7 @@ L'idée : chacun dépose ses trouvailles brutes (articles, notes, liens, réflex
 │   ├── resources/          # Couche 2 — CANONIQUE : 1 fiche complète par source brute
 │   ├── themes/             # Couche 3 — vue dérivée : liens vers chunks par thème
 │   ├── authors/            # Couche 3 — vue dérivée : table des ressources par auteur
-│   ├── entities/           # Couche 3 — registre des liens (outils, clients…) + _candidates.md
+│   ├── entities/           # Couche 3 — registre des liens (outils, clients…) + _candidates.json
 │   ├── by-date/            # Couche 3 — vue dérivée : index temporel (YYYY/YYYY-MM)
 │   ├── graph.json          # Export machine-readable (nodes + edges)
 │   ├── index.md            # Catalogue général (thèmes, auteurs, ressources)

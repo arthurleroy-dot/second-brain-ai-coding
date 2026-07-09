@@ -53,6 +53,10 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Installe les dépendances web (tsx, gray-matter — pour wiki:verify)
+        if: steps.detect.outputs.count != '0'
+        run: npm --prefix web ci
+
       - name: Installe Claude Code
         if: steps.detect.outputs.count != '0'
         run: npm install -g @anthropic-ai/claude-code
@@ -75,6 +79,13 @@ jobs:
           claude -p "$PROMPT" \
             --permission-mode acceptEdits \
             --settings .github/ingest-settings.json
+
+      - name: Vérifie la cohérence du wiki (filet — non bloquant)
+        if: steps.detect.outputs.count != '0'
+        run: |
+          # Mode par défaut : rapport dans les logs, sort 0 (n'échoue pas le run).
+          # Le rapport signale les liens ratés / doublons / graphe désynchronisé.
+          npm --prefix web run wiki:verify
 
       - name: Commit du wiki
         if: steps.detect.outputs.count != '0'

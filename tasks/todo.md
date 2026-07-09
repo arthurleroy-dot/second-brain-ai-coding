@@ -82,3 +82,56 @@ migration ; trancher les 3 entités candidates (Cursor, GitHub Copilot, Windsurf
 **Leçon clé :** ne pas mettre de deny bloquants dans le `.claude/settings.json`
 partagé (voir [lessons.md](lessons.md)) — le garde-fou de l'Action vit dans
 `.github/ingest-settings.json` chargé via `--settings`.
+
+## Chantier : gestion des entités + ingestion fiable (2026-07-09)
+
+Stratégie décidée avec l'utilisateur : **un socle web construit une fois + deux
+moteurs d'ingestion interchangeables qu'on compare** (LLM d'abord, TypeScript
+déterministe ensuite sur une branche). Critère réel = *zéro lien raté / entité
+oubliée*, pas le déterminisme pour lui-même. **Contrat de sortie unique** que les
+deux moteurs devront produire : `wiki/entities/_candidates.json` (structuré),
+frontmatter `entities:` + chunks, `graph.json`, manifeste. Un **vérificateur
+déterministe** (à venir) mesurera les liens ratés et départagera les moteurs.
+
+### Étape 1 — Page de gestion des candidats (FAIT)
+
+- [x] Contrat `wiki/entities/_candidates.json` (seed : Cursor, GitHub Copilot,
+      Windsurf, migrés du `_candidates.md`) + types `Candidate` dans `types/index.ts`.
+- [x] Parsers `listCandidates()` + `getEntity()` (`wiki-parser.ts`) ; wikilinks
+      `entities/` → `/entities/<slug>` (`wiki-md.ts`).
+- [x] `GET /api/candidates` (+ `pending`) ; badge « N en attente » dans `TopBar`.
+- [x] Page `/entities` (`EntitiesView` : section « en attente » = `CandidateCard`,
+      section « registre » = liste d'entités) + détail `/entities/[slug]` + nav
+      `Sidebar`/`TopBar`.
+- [x] Voir + agir : `dispatchIngest()` (`github.ts`), `POST /api/candidates/resolve`
+      (écrit la décision dans `_candidates.json` via commit GitHub puis relance
+      l'ingestion), boutons Fusionner / Créer(+type) / Rejeter dans `CandidateCard`.
+- [x] Build vert ; vérifié en dev : API renvoie 3 candidates + 4 entités,
+      `/entities` 200, `/entities/claude-code` rend label + type, slug inconnu → 404.
+
+Règle actée (demande utilisateur) : le système ne **propose jamais** un nouveau
+`entity_type` — une candidate est une nouvelle entité rattachée à un type déjà
+connu ; un nouveau type ne naît que d'une action humaine (formulaire d'upload, ou
+« Créer + nouveau type » sur la page). `suggested_types` ⊆ types du registre.
+
+### Étape 2 — Moteur LLM fiable + vérificateur (FAIT)
+
+- [x] Vérificateur autonome `web/scripts/wiki-verify.ts` (tsx, sans alias `@/`) :
+      missed-link / unknown-entity / duplicate-entity / candidate-collision /
+      invented-type / graph-missing-node|edge / manifest-missing. Défaut = rapport
+      + exit 0 ; `--strict` = exit 1 si un problème ; `--json` = comptage.
+      Script `npm --prefix web run wiki:verify`.
+- [x] Super-prompt `.github/prompts/ingest-prompt.md` : écrit le contrat
+      `_candidates.json`, **mandat de complétude** (relier toute mention connue),
+      anti-doublon, type fermé (jamais de nouveau `entity_type`), applique+purge
+      les décisions humaines.
+- [x] `_candidates.md` supprimé ; `_candidates.json` = source unique. Docs
+      alignées (entities.md §4/§6, ingestion.md §3/§4, wiki-spec.md, README).
+- [x] Action `ingest.yml` : `npm --prefix web ci` (tsx) + step `wiki:verify` non
+      bloquant après l'agent.
+- [x] Vérifié : verify propre sur le corpus ; cas piégé (mention non reliée) bien
+      signalé (missed-link claude-code + n8n) ; build web vert.
+
+### Étape 3 — Moteur TypeScript déterministe (À FAIRE, branche `feat/ts-resolver`)
+Le resolver du plan `~/.claude/plans/je-voudrais-cr-er-un-iterative-mitten.md`.
+On compare les deux moteurs sur les 13 ressources, on garde le meilleur.

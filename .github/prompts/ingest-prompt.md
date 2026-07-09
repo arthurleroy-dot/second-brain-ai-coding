@@ -1,8 +1,10 @@
-Tu es l'agent de maintenance du wiki "AI Coding Second Brain".
+Tu es l'agent d'ingestion du wiki "AI Coding Second Brain". Ta sortie doit être
+la plus **fiable et reproductible** possible : aucun lien raté, aucune entité
+oubliée, aucun doublon. Un vérificateur déterministe (`wiki:verify`) contrôlera
+ton travail après coup — vise le zéro problème.
 
 Ta mission pour ce run : ingérer dans le wiki les fichiers de `raw/` listés à la
-fin de ce prompt (et EUX SEULS). Chaque fichier listé n'a pas encore de ressource
-dans le wiki.
+fin de ce prompt (et EUX SEULS). Chaque fichier listé n'a pas encore de ressource.
 
 ## Avant de commencer, lis (dans cet ordre) :
 1. `CLAUDE.md` — carte du projet + règles cardinales.
@@ -10,32 +12,103 @@ dans le wiki.
 3. `docs/wiki-spec.md` — les formats exacts (frontmatter, chunks, vues, graph.json).
 4. `docs/entities.md` — comment relier les ressources aux entités (outils, clients…).
 
-## Règles absolues (rappel)
+## Règles absolues
 - Tu n'écris QUE sous `wiki/`. Jamais dans `raw/`, `web/`, `.github/`, `docs/`.
 - `raw/` est immuable : tu ne le modifies ni ne le renommes jamais.
 - Pour chaque fichier traité, ajoute son entrée dans `wiki/_ingested.json`
   (clé = nom EXACT du fichier de contenu ; valeur = { slug, ingested_at, run }).
   Utilise `run: "gha"` (ou la date du jour si tu ne connais pas le run id).
 - Si un fichier a un sidecar `<nom>.meta.md`, ses métadonnées priment sur ton
-  inférence (précédence « l'humain gagne si rempli »). L'`url` ne vient JAMAIS
-  du contenu — uniquement du sidecar.
+  inférence (« l'humain gagne si rempli »). L'`url` ne vient JAMAIS du contenu.
 - Slugs immuables. Fidélité du contenu > brièveté (reproduis chiffres, exemples,
   citations ; paraphrase mais ne raccourcis pas).
-- Liens/entités (confiance graduée, cf. docs/entities.md §4) :
-  - le sidecar peut déclarer un bloc `links:` TYPÉ (`tool: [...]`, `client: [...]`).
-    Une entité déclarée avec son type → crée-la/lie-la DIRECTEMENT avec ce
-    `entity_type`, même nouvelle (sauf conflit avec une entité existante d'un
-    autre type → candidate) ;
-  - nom sans type (ancien `entities:` plat) ou détecté dans le contenu : alias
-    connu → lien auto ; inconnu → `wiki/entities/_candidates.md` (NE crée PAS,
-    propose un type) ;
-  - avant toute création, dédoublonne (vérifie label/aliases existants).
-  Applique aussi les décisions déjà cochées dans `_candidates.md` par un humain.
 - `needs_review: true` UNIQUEMENT si l'origin (interne/externe) n'est pas
   déductible — jamais pour une date/url/topic manquant.
 
+## Entités & liens — le point critique (cf. docs/entities.md)
+
+Le registre vit dans `wiki/entities/<slug>.md` (frontmatter `entity_type`, `label`,
+`aliases`). Applique la **confiance graduée** :
+
+1. **Sidecar `links:` typé** (`tool: [...]`, `client: [...]`) → crée/relie
+   DIRECTEMENT l'entité avec ce `entity_type`, même nouvelle. **Sauf** si le nom
+   correspond à une entité existante d'un AUTRE type → candidate (conflit).
+2. **Nom sans type / détecté dans le contenu** : écriture reconnue (match
+   casse/accents sur `label` ou `aliases`) → **lien**. Écriture inconnue → NE crée
+   PAS : ajoute une candidate (cf. `_candidates.json`).
+3. **Rien déclaré** → ne relie que les entités DÉJÀ connues détectées dans le texte.
+
+**Mandat de complétude (anti-lien-raté) :** pour CHAQUE entité du registre, si son
+`label` ou l'un de ses `aliases` apparaît dans le texte d'une ressource, tu DOIS la
+relier. C'est exactement ce que `wiki:verify` recontrôle — ne laisse aucune mention
+connue non reliée.
+
+**Anti-doublon :** avant toute création, compare le nom normalisé (minuscules, sans
+accents/ponctuation) aux `label`+`aliases` existants (`n8n` = `N8N` = `n8n.io`).
+En cas de correspondance → relie/fusionne, ne crée pas.
+
+**Type fermé :** tu ne proposes JAMAIS un `entity_type` nouveau. Le `suggested_types`
+d'une candidate est TOUJOURS pris parmi les types déjà présents dans le registre.
+Un nouveau type ne naît que d'une décision humaine (sidecar `links:` ou page).
+
+**Granularité** (`entities_granularity` du sidecar, sinon `auto`) : niveau
+`resource` = ligne `entities:` du frontmatter ; niveau `chunk` = ligne
+`` `entities: [...]` `` sous le heading concerné. En `auto` : `chunk` si l'entité
+n'est citée que dans 1–2 sections, `resource` si elle est transverse.
+
+## File des candidates — `wiki/entities/_candidates.json`
+
+C'est le CONTRAT lu par la plateforme (page /entities). Structure EXACTE :
+
+```json
+{
+  "version": 1,
+  "generated": "AAAA-MM-JJ",
+  "candidates": [
+    {
+      "name": "Cursor",
+      "normalized": "cursor",
+      "variants": ["Cursor"],
+      "note": null,
+      "seen_in": [
+        { "resource": "<slug-ressource>", "section": "<heading-slug|null>", "context": "…extrait 1 ligne…" }
+      ],
+      "suggested_aliases": [ { "slug": "<entité-proche>", "label": "…", "score": 0.42 } ],
+      "suggested_types": ["tool"],
+      "status": "pending",
+      "decision": { "target_slug": null, "entity_type": null, "slug": null },
+      "updated_at": "AAAA-MM-JJ"
+    }
+  ]
+}
+```
+
+- `normalized` = clé d'identité (dédoublonne les variantes d'une même candidate).
+- `suggested_aliases` = entités existantes qui ressemblent (proximité de chaîne),
+  triées par `score` décroissant ; `[]` si aucune.
+- `suggested_types` ⊆ types du registre.
+- Fusionne dans une candidate EXISTANTE si `normalized` déjà présent (ajoute la
+  mention à `seen_in`, la variante à `variants`) — n'empile pas de doublons.
+
+**Applique les décisions humaines déjà posées** (`status` ≠ `pending`) et purge
+l'entrée traitée :
+- `merge_alias` → ajoute le nom (et ses variantes) aux `aliases` de
+  `decision.target_slug`, relie rétroactivement toutes les ressources de `seen_in`,
+  puis SUPPRIME la candidate.
+- `create` → crée `wiki/entities/<decision.slug>.md` avec `entity_type =
+  decision.entity_type`, relie rétroactivement, puis SUPPRIME la candidate.
+- `reject` → SUPPRIME la candidate, ne relie rien.
+
+## Étapes par fichier
+Suis `docs/ingestion.md §3`. En résumé : lire le contenu (+ sidecar) → déterminer
+métadonnées + origin → créer `wiki/resources/<slug>.md` (frontmatter + blockquote
+de navigation + contenu intégral avec annotations `topics:` et `entities:`) →
+mettre à jour themes/, authors/, entities/ (Mentions), by-date/, types.md,
+origin.md, index.md → ajouter nodes/edges dans `graph.json` (node `entity:<slug>`,
+edge `mentions` avec `sections` si niveau chunk) → mettre à jour `_candidates.json`
+→ entrée dans `_ingested.json` → ligne dans `log.md`.
+
 ## À la fin
-Mets à jour toutes les vues dérivées impactées (themes/, authors/, entities/,
-by-date/, types.md, origin.md, index.md), ajoute les nodes/edges dans
-`graph.json`, écris une entrée dans `wiki/log.md`, et termine par un résumé :
-ressources créées, entités liées, candidates ajoutées, `needs_review` à résoudre.
+Termine par un résumé : ressources créées, entités liées, candidates ajoutées,
+décisions appliquées, `needs_review` à résoudre. N'attends aucune validation
+intermédiaire — traite tout le lot.

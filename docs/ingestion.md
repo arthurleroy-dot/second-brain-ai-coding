@@ -76,8 +76,10 @@ l'agent infère tout (et applique l'heuristique origin de wiki-spec.md §5).
 1. Lire le fichier de contenu en entier (+ son sidecar `.meta.md` s'il existe).
 2. Déterminer : `title`, `source_type`, `author`, `date`, `topics`, `url`,
    `origin` (heuristique wiki-spec.md §5). Le sidecar prime sur l'inférence.
-3. Détecter les entités (voir [entities.md](entities.md)) : alias connu → lien ;
-   écriture inconnue → candidate. Déterminer la granularité (resource vs chunk).
+3. Détecter les entités (voir [entities.md](entities.md)) : alias connu → lien
+   (mandat de complétude : TOUTE mention connue est reliée) ; écriture inconnue →
+   candidate dans `_candidates.json`. Déterminer la granularité (resource vs chunk).
+   Appliquer les décisions humaines déjà posées (`status` ≠ `pending`) et purger.
 4. Créer `/wiki/resources/<slug>.md` : frontmatter + blockquote de navigation +
    contenu intégral avec chunk annotations (`topics:` et `entities:`).
 5. Pour chaque topic : mettre à jour `/wiki/themes/<topic>.md` (entrée ressource
@@ -114,11 +116,17 @@ Le pipeline est piloté par `.github/workflows/ingest.yml` :
   (double ceinture avec le `git add wiki/`). Il n'est chargé QUE dans l'Action —
   jamais dans les sessions de dev (le `.claude/settings.json` partagé ne contient
   aucun deny bloquant).
+- **Vérification** : après l'agent, `npm --prefix web run wiki:verify` recontrôle
+  la cohérence des liens/entités (liens ratés, doublons, graphe/manifeste — voir
+  [entities.md](entities.md) §6). Mode non bloquant : le rapport va dans les logs,
+  le commit a lieu quand même (le cron rattrapera). C'est le filet du moteur LLM.
 - **Commit** : `git add wiki/ && git commit && git pull --rebase && git push`
   (le rebase encaisse un éventuel commit d'upload concurrent).
 - **Échec** : ouvre une issue GitHub. Pas de retry dans le run — le cron nocturne
   EST le retry (la détection par manifeste est idempotente).
 
-Le contenu ingéré peut varier d'un run à l'autre (agent non déterministe) ; c'est
-maîtrisé par l'idempotence du manifeste, le `settings.json` en deny hors `wiki/`,
-et le workflow de lint (wiki-spec.md §8) lancé périodiquement.
+Le **texte paraphrasé** peut varier d'un run à l'autre (le LLM n'est pas
+déterministe sur la prose) ; tout ce qui touche le graphe est cadré par le mandat
+de complétude du prompt + le vérificateur `wiki:verify`, l'idempotence du manifeste,
+et le deny hors `wiki/`. La comparaison avec un moteur TypeScript déterministe
+(branche `feat/ts-resolver`) se fera via `wiki:verify --json` (comptage des ratés).

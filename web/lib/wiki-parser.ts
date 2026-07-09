@@ -2,6 +2,7 @@ import matter from 'gray-matter';
 import path from 'path';
 import {
   AuthorEntry,
+  Candidate,
   DateEntry,
   ResourceType,
   Source,
@@ -249,4 +250,71 @@ export async function listEntities(): Promise<EntityEntry[]> {
     });
   }
   return entities.sort((a, b) => a.label.localeCompare(b.label));
+}
+
+export interface EntityDetail {
+  entity: EntityEntry;
+  body: string; // corps markdown (## Mentions) sans le frontmatter
+}
+
+/** Une entité du registre par slug (frontmatter + corps Mentions), ou null. */
+export async function getEntity(slug: string): Promise<EntityDetail | null> {
+  const content = await readWikiFile(`${ENTITIES}/${slug}.md`);
+  if (!content.trim()) return null;
+  const { data, content: body } = matter(content);
+  const s = cleanStr(data.slug) ?? slug;
+  return {
+    entity: {
+      slug: s,
+      label: cleanStr(data.label) ?? s,
+      entity_type: cleanStr(data.entity_type) ?? 'entity',
+      aliases: arr(data.aliases),
+    },
+    body,
+  };
+}
+
+/**
+ * File des entités candidates (wiki/entities/_candidates.json). Contrat partagé
+ * entre les deux moteurs d'ingestion (LLM puis TypeScript) : ils écrivent ce
+ * fichier, la plateforme le lit. Renvoie [] si absent ou illisible.
+ */
+export async function listCandidates(): Promise<Candidate[]> {
+  const content = await readWikiFile(`${ENTITIES}/_candidates.json`);
+  if (!content.trim()) return [];
+  try {
+    const json = JSON.parse(content);
+    const list = Array.isArray(json?.candidates) ? json.candidates : [];
+    // Normalisation défensive : on garantit les tableaux et la structure decision.
+    return list.map((c: any): Candidate => ({
+      name: String(c?.name ?? ''),
+      normalized: String(c?.normalized ?? String(c?.name ?? '').toLowerCase()),
+      variants: arr(c?.variants),
+      note: c?.note ?? null,
+      seen_in: Array.isArray(c?.seen_in)
+        ? c.seen_in.map((s: any) => ({
+            resource: String(s?.resource ?? ''),
+            section: s?.section ?? null,
+            context: String(s?.context ?? ''),
+          }))
+        : [],
+      suggested_aliases: Array.isArray(c?.suggested_aliases)
+        ? c.suggested_aliases.map((a: any) => ({
+            slug: String(a?.slug ?? ''),
+            label: String(a?.label ?? a?.slug ?? ''),
+            score: Number(a?.score ?? 0),
+          }))
+        : [],
+      suggested_types: arr(c?.suggested_types),
+      status: (c?.status ?? 'pending') as Candidate['status'],
+      decision: {
+        target_slug: c?.decision?.target_slug ?? null,
+        entity_type: c?.decision?.entity_type ?? null,
+        slug: c?.decision?.slug ?? null,
+      },
+      updated_at: c?.updated_at ?? null,
+    }));
+  } catch {
+    return [];
+  }
 }
