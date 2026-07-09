@@ -44,3 +44,17 @@ façon garanti par `git add wiki/` seul dans l'Action.
 chemins de dev (`web/**`, `.github/**`, `.claude/**`). Scoper les restrictions d'un
 agent headless via `--settings`. Vérifier après coup que je peux toujours éditer
 les zones de travail.
+
+## 2026-07-09 — Le CLI Claude Code via gateway (LiteLLM) exige ANTHROPIC_AUTH_TOKEN
+**Contexte :** validation de bout en bout de `claude -p` via le proxy LiteLLM
+(`ANTHROPIC_BASE_URL`). Le proxy répond 200 en curl (x-api-key, streamé et non
+streamé), mais `claude -p` bouclait sur des **401** puis, sur config vierge,
+affichait « Not logged in · Please run /login ». La GitHub Action (runner vierge,
+`ANTHROPIC_API_KEY` seule) aurait donc échoué.
+**Correction :** pour une gateway, le CLI s'authentifie via **`ANTHROPIC_AUTH_TOKEN`**
+(envoyé en `Authorization: Bearer`), PAS via `ANTHROPIC_API_KEY` seule. Ajout de
+`ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_API_KEY }}` dans l'env de `ingest.yml`.
+Le SDK web (`@anthropic-ai/sdk`, chat) se contente de `ANTHROPIC_API_KEY` (x-api-key).
+**Règle :** CLI Claude Code + gateway → `ANTHROPIC_AUTH_TOKEN`. Tester en isolant la
+config (`CLAUDE_CONFIG_DIR=$(mktemp -d)`) pour reproduire un runner vierge, sinon la
+session OAuth locale masque le vrai comportement.

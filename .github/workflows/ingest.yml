@@ -64,6 +64,11 @@ jobs:
       - name: Ingestion
         if: steps.detect.outputs.count != '0'
         env:
+          # Auth du CLI Claude Code : via une gateway (LiteLLM), une simple
+          # ANTHROPIC_API_KEY renvoie « Not logged in » sur un runner vierge.
+          # C'est ANTHROPIC_AUTH_TOKEN (envoyé en Authorization: Bearer) qui
+          # authentifie le CLI. On mappe les deux sur le même secret.
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
           ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
