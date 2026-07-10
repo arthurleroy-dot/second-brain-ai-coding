@@ -14,6 +14,10 @@ Assistant de codage agentique d'Anthropic (CLI / IDE / SDK).
 
 ## Mentions
 
+### [[../resources/test-plateforme-panorama-agentic-coding-2026|Test plateforme — panorama agentic coding]]
+`2026-07-09 · article — Test plateforme`
+- Ressource entière : Claude Code est utilisé comme illustration concrète de l'approche agentique en ligne de commande — capacité de planifier, modifier le code de façon autonome, lancer les tests, itérer jusqu'à accomplissement ; principe clé de fidélité au contenu du dépôt existant.
+
 ### [[../resources/microsoft-google-late-ai-coding-compete-growth|Microsoft and Google are late to AI coding, but 'absolutely critical' they compete for growth]]
 `2026-06 · article — CNBC`
 - Ressource entière : Claude Code est le fil conducteur de l'article — Anthropic mène le marché AI coding grâce à lui, face à Codex (OpenAI), Copilot (Microsoft), Antigravity/Gemini (Google) et Cursor.

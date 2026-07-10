@@ -1,10 +1,10 @@
 ---
 type: index
 label: Origine des ressources
-last_updated: "2026-07-03"
+last_updated: "2026-07-10"
 ---
 
-## externe (13 ressources)
+## externe (14 ressources)
 
 | Ressource | Auteur | Date | Type |
 |-----------|--------|------|------|
@@ -21,6 +21,7 @@ last_updated: "2026-07-03"
 | [[resources/ai-revolution-software-development\|The AI revolution in software development]] | McKinsey | 2026-04 | report-pdf |
 | [[resources/unlocking-value-ai-software-development\|Unlocking the value of AI in software development]] | McKinsey | 2025-11 | report-pdf |
 | [[resources/accenture-research-ai-led-processes-outperform-peers\|New Accenture Research Finds that Companies with AI-Led Processes Outperform Peers]] | Accenture | 2024-10-10 | report-pdf |
+| [[resources/test-plateforme-panorama-agentic-coding-2026\|Test plateforme — panorama agentic coding]] | Test plateforme | 2026-07-09 | article |
 
 ## interne (0 ressources)
 

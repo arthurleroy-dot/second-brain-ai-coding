@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-08",
+  "generated": "2026-07-10",
   "nodes": [
     {"id": "resource:ai-finops-2026-runtime-cost-governance-cant-wait", "type": "resource", "label": "AI FinOps in 2026: Why Runtime Cost Governance Can't Wait", "date": "2026"},
     {"id": "resource:finops-ai-llm-cost-engineering-not-finance", "type": "resource", "label": "FinOps for AI: Why LLM Cost Is an Engineering Problem, Not a Finance One", "date": "2026"},
@@ -14,6 +14,7 @@
     {"id": "resource:accenture-research-ai-led-processes-outperform-peers", "type": "resource", "label": "New Accenture Research Finds that Companies with AI-Led Processes Outperform Peers", "date": "2024-10-10"},
     {"id": "resource:ai-revolution-software-development", "type": "resource", "label": "The AI revolution in software development", "date": "2026-04"},
     {"id": "resource:unlocking-value-ai-software-development", "type": "resource", "label": "Unlocking the value of AI in software development", "date": "2025-11"},
+    {"id": "resource:test-plateforme-panorama-agentic-coding-2026", "type": "resource", "label": "Test plateforme — panorama agentic coding", "date": "2026-07-09"},
     {"id": "theme:finops-ia", "type": "theme", "label": "FinOps IA"},
     {"id": "theme:agentic-coding", "type": "theme", "label": "Agentic Coding"},
     {"id": "theme:transformation-organisationnelle", "type": "theme", "label": "Transformation Organisationnelle"},
@@ -31,6 +32,7 @@
     {"id": "author:deloitte", "type": "author", "label": "Deloitte"},
     {"id": "author:mckinsey", "type": "author", "label": "McKinsey"},
     {"id": "author:accenture", "type": "author", "label": "Accenture"},
+    {"id": "author:test-plateforme", "type": "author", "label": "Test plateforme"},
     {"id": "type:article", "type": "source_type", "label": "Article"},
     {"id": "type:report-pdf", "type": "source_type", "label": "Report PDF"},
     {"id": "origin:externe", "type": "origin", "label": "Externe"},
@@ -43,7 +45,8 @@
     {"id": "date:2026-02", "type": "date", "label": "2026-02", "granularity": "month", "year": "2026"},
     {"id": "date:2026-04", "type": "date", "label": "2026-04", "granularity": "month", "year": "2026"},
     {"id": "date:2026-05", "type": "date", "label": "2026-05", "granularity": "month", "year": "2026"},
-    {"id": "date:2026-06", "type": "date", "label": "2026-06", "granularity": "month", "year": "2026"}
+    {"id": "date:2026-06", "type": "date", "label": "2026-06", "granularity": "month", "year": "2026"},
+    {"id": "date:2026-07", "type": "date", "label": "2026-07", "granularity": "month", "year": "2026"}
   ],
   "edges": [
     {"source": "resource:ai-finops-2026-runtime-cost-governance-cant-wait", "target": "author:eci-research", "relation": "written_by"},
@@ -146,6 +149,7 @@
     {"source": "date:2026-04", "target": "date:2026", "relation": "year_of"},
     {"source": "date:2026-05", "target": "date:2026", "relation": "year_of"},
     {"source": "date:2026-06", "target": "date:2026", "relation": "year_of"},
+    {"source": "date:2026-07", "target": "date:2026", "relation": "year_of"},
 
     {"source": "resource:ai-finops-2026-runtime-cost-governance-cant-wait", "target": "date:2026", "relation": "published_on"},
     {"source": "resource:finops-ai-llm-cost-engineering-not-finance", "target": "date:2026", "relation": "published_on"},
@@ -159,6 +163,13 @@
     {"source": "resource:state-of-ai-2026-untapped-edge", "target": "date:2026-01", "relation": "published_on"},
     {"source": "resource:accenture-research-ai-led-processes-outperform-peers", "target": "date:2024-10", "relation": "published_on"},
     {"source": "resource:ai-revolution-software-development", "target": "date:2026-04", "relation": "published_on"},
-    {"source": "resource:unlocking-value-ai-software-development", "target": "date:2025-11", "relation": "published_on"}
+    {"source": "resource:unlocking-value-ai-software-development", "target": "date:2025-11", "relation": "published_on"},
+    {"source": "resource:test-plateforme-panorama-agentic-coding-2026", "target": "date:2026-07", "relation": "published_on"},
+
+    {"source": "resource:test-plateforme-panorama-agentic-coding-2026", "target": "author:test-plateforme", "relation": "written_by"},
+    {"source": "resource:test-plateforme-panorama-agentic-coding-2026", "target": "type:article", "relation": "has_type"},
+    {"source": "resource:test-plateforme-panorama-agentic-coding-2026", "target": "origin:externe", "relation": "has_origin"},
+    {"source": "resource:test-plateforme-panorama-agentic-coding-2026", "target": "theme:agentic-coding", "relation": "belongs_to_theme"},
+    {"source": "resource:test-plateforme-panorama-agentic-coding-2026", "target": "entity:claude-code", "relation": "mentions"}
   ]
 }

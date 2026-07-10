@@ -2,8 +2,18 @@
 type: theme
 slug: agentic-coding
 label: Agentic Coding
-resource_count: 7
-last_updated: "2026-07-03"
+resource_count: 8
+last_updated: "2026-07-10"
+---
+
+## [[../resources/test-plateforme-panorama-agentic-coding-2026|Test plateforme — panorama agentic coding]]
+`2026-07-09 · article · externe — Test plateforme`
+
+- [[../resources/test-plateforme-panorama-agentic-coding-2026#contexte-et-objectif-du-document|Contexte et objectif du document]] — document témoin pour tester la chaîne d'ingestion upload → GitHub Action → wiki
+- [[../resources/test-plateforme-panorama-agentic-coding-2026#définition-de-lagentic-coding|Définition de l'agentic coding]] — assistants capables d'exécuter des tâches de développement en plusieurs étapes de façon autonome : lecture du dépôt, édition de fichiers, exécution de commandes, vérification des résultats
+- [[../resources/test-plateforme-panorama-agentic-coding-2026#illustration--claude-code-anthropic|Illustration : Claude Code (Anthropic)]] — approche agentique en ligne de commande, planification, modification autonome multi-fichiers, lancement de tests, itération jusqu'à accomplissement, fidélité au contenu du dépôt
+- [[../resources/test-plateforme-panorama-agentic-coding-2026#enjeux-clés-soulignés-en-2026|Enjeux clés soulignés en 2026]] — fidélité au code existant, garde-fous sur les écritures automatiques, observabilité des actions de l'agent
+
 ---
 
 ## [[../resources/top-engineers-anthropic-openai-ai-writes-100-pct-code|Top engineers at Anthropic, OpenAI say AI now writes 100% of their code]]
