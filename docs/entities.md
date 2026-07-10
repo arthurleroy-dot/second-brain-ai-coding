@@ -137,6 +137,15 @@ l'agent au run suivant :
   decision.entity_type`), relie rétroactivement, supprime l'entrée.
 - `reject` → supprime l'entrée, ne relie rien.
 
+### Parallèle : thèmes candidats (`wiki/themes/_candidates.json`)
+
+Le **même mécanisme** s'applique aux **thèmes**, avec la dimension `type` retirée
+(un thème n'a pas de `entity_type`). Contrat identique **sans** `suggested_types` ;
+`decision` = `{ target_slug, slug }`. Déclaration à l'upload via `themes:` (liste
+plate, autoritaire) + `themes_granularity` (indice grossier). Arbitrage humain sur
+la page `/themes` (**fusionner / créer / rejeter**), registre = `wiki/themes/<slug>.md`
+(`label`, `aliases` optionnel). Format thème détaillé : [wiki-spec.md](wiki-spec.md) §3 et §6.
+
 ---
 
 ## 5. Graphe (`graph.json`)

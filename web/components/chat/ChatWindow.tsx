@@ -79,6 +79,7 @@ export default function ChatWindow({ conversationId, initialMessages = [] }: Pro
     const hasFilters =
       (filters.types?.length ?? 0) > 0 ||
       (filters.authors?.length ?? 0) > 0 ||
+      (filters.origins?.length ?? 0) > 0 ||
       !!filters.date;
     void sendMessage(storeKey, conversationId, text, hasFilters ? filters : undefined);
   };

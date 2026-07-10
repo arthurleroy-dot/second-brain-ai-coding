@@ -62,12 +62,13 @@ export default async function SourceDetailPage({
       {source.entities && source.entities.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {source.entities.map((e) => (
-            <span
+            <Link
               key={e}
-              className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-medium text-indigo-700"
+              href={`/sources?entity=${encodeURIComponent(e)}`}
+              className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-medium text-indigo-700 hover:bg-indigo-100"
             >
               #{e}
-            </span>
+            </Link>
           ))}
         </div>
       )}

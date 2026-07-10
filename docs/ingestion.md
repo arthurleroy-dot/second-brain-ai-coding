@@ -58,10 +58,17 @@ links:                        # liens TYPÉS déclarés (optionnel) — voir ent
   tool: [n8n, claude-code]
   client: [acme-corp]
 entities_granularity: auto    # auto | resource | chunk
+themes: [agentic-coding, finops-ia]   # thèmes déclarés (optionnel) — liste plate
+themes_granularity: auto      # auto | resource | chunk (indice pour l'agent)
 ---
 ```
 
 (Ancien format encore accepté : `entities: [n8n]` — liste plate sans type.)
+
+Les `themes:` déclarés sont **autoritaires** (comme `links:`) : l'agent crée/relie
+directement le thème, même nouveau. `themes_granularity` est un **indice grossier**
+(la ressource n'est pas encore découpée à l'upload) — l'agent choisit les sections
+exactes. Voir [entities.md](entities.md) pour le mécanisme candidate (thèmes inclus).
 
 **Précédence « l'humain gagne si rempli » :** une métadonnée saisie dans le
 sidecar est autoritaire ; l'agent ne comble que les champs vides par inférence.
@@ -74,19 +81,31 @@ l'agent infère tout (et applique l'heuristique origin de wiki-spec.md §5).
 ## 3. Étapes par fichier à traiter
 
 1. Lire le fichier de contenu en entier (+ son sidecar `.meta.md` s'il existe).
+   Une source `.txt` (ou un texte collé via la plateforme) peut être du **texte
+   brut non structuré** : elle sera normalisée en markdown propre à l'étape 4
+   (titres, paragraphes, listes) sans perte d'information. Un `.md` déjà bien
+   formé garde sa structure.
 2. Déterminer : `title`, `source_type`, `author`, `date`, `topics`, `url`,
    `origin` (heuristique wiki-spec.md §5). Le sidecar prime sur l'inférence.
 3. Détecter les entités (voir [entities.md](entities.md)) : alias connu → lien
    (mandat de complétude : TOUTE mention connue est reliée) ; écriture inconnue →
-   candidate dans `_candidates.json`. Déterminer la granularité (resource vs chunk).
-   Appliquer les décisions humaines déjà posées (`status` ≠ `pending`) et purger.
+   candidate dans `entities/_candidates.json`. Déterminer la granularité
+   (resource vs chunk). Appliquer les décisions humaines déjà posées
+   (`status` ≠ `pending`) et purger.
+3bis. Déterminer les thèmes (`topics:`) — même confiance graduée : `themes:` du
+   sidecar → crée/relie directement (même nouveau) ; thème détecté connu → relie ;
+   sujet inédit → candidate dans `themes/_candidates.json` (ne crée pas). Appliquer
+   les décisions thèmes déjà posées et purger. Granularité via `themes_granularity`.
 4. Créer `/wiki/resources/<slug>.md` : frontmatter + blockquote de navigation +
-   contenu intégral avec chunk annotations (`topics:` et `entities:`).
+   contenu intégral avec chunk annotations (`topics:` et `entities:`). Si la
+   source est du texte brut, **structure-la** ici en markdown lisible (fidélité
+   intégrale : on met en forme, on ne raccourcit pas).
 5. Pour chaque topic : mettre à jour `/wiki/themes/<topic>.md` (entrée ressource
    + liens vers les sections concernées).
 6. Créer ou mettre à jour `/wiki/authors/<slug-auteur>.md` (ligne dans la table).
 7. Pour chaque entité liée : mettre à jour `/wiki/entities/<slug>.md`.
-8. Ajouter les entrées dans `types.md`, `origin.md`, `by-date/`.
+8. Ajouter les entrées dans `types.md`, `origin/interne.md` + `origin/externe.md`
+   (les deux pages toujours présentes), `by-date/`.
 9. Mettre à jour `index.md`.
 10. Ajouter nodes/edges dans `graph.json` (ne pas régénérer de zéro).
 11. Ajouter l'entrée `{ "<fichier-contenu>": { slug, ingested_at, run } }` dans

@@ -65,6 +65,7 @@ author_count: 10
 
 → [[types]]
 
-## Index par origine
+## Origine (2)
 
-→ [[origin]]
+- [[origin/externe|Externe]] — 13 ressources
+- [[origin/interne|Interne]] — 0 ressource

@@ -76,20 +76,39 @@ function parseLinks(raw: string | null): Record<string, string[]> {
   return out;
 }
 
+/** Parse le champ `themes` (JSON : liste plate de noms) en slugs uniques. */
+function parseThemes(raw: string | null): string[] {
+  if (!raw) return [];
+  let arr: unknown;
+  try {
+    arr = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(arr)) return [];
+  return [...new Set(arr.map((n) => slugify(String(n))).filter(Boolean))];
+}
+
 /** Construit le sidecar `<source>.meta.md` à partir des métadonnées du formulaire. */
 function buildSidecar(meta: {
   title: string | null;
   sourceType: string;
+  origin: string | null;
   author: string | null;
   date: string | null;
   url: string | null;
   depositedBy: string | null;
   links: Record<string, string[]>;
   granularity: string;
+  themes: string[];
+  themesGranularity: string;
 }): string {
   const lines: string[] = ['---'];
   if (meta.title) lines.push(`title: ${yamlStr(meta.title)}`);
   lines.push(`type: ${meta.sourceType}`);
+  // Origine optionnelle : si absente, l'agent d'ingestion la déduit du type
+  // (heuristique docs/wiki-spec.md §5). Si fournie, le sidecar fait autorité.
+  if (meta.origin) lines.push(`origin: ${meta.origin}`);
   if (meta.author) lines.push(`author: ${yamlStr(meta.author)}`);
   if (meta.date) lines.push(`date: ${yamlStr(meta.date)}`);
   if (meta.url) lines.push(`url: ${yamlStr(meta.url)}`);
@@ -100,6 +119,11 @@ function buildSidecar(meta: {
     lines.push('links:');
     for (const t of linkTypes) lines.push(`  ${t}: [${meta.links[t].join(', ')}]`);
     lines.push(`entities_granularity: ${meta.granularity}`);
+  }
+  if (meta.themes.length) {
+    // Liste plate `themes:` — les thèmes n'ont pas de type (cf. docs/entities.md).
+    lines.push(`themes: [${meta.themes.join(', ')}]`);
+    lines.push(`themes_granularity: ${meta.themesGranularity}`);
   }
   lines.push('---', '');
   return lines.join('\n');
@@ -148,8 +172,14 @@ export async function POST(req: NextRequest) {
   const url = field(form, 'url');
   const typeRaw = (field(form, 'type') ?? 'unknown') as ResourceType;
   const sourceType = TYPE_TO_SOURCE_TYPE[typeRaw] ?? 'unknown';
+  // Origine : 'interne' | 'externe' si l'utilisateur a choisi, sinon null (= Auto,
+  // l'agent d'ingestion déduira). On n'accepte que les deux valeurs connues.
+  const originRaw = field(form, 'origin');
+  const origin = originRaw === 'interne' || originRaw === 'externe' ? originRaw : null;
   const links = parseLinks(field(form, 'links'));
   const granularity = field(form, 'entities_granularity') ?? 'auto';
+  const themes = parseThemes(field(form, 'themes'));
+  const themesGranularity = field(form, 'themes_granularity') ?? 'auto';
 
   const buffer = Buffer.from(await file.arrayBuffer());
 
@@ -159,12 +189,15 @@ export async function POST(req: NextRequest) {
     const sidecar = buildSidecar({
       title,
       sourceType,
+      origin,
       author,
       date,
       url,
       depositedBy,
       links,
       granularity,
+      themes,
+      themesGranularity,
     });
 
     const files: FileToCommit[] = [

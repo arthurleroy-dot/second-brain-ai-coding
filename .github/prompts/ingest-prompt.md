@@ -22,6 +22,11 @@ fin de ce prompt (et EUX SEULS). Chaque fichier listé n'a pas encore de ressour
   inférence (« l'humain gagne si rempli »). L'`url` ne vient JAMAIS du contenu.
 - Slugs immuables. Fidélité du contenu > brièveté (reproduis chiffres, exemples,
   citations ; paraphrase mais ne raccourcis pas).
+- **Texte brut → markdown propre** : une source `.txt` (ou un texte collé via la
+  plateforme) peut être non structurée. Normalise-la en markdown lisible (titres,
+  paragraphes, listes, emphase, correction du formatage évident) en préservant
+  TOUTE l'information. Si la source est déjà du markdown bien formé, préserve sa
+  structure.
 - `needs_review: true` UNIQUEMENT si l'origin (interne/externe) n'est pas
   déductible — jamais pour une date/url/topic manquant.
 
@@ -99,16 +104,79 @@ l'entrée traitée :
   decision.entity_type`, relie rétroactivement, puis SUPPRIME la candidate.
 - `reject` → SUPPRIME la candidate, ne relie rien.
 
+## Thèmes & candidats — même confiance graduée que les entités
+
+Le registre des thèmes vit dans `wiki/themes/<slug>.md` (frontmatter `label`,
+`aliases` optionnel). Un thème n'a **pas de type** — sinon la logique est identique
+aux entités :
+
+1. **Sidecar `themes:` déclaré** (liste plate de slugs) → crée/relie le thème
+   DIRECTEMENT, même nouveau (confiance au choix humain). Pas de cas de conflit de
+   type (un thème n'a pas de type).
+2. **Thème détecté** (non déclaré) dans le contenu : correspond à un thème existant
+   (match `label`/`aliases`, ou même sujet) → relie via `topics:`. Sujet réellement
+   inédit non couvert par un thème existant → NE crée PAS : ajoute une candidate
+   dans `wiki/themes/_candidates.json`.
+3. **Anti-doublon** : avant toute création, compare le nom normalisé (minuscules,
+   sans accents/ponctuation) aux `label`+`aliases` des thèmes existants.
+
+**Granularité** (`themes_granularity` du sidecar, sinon `auto`) — indice grossier :
+`resource` = `topics:` du frontmatter ; `chunk` = ligne `` `topics: [...]` `` sous
+le heading concerné. En `auto` : `chunk` si le thème n'est central que dans 1–2
+sections, `resource` s'il est transverse.
+
+### File `wiki/themes/_candidates.json` — CONTRAT lu par la page /themes
+
+Structure EXACTE (comme les entités, mais SANS `suggested_types` ni `entity_type`) :
+
+```json
+{
+  "version": 1,
+  "generated": "AAAA-MM-JJ",
+  "candidates": [
+    {
+      "name": "Développeur augmenté",
+      "normalized": "developpeur augmente",
+      "variants": ["Développeur augmenté"],
+      "note": null,
+      "seen_in": [
+        { "resource": "<slug-ressource>", "section": "<heading-slug|null>", "context": "…extrait 1 ligne…" }
+      ],
+      "suggested_aliases": [ { "slug": "<theme-proche>", "label": "…", "score": 0.4 } ],
+      "status": "pending",
+      "decision": { "target_slug": null, "slug": null },
+      "updated_at": "AAAA-MM-JJ"
+    }
+  ]
+}
+```
+
+- `suggested_aliases` = thèmes existants proches (proximité de chaîne / sujet),
+  triés par `score` décroissant ; `[]` si aucun.
+- Fusionne dans une candidate EXISTANTE si `normalized` déjà présent (ajoute la
+  mention à `seen_in`, la variante à `variants`) — n'empile pas de doublons.
+
+**Applique les décisions humaines déjà posées** (`status` ≠ `pending`) et purge :
+- `merge_alias` → ajoute le nom (et ses variantes) aux `aliases` du thème
+  `decision.target_slug`, relie rétroactivement les `topics:` des ressources de
+  `seen_in` vers ce slug, puis SUPPRIME la candidate.
+- `create` → crée `wiki/themes/<decision.slug>.md` (label dérivé de `name`), relie
+  rétroactivement, puis SUPPRIME la candidate.
+- `reject` → SUPPRIME la candidate, ne relie rien.
+
 ## Étapes par fichier
 Suis `docs/ingestion.md §3`. En résumé : lire le contenu (+ sidecar) → déterminer
 métadonnées + origin → créer `wiki/resources/<slug>.md` (frontmatter + blockquote
 de navigation + contenu intégral avec annotations `topics:` et `entities:`) →
 mettre à jour themes/, authors/, entities/ (Mentions), by-date/, types.md,
-origin.md, index.md → ajouter nodes/edges dans `graph.json` (node `entity:<slug>`,
-edge `mentions` avec `sections` si niveau chunk) → mettre à jour `_candidates.json`
-→ entrée dans `_ingested.json` → ligne dans `log.md`.
+origin/ (interne.md + externe.md, les DEUX pages toujours présentes), index.md →
+ajouter nodes/edges dans `graph.json` (nodes `entity:<slug>` et `theme:<slug>`,
+les DEUX nodes `origin:interne`+`origin:externe` toujours présents, edges
+`mentions`/`belongs_to_theme`/`has_origin` avec `sections` si niveau chunk) →
+mettre à jour `_candidates.json` (entités ET thèmes) → entrée dans
+`_ingested.json` → ligne dans `log.md`.
 
 ## À la fin
-Termine par un résumé : ressources créées, entités liées, candidates ajoutées,
-décisions appliquées, `needs_review` à résoudre. N'attends aucune validation
-intermédiaire — traite tout le lot.
+Termine par un résumé : ressources créées, entités liées, thèmes reliés/créés,
+candidates ajoutées (entités ET thèmes), décisions appliquées, `needs_review` à
+résoudre. N'attends aucune validation intermédiaire — traite tout le lot.

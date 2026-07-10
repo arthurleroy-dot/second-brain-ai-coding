@@ -1,10 +1,11 @@
-import { ChatFilterState, ResourceType, Source } from '@/types';
-import { ALL_TYPES, TYPE_TO_FOLDER, typeLabel } from '@/lib/ui';
+import { ChatFilterState, OriginValue, ResourceType, Source } from '@/types';
+import { ALL_TYPES, TYPE_TO_FOLDER, originLabel, typeLabel } from '@/lib/ui';
 import {
   getSourceDetail,
   listAllSources,
   listAuthors,
   listDates,
+  listOrigins,
   listTopics,
   listTypes,
   slugify,
@@ -20,6 +21,7 @@ export {
   listTopics,
   listAuthors,
   listTypes,
+  listOrigins,
   listDates,
 };
 export type { SourceDetail } from '@/lib/wiki-parser';
@@ -58,6 +60,10 @@ export function describeChatFilters(filters?: ChatFilters): string {
   if (filters.authors?.length) {
     const labels = filters.authors.map((a) => (a === 'unknown' ? 'auteur inconnu' : a));
     parts.push(`auteur ∈ {${labels.join(', ')}}`);
+  }
+  if (filters.origins?.length) {
+    const labels = filters.origins.map((o) => originLabel(o as OriginValue));
+    parts.push(`origine ∈ {${labels.join(', ')}}`);
   }
   if (filters.date) {
     const { mode, from, to } = filters.date;

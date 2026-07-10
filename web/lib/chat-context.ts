@@ -13,6 +13,7 @@ import { stripChunkAnnotations } from '@/lib/wiki-md';
 export interface ChatFilters {
   types?: string[];
   authors?: string[];
+  origins?: string[]; // 'interne' | 'externe'
   date?: { mode: 'between' | 'before' | 'after'; from?: string; to?: string };
   topic?: string;
 }
@@ -35,7 +36,7 @@ function norm(s: string): string {
     .replace(/\p{Diacritic}/gu, '');
 }
 
-/** Applique les filtres durs du panneau (type / auteur / date / topic). */
+/** Applique les filtres durs du panneau (type / auteur / origine / date / topic). */
 function passesFilters(s: Source, filters?: ChatFilters): boolean {
   if (!filters) return true;
 
@@ -53,6 +54,10 @@ function passesFilters(s: Source, filters?: ChatFilters): boolean {
     const matchNamed = name != null && named.some((a) => a === name);
     const matchUnknown = wantsUnknown && name == null;
     if (!matchNamed && !matchUnknown) return false;
+  }
+
+  if (filters.origins?.length) {
+    if (!s.origin || !filters.origins.includes(s.origin)) return false;
   }
 
   if (filters.topic && !s.topics.includes(filters.topic)) return false;

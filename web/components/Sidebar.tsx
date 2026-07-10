@@ -8,6 +8,7 @@ import {
   Files,
   Compass,
   Tags,
+  Layers,
   Upload,
   Settings,
 } from 'lucide-react';
@@ -19,6 +20,7 @@ const NAV = [
   { href: '/sources', icon: Files, label: 'Sources' },
   { href: '/explore', icon: Compass, label: 'Explorer' },
   { href: '/entities', icon: Tags, label: 'Entités' },
+  { href: '/themes', icon: Layers, label: 'Thèmes' },
 ];
 
 export default function Sidebar() {

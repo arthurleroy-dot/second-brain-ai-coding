@@ -15,7 +15,10 @@ des sources, on n'y modifie jamais rien ensuite.
 
 ## Format attendu
 
-- Fichier de **contenu** : `.md`, `.txt`, `.pdf`, `.pptx`, `.docx`.
+- Fichier de **contenu** : `.md`, `.txt`, `.pdf`, `.pptx`, `.docx`. Pas besoin de
+  markdown : un texte brut collé via la plateforme atterrit en `.txt` et l'agent
+  le met en forme à l'ingestion (`.txt` = brut à normaliser, `.md` = markdown déjà
+  structuré et préservé).
 - Optionnellement, un **sidecar de métadonnées** `<nom-du-fichier>.meta.md`
   (frontmatter : titre, type, auteur, date, url, deposited_by, entities…). Les
   uploads via la plateforme le génèrent automatiquement ; pour un dépôt manuel,

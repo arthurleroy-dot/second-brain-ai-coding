@@ -23,21 +23,26 @@ export default function SourceList() {
 
   const type = params.get('type');
   const author = params.get('author');
+  const origin = params.get('origin');
   const date = params.get('date');
   const filter = params.get('filter');
   const topic = params.get('topic');
+  const entityParam = params.get('entity') ?? '';
 
   const filtered = useMemo(() => {
+    const entities = entityParam.split(',').filter(Boolean);
     return all.filter((s) => {
       if (type && TYPE_TO_FOLDER[s.type as ResourceType] !== type && s.type !== type)
         return false;
       if (author && s.author !== author) return false;
+      if (origin && s.origin !== origin) return false;
       if (date && !(s.date ?? '').startsWith(date)) return false;
       if (topic && !s.topics.includes(topic)) return false;
+      if (entities.length && !entities.every((e) => s.entities?.includes(e))) return false;
       if (filter === 'needs_review' && !s.needs_review) return false;
       return true;
     });
-  }, [all, type, author, date, topic, filter]);
+  }, [all, type, author, origin, date, topic, entityParam, filter]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">

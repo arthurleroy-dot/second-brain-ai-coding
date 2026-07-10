@@ -9,6 +9,9 @@ export type ResourceType =
   | 'personal_note'
   | 'unknown';
 
+// Origine d'une ressource : produite en interne vs source tierce publique.
+export type OriginValue = 'interne' | 'externe';
+
 export type ResourceStatus = 'pending' | 'processing' | 'done' | 'error';
 
 export interface Source {
@@ -22,6 +25,7 @@ export interface Source {
   deposited_by: string | null;
   topics: string[];
   entities?: string[]; // slugs d'entités liées (registre wiki/entities)
+  origin?: OriginValue | null; // interne | externe (null si inconnu)
   needs_review: boolean;
   status?: ResourceStatus;
   created_at?: string;
@@ -84,6 +88,7 @@ export interface DateFilter {
 export interface ChatFilterState {
   types?: string[]; // dossiers by-type (ex: 'articles')
   authors?: string[]; // noms d'auteur exacts, ou 'unknown'
+  origins?: string[]; // 'interne' | 'externe'
   date?: DateFilter;
 }
 
@@ -105,6 +110,14 @@ export interface DateEntry {
 export interface TypeEntry {
   type: ResourceType;
   folder: string; // dossier by-type (valeur du filtre /sources?type=)
+  label: string;
+  source_count: number;
+}
+
+// Origine (interne/externe) dérivée des ressources, avec compteur. Miroir léger
+// de TypeEntry pour la facette /sources?origin= et l'exploration.
+export interface OriginEntry {
+  value: OriginValue; // valeur du filtre /sources?origin=
   label: string;
   source_count: number;
 }
@@ -141,5 +154,36 @@ export interface Candidate {
   suggested_types: string[]; // types suggérés — ⊆ entity_types existants
   status: CandidateStatus;
   decision: CandidateDecision;
+  updated_at: string | null;
+}
+
+// ————————————————————————————————————————————————————————————————
+// Thèmes candidats — patron entités dupliqué, sans la dimension `type`.
+// Un thème n'a pas d'`entity_type` : le contrat est plus simple (pas de
+// `suggested_types`, pas d'`entity_type` dans `decision`, pas de sélecteur de
+// type dans la carte). Matérialisé dans wiki/themes/_candidates.json.
+
+// Registre : une fiche wiki/themes/<slug>.md (frontmatter). `aliases` optionnel,
+// ajouté pour qu'un « fusionner » soit durable (miroir des entités).
+export interface ThemeEntry {
+  slug: string;
+  label: string;
+  aliases: string[];
+}
+
+export interface ThemeCandidateDecision {
+  target_slug: string | null; // cible d'une fusion (merge_alias)
+  slug: string | null; // slug du nouveau thème (create)
+}
+
+export interface ThemeCandidate {
+  name: string; // forme représentative détectée
+  normalized: string; // clé d'identité/dédoublonnage
+  variants: string[]; // toutes les écritures vues
+  note?: string | null; // contexte humain optionnel
+  seen_in: CandidateSeenIn[];
+  suggested_aliases: SuggestedAlias[]; // « ressemble à » (thèmes proches)
+  status: CandidateStatus;
+  decision: ThemeCandidateDecision;
   updated_at: string | null;
 }

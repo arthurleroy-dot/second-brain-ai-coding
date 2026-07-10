@@ -6,6 +6,7 @@ import { ResourceType } from '@/types';
 import { typeLabel } from '@/lib/ui';
 import IngestStatus from './IngestStatus';
 import LinkPicker, { LinksValue } from './LinkPicker';
+import ThemePicker from './ThemePicker';
 
 interface Props {
   onClose: () => void;
@@ -14,7 +15,7 @@ interface Props {
 
 type Mode = 'paste' | 'upload';
 
-const ACCEPT_UPLOAD = '.pdf,.pptx,.docx';
+const ACCEPT_UPLOAD = '.pdf,.pptx,.docx,.txt,.md';
 const DEPOSITED_BY_KEY = 'wiki:deposited_by';
 
 /** Types proposés en mode « coller » (docs textuels sans fichier source). */
@@ -25,15 +26,24 @@ const PASTE_TYPES: ResourceType[] = [
   'personal_note',
   'transcript',
 ];
-/** Types proposés en mode « uploader un fichier » (PDF / PPTX / DOCX). */
-const UPLOAD_TYPES: ResourceType[] = ['report_pdf', 'article', 'presentation', 'transcript', 'unknown'];
+/** Types proposés en mode « uploader un fichier » (PDF / PPTX / DOCX / TXT / MD). */
+const UPLOAD_TYPES: ResourceType[] = [
+  'report_pdf',
+  'article',
+  'presentation',
+  'transcript',
+  'meeting_note',
+  'interview',
+  'personal_note',
+  'unknown',
+];
 
 const TITLE_HINT =
   'Pour un article, le titre est détecté de façon fiable par l’analyse. En revanche, ' +
   'pour une présentation, un transcript, une note de réunion ou une interview, mieux ' +
   'vaut le saisir : l’IA ne peut pas deviner un titre précis.';
 
-/** Slug minimal pour nommer le .md synthétique du mode coller.
+/** Slug minimal pour nommer le .txt synthétique du mode coller.
  *  Le slug définitif est recalculé côté serveur à partir du titre final. */
 function localSlug(s: string): string {
   return s
@@ -54,11 +64,19 @@ export default function UploadModal({ onClose, onResolved }: Props) {
   const [date, setDate] = useState('');
   const [depositedBy, setDepositedBy] = useState('');
   const [type, setType] = useState<ResourceType>('article');
+  // Origine : '' = Auto (l'agent d'ingestion déduit du type), sinon forcée.
+  const [origin, setOrigin] = useState<'' | 'interne' | 'externe'>('');
 
   // Liens typés (optionnel) — { type d'entité → noms }, cf. docs/entities.md.
   const [links, setLinks] = useState<LinksValue>({});
   const [granularity, setGranularity] = useState<'auto' | 'resource' | 'chunk'>('auto');
   const hasLinks = Object.values(links).some((names) => names.length > 0);
+
+  // Thèmes déclarés (optionnel) — liste plate de noms, cf. docs/entities.md.
+  const [themes, setThemes] = useState<string[]>([]);
+  const [themesGranularity, setThemesGranularity] =
+    useState<'auto' | 'resource' | 'chunk'>('auto');
+  const hasThemes = themes.length > 0;
 
   // Spécifiques à chaque mode.
   const [text, setText] = useState('');
@@ -79,6 +97,15 @@ export default function UploadModal({ onClose, onResolved }: Props) {
       /* localStorage indisponible : on ignore */
     }
   }, []);
+
+  // Fermeture au clavier (Échap) — sortie ergonomique de la modale.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   const switchMode = useCallback(
     (next: Mode) => {
@@ -109,7 +136,9 @@ export default function UploadModal({ onClose, onResolved }: Props) {
         return;
       }
       const base = (title.trim() && localSlug(title)) || 'note';
-      payloadFile = new File([text], `${base}.md`, { type: 'text/markdown' });
+      // Texte brut : stocké en .txt (l'agent d'ingestion le normalise en markdown).
+      // Convention : .txt = brut à mettre en forme, .md = markdown déjà structuré.
+      payloadFile = new File([text], `${base}.txt`, { type: 'text/plain' });
     } else {
       if (!file) {
         setError('Choisis un fichier à uploader.');
@@ -135,6 +164,8 @@ export default function UploadModal({ onClose, onResolved }: Props) {
       if (date.trim()) form.append('date', date.trim());
       if (depositedBy.trim()) form.append('deposited_by', depositedBy.trim());
       form.append('type', type);
+      // Origine : envoyée seulement si forcée par l'utilisateur (sinon Auto → l'agent déduit).
+      if (origin) form.append('origin', origin);
       // URL : pertinente seulement pour un article collé (sans PDF).
       if (mode === 'paste' && type === 'article' && url.trim())
         form.append('url', url.trim());
@@ -144,6 +175,10 @@ export default function UploadModal({ onClose, onResolved }: Props) {
         for (const [t, names] of Object.entries(links)) if (names.length) clean[t] = names;
         form.append('links', JSON.stringify(clean));
         form.append('entities_granularity', granularity);
+      }
+      if (hasThemes) {
+        form.append('themes', JSON.stringify(themes));
+        form.append('themes_granularity', themesGranularity);
       }
 
       const res = await fetch('/api/upload', { method: 'POST', body: form });
@@ -164,8 +199,8 @@ export default function UploadModal({ onClose, onResolved }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
-        <div className="mb-4 flex items-center justify-between">
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4">
           <h2 className="text-base font-semibold text-gray-900">Déposer une ressource</h2>
           <button
             type="button"
@@ -179,15 +214,17 @@ export default function UploadModal({ onClose, onResolved }: Props) {
 
         {submittedFile ? (
           // ---- Vue ingestion ----
-          <div className="space-y-4">
-            <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-              {displayName}
+          <>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                {displayName}
+              </div>
+              <IngestStatus
+                file={submittedFile}
+                onResolved={() => onResolved?.('done', displayName)}
+              />
             </div>
-            <IngestStatus
-              file={submittedFile}
-              onResolved={() => onResolved?.('done', displayName)}
-            />
-            <div className="flex justify-end">
+            <div className="flex shrink-0 justify-end border-t border-gray-100 px-5 py-3">
               <button
                 type="button"
                 onClick={onClose}
@@ -196,11 +233,12 @@ export default function UploadModal({ onClose, onResolved }: Props) {
                 Fermer
               </button>
             </div>
-          </div>
+          </>
         ) : (
           // ---- Vue formulaire ----
-          <div className="space-y-4">
-            {/* Onglets */}
+          <>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+              {/* Onglets */}
             <div className="grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1">
               <button
                 type="button"
@@ -231,12 +269,12 @@ export default function UploadModal({ onClose, onResolved }: Props) {
             {/* Zone d'entrée selon l'onglet */}
             {mode === 'paste' ? (
               <label className="block text-xs text-gray-600">
-                Contenu (Markdown, notes de réunion, interview…)
+                Contenu — colle du texte brut (notes, transcript, article…), l’IA le met en forme
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   rows={7}
-                  placeholder="Colle ici le contenu de la ressource…"
+                  placeholder="Colle ton texte, pas besoin de markdown…"
                   className="mt-1 w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-sm"
                 />
               </label>
@@ -263,7 +301,7 @@ export default function UploadModal({ onClose, onResolved }: Props) {
                 <div className="text-sm text-gray-700">
                   {file ? file.name : 'Glisse un fichier ou clique pour choisir'}
                 </div>
-                <div className="text-xs text-gray-400">PDF, PPTX, DOCX acceptés</div>
+                <div className="text-xs text-gray-400">PDF, PPTX, DOCX, TXT, MD acceptés</div>
                 <input
                   ref={inputRef}
                   type="file"
@@ -312,6 +350,22 @@ export default function UploadModal({ onClose, onResolved }: Props) {
                     </option>
                   ))}
                 </select>
+              </label>
+
+              <label className="text-xs text-gray-600">
+                Origine
+                <select
+                  value={origin}
+                  onChange={(e) => setOrigin(e.target.value as '' | 'interne' | 'externe')}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+                >
+                  <option value="">Auto (déduite à l'ingestion)</option>
+                  <option value="externe">Externe (source tierce publique)</option>
+                  <option value="interne">Interne (note / transcript interne)</option>
+                </select>
+                <span className="mt-1 block text-[11px] text-gray-400">
+                  Laisse « Auto » pour que l'agent déduise l'origine du type de ressource.
+                </span>
               </label>
 
               <label className="text-xs text-gray-600">
@@ -376,11 +430,35 @@ export default function UploadModal({ onClose, onResolved }: Props) {
                   </select>
                 </label>
               )}
+
+              <ThemePicker value={themes} onChange={setThemes} />
+
+              {hasThemes && (
+                <label className="text-xs text-gray-600">
+                  Granularité des thèmes
+                  <select
+                    value={themesGranularity}
+                    onChange={(e) =>
+                      setThemesGranularity(e.target.value as 'auto' | 'resource' | 'chunk')
+                    }
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+                  >
+                    <option value="auto">Auto (l'agent décide)</option>
+                    <option value="resource">Ressource entière</option>
+                    <option value="chunk">Sections concernées</option>
+                  </select>
+                  <span className="mt-1 block text-[11px] text-gray-400">
+                    Indice transmis à l'agent : « ressource » = thème central/transverse,
+                    « sections » = thème localisé. L'agent choisit les sections exactes.
+                  </span>
+                </label>
+              )}
             </div>
 
-            {error && <p className="text-xs text-red-600">{error}</p>}
+              {error && <p className="text-xs text-red-600">{error}</p>}
+            </div>
 
-            <div className="flex justify-end gap-2">
+            <div className="flex shrink-0 justify-end gap-2 border-t border-gray-100 px-5 py-3">
               <button
                 type="button"
                 onClick={onClose}
@@ -397,7 +475,7 @@ export default function UploadModal({ onClose, onResolved }: Props) {
                 {submitting ? 'Dépôt…' : 'Déposer →'}
               </button>
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>

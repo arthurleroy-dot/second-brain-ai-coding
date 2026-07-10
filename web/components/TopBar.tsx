@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Tags } from 'lucide-react';
+import { AlertTriangle, Tags, Layers } from 'lucide-react';
 
 const TITLES: Record<string, string> = {
   '/chat': 'Chat',
@@ -11,6 +11,7 @@ const TITLES: Record<string, string> = {
   '/sources': 'Sources',
   '/explore': 'Explorer',
   '/entities': 'Entités',
+  '/themes': 'Thèmes',
 };
 
 function titleFor(pathname: string): string {
@@ -23,6 +24,7 @@ export default function TopBar() {
   const [total, setTotal] = useState<number | null>(null);
   const [needsReview, setNeedsReview] = useState<number>(0);
   const [pending, setPending] = useState<number>(0);
+  const [themePending, setThemePending] = useState<number>(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -39,6 +41,13 @@ export default function TopBar() {
       .then((d) => {
         if (cancelled) return;
         setPending(d.pending ?? 0);
+      })
+      .catch(() => {});
+    fetch('/api/theme-candidates')
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        setThemePending(d.pending ?? 0);
       })
       .catch(() => {});
     return () => {
@@ -69,6 +78,15 @@ export default function TopBar() {
           >
             <Tags size={12} />
             {pending} entité{pending > 1 ? 's' : ''} en attente
+          </Link>
+        )}
+        {themePending > 0 && (
+          <Link
+            href="/themes"
+            className="flex items-center gap-1 rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+          >
+            <Layers size={12} />
+            {themePending} thème{themePending > 1 ? 's' : ''} en attente
           </Link>
         )}
       </div>

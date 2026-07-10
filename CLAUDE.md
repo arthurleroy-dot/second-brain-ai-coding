@@ -23,7 +23,7 @@ tasks/   ← todo.md (plan courant) + lessons.md (leçons des corrections)
 2. **`raw/` est immuable.** On y dépose, on n'y modifie/renomme/réorganise jamais
    rien. Le marqueur « déjà ingéré » vit dans `wiki/_ingested.json`.
 3. **`wiki/resources/*.md` est canonique.** Tout le reste sous `wiki/` (themes/,
-   authors/, entities/, by-date/, types.md, origin.md, index.md, graph.json) est
+   authors/, entities/, by-date/, types.md, origin/, index.md, graph.json) est
    une **vue dérivée** — jamais de contenu original dedans.
 4. **L'agent d'ingestion n'écrit QUE sous `wiki/`.** C'est ce qui empêche la
    boucle de la GitHub Action (filtrée sur `raw/**`).
@@ -37,7 +37,7 @@ tasks/   ← todo.md (plan courant) + lessons.md (leçons des corrections)
 |----------|-------------|
 | Ingérer une source de `raw/` | [docs/ingestion.md](docs/ingestion.md) |
 | Créer/éditer une ressource ou une vue | [docs/wiki-spec.md](docs/wiki-spec.md) |
-| Relier une ressource à un outil/client/entité | [docs/entities.md](docs/entities.md) |
+| Relier une ressource à un outil/client/entité ou arbitrer un thème candidat | [docs/entities.md](docs/entities.md) |
 | Répondre à une question sur le contenu | [docs/wiki-spec.md](docs/wiki-spec.md) §7 (requête par paliers) |
 | Un lint du wiki | [docs/wiki-spec.md](docs/wiki-spec.md) §8 |
 | Toucher au code de `web/` | [docs/platform.md](docs/platform.md) + [docs/code-workflow.md](docs/code-workflow.md) |

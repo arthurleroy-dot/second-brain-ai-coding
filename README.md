@@ -19,7 +19,7 @@ L'idée : chacun dépose ses trouvailles brutes (articles, notes, liens, réflex
 │   ├── graph.json          # Export machine-readable (nodes + edges)
 │   ├── index.md            # Catalogue général (thèmes, auteurs, ressources)
 │   ├── types.md            # Index par type de source
-│   ├── origin.md           # Index par origine (interne/externe)
+│   ├── origin/             # Vue dérivée : une page par origine (interne.md, externe.md)
 │   ├── _ingested.json      # Manifeste : quels fichiers /raw ont déjà été ingérés
 │   └── log.md              # Journal des runs
 ├── web/                    # Interface web Next.js (chat, navigation, upload)
@@ -40,7 +40,7 @@ L'idée : chacun dépose ses trouvailles brutes (articles, notes, liens, réflex
 2. **L'agent traite** les nouveaux fichiers (ceux absents de [`wiki/_ingested.json`](wiki/_ingested.json)) :
    - il extrait les **métadonnées** (le sidecar `.meta.md` saisi à l'upload prime, sinon inférence) et le contenu ;
    - il crée une **fiche ressource complète** dans [`wiki/resources/`](wiki/resources/) avec le contenu intégral annoté par chunk (`topics:` et `entities:` sur chaque section) ;
-   - il met à jour les **vues dérivées** : [`themes/`](wiki/themes/), [`authors/`](wiki/authors/), [`entities/`](wiki/entities/), [`by-date/`](wiki/by-date/), `types.md`, `origin.md` ;
+   - il met à jour les **vues dérivées** : [`themes/`](wiki/themes/), [`authors/`](wiki/authors/), [`entities/`](wiki/entities/), [`by-date/`](wiki/by-date/), `types.md`, [`origin/`](wiki/origin/) ;
    - il met à jour [`graph.json`](wiki/graph.json) (nodes + edges, dont les entités) ;
    - il enregistre le fichier comme traité dans `wiki/_ingested.json` (il **ne modifie jamais** `/raw`) ;
    - il tient l'[index](wiki/index.md) et le [journal](wiki/log.md) à jour.

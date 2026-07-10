@@ -1,4 +1,4 @@
-import { ResourceType } from '@/types';
+import { OriginValue, ResourceType } from '@/types';
 
 export const TYPE_LABELS: Record<ResourceType, string> = {
   article: 'Article',
@@ -61,6 +61,18 @@ export const ALL_TYPES: ResourceType[] = [
 export function formatDate(date: string | null): string {
   if (!date) return 'date inconnue';
   return date;
+}
+
+// Origine (interne/externe) — enum fermé de 2 valeurs, sans registre.
+export const ORIGIN_LABELS: Record<OriginValue, string> = {
+  interne: 'Interne',
+  externe: 'Externe',
+};
+
+export const ALL_ORIGINS: OriginValue[] = ['interne', 'externe'];
+
+export function originLabel(o: OriginValue): string {
+  return ORIGIN_LABELS[o] ?? o;
 }
 
 // Libellés d'affichage des types d'entités (entity_type). Extensible : tout

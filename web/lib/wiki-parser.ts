@@ -4,13 +4,17 @@ import {
   AuthorEntry,
   Candidate,
   DateEntry,
+  OriginEntry,
+  OriginValue,
   ResourceType,
   Source,
+  ThemeCandidate,
+  ThemeEntry,
   TypeEntry,
   WikiTopic,
 } from '@/types';
 import { listWikiDir, readWikiFile } from '@/lib/wiki-fs';
-import { ALL_TYPES, TYPE_TO_FOLDER, typeLabel } from '@/lib/ui';
+import { ALL_ORIGINS, ALL_TYPES, TYPE_TO_FOLDER, originLabel, typeLabel } from '@/lib/ui';
 
 const RESOURCES = 'resources';
 const THEMES = 'themes';
@@ -50,6 +54,12 @@ function cleanStr(v: unknown): string | null {
 
 function arr(v: unknown): string[] {
   return Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : [];
+}
+
+/** Normalise le champ `origin` du frontmatter → 'interne' | 'externe' | null. */
+function cleanOrigin(v: unknown): OriginValue | null {
+  const s = cleanStr(v);
+  return s === 'interne' || s === 'externe' ? s : null;
 }
 
 function normalizeType(rawType: unknown): ResourceType {
@@ -92,6 +102,7 @@ export function parseResource(content: string, slugFallback: string): ParsedReso
     deposited_by: cleanStr(data.deposited_by),
     topics: arr(data.topics),
     entities,
+    origin: cleanOrigin(data.origin),
     needs_review: data.needs_review === true,
     source_file: cleanStr(data.source_file),
     file_path: `${RESOURCES}/${cleanStr(data.slug) ?? slugFallback}.md`,
@@ -159,6 +170,29 @@ export async function listTopics(): Promise<WikiTopic[]> {
   return topics.sort((a, b) => a.title.localeCompare(b.title));
 }
 
+/**
+ * Registre des thèmes (themes/*.md, hors _candidates). Version légère de
+ * listTopics() (frontmatter seul, pas de scan des ressources) : alimente le
+ * ThemePicker de l'upload et le registre de la page /themes. Miroir de
+ * listEntities(), sans la dimension `entity_type`.
+ */
+export async function listThemes(): Promise<ThemeEntry[]> {
+  const files = await listWikiDir(THEMES);
+  const themes: ThemeEntry[] = [];
+  for (const file of files) {
+    if (!file.endsWith('.md') || file.startsWith('_')) continue;
+    const content = await readWikiFile(`${THEMES}/${file}`);
+    const { data } = matter(content);
+    const slug = cleanStr(data.slug) ?? path.basename(file, '.md');
+    themes.push({
+      slug,
+      label: cleanStr(data.label) ?? slug,
+      aliases: arr(data.aliases),
+    });
+  }
+  return themes.sort((a, b) => a.label.localeCompare(b.label));
+}
+
 /** Auteurs distincts (dérivés des ressources) avec compteurs. */
 export async function listAuthors(): Promise<AuthorEntry[]> {
   const sources = await listAllSources();
@@ -191,6 +225,24 @@ export async function listTypes(): Promise<TypeEntry[]> {
     folder: TYPE_TO_FOLDER[t],
     label: typeLabel(t),
     source_count: counts.get(t) ?? 0,
+  }));
+}
+
+/**
+ * Origines présentes (dérivées des ressources) avec compteurs. Contrairement à
+ * listTypes(), renvoie TOUJOURS les deux valeurs (même à 0) : enum fermé, filtre
+ * stable, et miroir de la règle « les deux nœuds origin sont toujours présents ».
+ */
+export async function listOrigins(): Promise<OriginEntry[]> {
+  const sources = await listAllSources();
+  const counts = new Map<OriginValue, number>();
+  for (const s of sources) {
+    if (s.origin) counts.set(s.origin, (counts.get(s.origin) ?? 0) + 1);
+  }
+  return ALL_ORIGINS.map((o) => ({
+    value: o,
+    label: originLabel(o),
+    source_count: counts.get(o) ?? 0,
   }));
 }
 
@@ -310,6 +362,48 @@ export async function listCandidates(): Promise<Candidate[]> {
       decision: {
         target_slug: c?.decision?.target_slug ?? null,
         entity_type: c?.decision?.entity_type ?? null,
+        slug: c?.decision?.slug ?? null,
+      },
+      updated_at: c?.updated_at ?? null,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * File des thèmes candidats (wiki/themes/_candidates.json). Miroir de
+ * listCandidates() sans les champs de type (`suggested_types`, `entity_type`).
+ * Renvoie [] si absent ou illisible.
+ */
+export async function listThemeCandidates(): Promise<ThemeCandidate[]> {
+  const content = await readWikiFile(`${THEMES}/_candidates.json`);
+  if (!content.trim()) return [];
+  try {
+    const json = JSON.parse(content);
+    const list = Array.isArray(json?.candidates) ? json.candidates : [];
+    return list.map((c: any): ThemeCandidate => ({
+      name: String(c?.name ?? ''),
+      normalized: String(c?.normalized ?? String(c?.name ?? '').toLowerCase()),
+      variants: arr(c?.variants),
+      note: c?.note ?? null,
+      seen_in: Array.isArray(c?.seen_in)
+        ? c.seen_in.map((s: any) => ({
+            resource: String(s?.resource ?? ''),
+            section: s?.section ?? null,
+            context: String(s?.context ?? ''),
+          }))
+        : [],
+      suggested_aliases: Array.isArray(c?.suggested_aliases)
+        ? c.suggested_aliases.map((a: any) => ({
+            slug: String(a?.slug ?? ''),
+            label: String(a?.label ?? a?.slug ?? ''),
+            score: Number(a?.score ?? 0),
+          }))
+        : [],
+      status: (c?.status ?? 'pending') as ThemeCandidate['status'],
+      decision: {
+        target_slug: c?.decision?.target_slug ?? null,
         slug: c?.decision?.slug ?? null,
       },
       updated_at: c?.updated_at ?? null,

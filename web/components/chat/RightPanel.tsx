@@ -7,6 +7,7 @@ import {
   ChatFilterState,
   DateFilter,
   DateFilterMode,
+  OriginEntry,
   TypeEntry,
 } from '@/types';
 import { useUpload } from '@/components/UploadProvider';
@@ -19,11 +20,12 @@ interface Props {
 // Valeur de filtre envoyée au backend pour un auteur ('unknown' = auteur null).
 const authorValue = (a: AuthorEntry) => (a.slug === 'unknown' ? 'unknown' : a.name);
 
-type OpenMenu = 'type' | 'author' | 'date' | null;
+type OpenMenu = 'type' | 'author' | 'origin' | 'date' | null;
 
 export default function RightPanel({ filters, onChange }: Props) {
   const [types, setTypes] = useState<TypeEntry[]>([]);
   const [authors, setAuthors] = useState<AuthorEntry[]>([]);
+  const [origins, setOrigins] = useState<OriginEntry[]>([]);
   const [open, setOpen] = useState<OpenMenu>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const { openPicker, uploading, lastResult } = useUpload();
@@ -34,6 +36,7 @@ export default function RightPanel({ filters, onChange }: Props) {
       .then((d) => {
         setTypes(d.types ?? []);
         setAuthors(d.authors ?? []);
+        setOrigins(d.origins ?? []);
       })
       .catch(() => {});
   }, [lastResult]);
@@ -50,8 +53,8 @@ export default function RightPanel({ filters, onChange }: Props) {
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
-  // Bascule une valeur dans un axe multi-sélection (type ou auteur).
-  const toggle = (axis: 'types' | 'authors', value: string) => {
+  // Bascule une valeur dans un axe multi-sélection (type, auteur ou origine).
+  const toggle = (axis: 'types' | 'authors' | 'origins', value: string) => {
     const cur = filters[axis] ?? [];
     const next = cur.includes(value)
       ? cur.filter((v) => v !== value)
@@ -69,15 +72,23 @@ export default function RightPanel({ filters, onChange }: Props) {
     label: a.name,
     count: a.source_count,
   }));
+  const originItems = origins.map((o) => ({
+    value: o.value,
+    label: o.label,
+    count: o.source_count,
+  }));
 
   const typeLabelOf = (folder: string) =>
     types.find((t) => t.folder === folder)?.label ?? folder;
   const authorLabelOf = (value: string) =>
     value === 'unknown' ? 'Auteur inconnu' : value;
+  const originLabelOf = (value: string) =>
+    origins.find((o) => o.value === value)?.label ?? value;
 
   const hasFilters =
     (filters.types?.length ?? 0) > 0 ||
     (filters.authors?.length ?? 0) > 0 ||
+    (filters.origins?.length ?? 0) > 0 ||
     !!filters.date;
 
   return (
@@ -118,6 +129,16 @@ export default function RightPanel({ filters, onChange }: Props) {
         onToggleOpen={() => setOpen((o) => (o === 'author' ? null : 'author'))}
       />
 
+      <SelectMenu
+        label="Origine"
+        placeholder="Toutes les origines"
+        items={originItems}
+        selected={filters.origins ?? []}
+        onToggle={(v) => toggle('origins', v)}
+        isOpen={open === 'origin'}
+        onToggleOpen={() => setOpen((o) => (o === 'origin' ? null : 'origin'))}
+      />
+
       <DateMenu
         value={filters.date}
         onChange={(d) => onChange({ ...filters, date: d })}
@@ -141,6 +162,13 @@ export default function RightPanel({ filters, onChange }: Props) {
                 key={`a-${v}`}
                 label={authorLabelOf(v)}
                 onRemove={() => toggle('authors', v)}
+              />
+            ))}
+            {(filters.origins ?? []).map((v) => (
+              <Chip
+                key={`o-${v}`}
+                label={originLabelOf(v)}
+                onRemove={() => toggle('origins', v)}
               />
             ))}
             {filters.date && (

@@ -34,6 +34,7 @@
     {"id": "type:article", "type": "source_type", "label": "Article"},
     {"id": "type:report-pdf", "type": "source_type", "label": "Report PDF"},
     {"id": "origin:externe", "type": "origin", "label": "Externe"},
+    {"id": "origin:interne", "type": "origin", "label": "Interne"},
     {"id": "date:2024", "type": "date", "label": "2024", "granularity": "year"},
     {"id": "date:2025", "type": "date", "label": "2025", "granularity": "year"},
     {"id": "date:2026", "type": "date", "label": "2026", "granularity": "year"},

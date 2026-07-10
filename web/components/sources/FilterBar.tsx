@@ -1,12 +1,45 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Source } from '@/types';
-import { ALL_TYPES, TYPE_TO_FOLDER, typeLabel } from '@/lib/ui';
+import { ALL_ORIGINS, ALL_TYPES, TYPE_TO_FOLDER, originLabel, typeLabel } from '@/lib/ui';
+
+// Formes minimales renvoyées par /api/themes et /api/entities (types locaux :
+// on évite d'importer les interfaces définies dans le module serveur wiki-parser).
+type ThemeOpt = { slug: string; label: string };
+type EntityType = { slug: string; label: string };
+type EntityOpt = { slug: string; label: string; entity_type: string };
 
 export default function FilterBar({ sources }: { sources: Source[] }) {
   const router = useRouter();
   const params = useSearchParams();
+
+  // Registres (tout le registre, pas seulement ce qui est présent sur les sources).
+  const [themes, setThemes] = useState<ThemeOpt[]>([]);
+  const [entityTypes, setEntityTypes] = useState<EntityType[]>([]);
+  const [entities, setEntities] = useState<EntityOpt[]>([]);
+
+  useEffect(() => {
+    fetch('/api/themes')
+      .then((r) => r.json())
+      .then((d) => setThemes(d.themes ?? []))
+      .catch(() => {});
+    fetch('/api/entities')
+      .then((r) => r.json())
+      .then((d) => {
+        setEntityTypes(d.types ?? []);
+        setEntities(d.entities ?? []);
+      })
+      .catch(() => {});
+  }, []);
+
+  // slug d'entité → son type (pour piloter les menus par type).
+  const entityById = useMemo(() => {
+    const m = new Map<string, EntityOpt>();
+    for (const e of entities) m.set(e.slug, e);
+    return m;
+  }, [entities]);
 
   const authors = Array.from(
     new Set(sources.map((s) => s.author).filter(Boolean) as string[]),
@@ -19,6 +52,24 @@ export default function FilterBar({ sources }: { sources: Source[] }) {
     const next = new URLSearchParams(params.toString());
     if (value) next.set(key, value);
     else next.delete(key);
+    router.push(`/sources?${next.toString()}`);
+  };
+
+  // Entités sélectionnées (liste plate de slugs, un par type via les menus).
+  const selectedEntities = (params.get('entity') ?? '').split(',').filter(Boolean);
+
+  // Valeur courante du menu d'un type = le slug sélectionné de ce type (ou '').
+  const entityValueForType = (typeSlug: string) =>
+    selectedEntities.find((slug) => entityById.get(slug)?.entity_type === typeSlug) ?? '';
+
+  // Sélectionne (ou déselectionne) une entité pour un type : on remplace celle du
+  // même type, on garde les autres. Le param `entity` reste type-agnostique.
+  const setEntity = (typeSlug: string, entitySlug: string) => {
+    const kept = selectedEntities.filter((slug) => entityById.get(slug)?.entity_type !== typeSlug);
+    const nextList = entitySlug ? [...kept, entitySlug] : kept;
+    const next = new URLSearchParams(params.toString());
+    if (nextList.length) next.set('entity', nextList.join(','));
+    else next.delete('entity');
     router.push(`/sources?${next.toString()}`);
   };
 
@@ -55,6 +106,19 @@ export default function FilterBar({ sources }: { sources: Source[] }) {
 
       <select
         className={selectClass}
+        value={params.get('origin') ?? ''}
+        onChange={(e) => setParam('origin', e.target.value)}
+      >
+        <option value="">Toutes les origines</option>
+        {ALL_ORIGINS.map((o) => (
+          <option key={o} value={o}>
+            {originLabel(o)}
+          </option>
+        ))}
+      </select>
+
+      <select
+        className={selectClass}
         value={params.get('date') ?? ''}
         onChange={(e) => setParam('date', e.target.value)}
       >
@@ -65,6 +129,41 @@ export default function FilterBar({ sources }: { sources: Source[] }) {
           </option>
         ))}
       </select>
+
+      <select
+        className={selectClass}
+        value={params.get('topic') ?? ''}
+        onChange={(e) => setParam('topic', e.target.value)}
+      >
+        <option value="">Tous les thèmes</option>
+        {themes.map((t) => (
+          <option key={t.slug} value={t.slug}>
+            {t.label}
+          </option>
+        ))}
+      </select>
+
+      {/* Un menu par type de lien (Outil, Client, …) — ajouté automatiquement dès
+          qu'un nouveau type apparaît dans le registre des entités. */}
+      {entityTypes.map((t) => {
+        const opts = entities.filter((e) => e.entity_type === t.slug);
+        if (opts.length === 0) return null;
+        return (
+          <select
+            key={t.slug}
+            className={selectClass}
+            value={entityValueForType(t.slug)}
+            onChange={(e) => setEntity(t.slug, e.target.value)}
+          >
+            <option value="">Tous · {t.label}</option>
+            {opts.map((e) => (
+              <option key={e.slug} value={e.slug}>
+                {e.label}
+              </option>
+            ))}
+          </select>
+        );
+      })}
 
       {params.get('filter') === 'needs_review' && (
         <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-medium text-orange-700">

@@ -7,6 +7,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const type = searchParams.get('type'); // ResourceType ou dossier
   const author = searchParams.get('author');
+  const origin = searchParams.get('origin'); // 'interne' | 'externe'
   const date = searchParams.get('date'); // préfixe YYYY ou YYYY-MM
   const filter = searchParams.get('filter'); // 'needs_review'
 
@@ -26,6 +27,9 @@ export async function GET(req: NextRequest) {
       const name = (s.author ?? 'unknown').toLowerCase();
       return name === a || slugify(name) === a;
     });
+  }
+  if (origin) {
+    sources = sources.filter((s) => s.origin === origin);
   }
   if (date) {
     sources = sources.filter((s) => (s.date ?? '').startsWith(date));

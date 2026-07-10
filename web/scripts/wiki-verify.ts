@@ -9,9 +9,15 @@
  *   - duplicate-entity   : deux entités partagent une même forme (label/alias)
  *   - candidate-collision: une candidate correspond déjà à une entité existante
  *   - invented-type      : type suggéré d'une candidate hors des types connus
- *   - graph-missing-node : entité reliée sans nœud entity:<slug> dans graph.json
- *   - graph-missing-edge : lien ressource↔entité sans arête « mentions »
+ *   - graph-missing-node : entité/origine reliée sans nœud (entity:/origin:<slug>) dans graph.json
+ *   - graph-missing-edge : lien ressource↔entité/origine sans arête (« mentions »/« has_origin »)
+ *   - invalid-origin     : ressource dont l'origin est hors {interne, externe, ""}
+ *   - origin-page-missing: page origin/interne.md ou origin/externe.md absente
  *   - manifest-missing   : ressource dont le source_file n'est pas dans le manifeste
+ *   - duplicate-theme        : deux thèmes partagent une même forme (label/alias)
+ *   - unknown-theme          : ressource reliée à un slug de thème absent du registre
+ *   - missed-theme-link      : thème connu cité dans la prose mais absent des topics
+ *   - theme-candidate-collision : un thème candidat correspond déjà à un thème existant
  *
  * Autonome (aucun import `@/…`) pour tourner sous `tsx` en CI sans résolution
  * d'alias. Sortie lisible + `--json`. `--strict` → code de sortie 1 si un problème.
@@ -48,6 +54,28 @@ function mentions(haystackNorm: string, form: string): boolean {
   return re.test(haystackNorm);
 }
 
+/** Nombre d'occurrences non chevauchantes de `form` (séquence de tokens) dans le
+ *  texte normalisé. Sert au seuil de récurrence des thèmes (cf. missed-theme-link). */
+function countMentions(haystackNorm: string, form: string): number {
+  if (form.length < 2) return 0;
+  const hay = haystackNorm.split(' ');
+  const need = form.split(' ');
+  let count = 0;
+  for (let i = 0; i + need.length <= hay.length; i++) {
+    let ok = true;
+    for (let j = 0; j < need.length; j++)
+      if (hay[i + j] !== need[j]) {
+        ok = false;
+        break;
+      }
+    if (ok) {
+      count++;
+      i += need.length - 1;
+    }
+  }
+  return count;
+}
+
 /** Retire frontmatter déjà géré + lignes d'annotation chunk + blockquote de nav. */
 function proseOnly(body: string): string {
   return body
@@ -76,6 +104,17 @@ function chunkEntities(body: string): string[] {
   return out;
 }
 
+/** Slugs de thèmes reliés en chunk (`topics: [...]` sous un heading). */
+function chunkTopics(body: string): string[] {
+  const out: string[] = [];
+  const re = /^`topics:\s*\[([^\]]*)\]`\s*$/;
+  for (const line of body.split('\n')) {
+    const m = line.trim().match(re);
+    if (m) out.push(...m[1].split(',').map((s) => s.trim()).filter(Boolean));
+  }
+  return out;
+}
+
 async function readDir(rel: string): Promise<string[]> {
   try {
     return await fs.readdir(path.join(WIKI_ROOT, rel));
@@ -97,10 +136,17 @@ interface Entity {
   entity_type: string;
   aliases: string[];
 }
+interface Theme {
+  slug: string;
+  label: string;
+  aliases: string[];
+}
 interface Resource {
   slug: string;
   source_file: string | null;
-  linked: string[]; // slugs reliés
+  origin: string; // 'interne' | 'externe' | '' (inconnu)
+  linked: string[]; // slugs d'entités reliés
+  linkedThemes: string[]; // slugs de thèmes reliés (topics)
   proseNorm: string;
 }
 
@@ -139,6 +185,32 @@ async function main() {
     if (slugs.size > 1)
       add('duplicate-entity', 'error', `forme « ${form} » partagée par ${[...slugs].join(', ')}`);
 
+  // --- Registre de thèmes ---
+  const themes: Theme[] = [];
+  for (const file of await readDir('themes')) {
+    if (!file.endsWith('.md') || file.startsWith('_')) continue;
+    const { data } = matter(await readFileSafe(`themes/${file}`));
+    const slug = String(data.slug ?? path.basename(file, '.md')).trim();
+    themes.push({
+      slug,
+      label: String(data.label ?? slug).trim(),
+      aliases: arr(data.aliases),
+    });
+  }
+  const themeSlugs = new Set(themes.map((t) => t.slug));
+  const themeForms = (t: Theme) => [t.label, ...t.aliases].map(normalize).filter(Boolean);
+
+  // duplicate-theme : une même forme normalisée pour deux slugs de thèmes distincts.
+  const themeFormToSlugs = new Map<string, Set<string>>();
+  for (const t of themes)
+    for (const f of themeForms(t)) {
+      if (!themeFormToSlugs.has(f)) themeFormToSlugs.set(f, new Set());
+      themeFormToSlugs.get(f)!.add(t.slug);
+    }
+  for (const [form, slugs] of themeFormToSlugs)
+    if (slugs.size > 1)
+      add('duplicate-theme', 'error', `forme « ${form} » partagée par ${[...slugs].join(', ')}`);
+
   // --- Ressources ---
   const resources: Resource[] = [];
   for (const file of await readDir('resources')) {
@@ -148,13 +220,31 @@ async function main() {
     const { data, content } = matter(raw);
     const slug = String(data.slug ?? path.basename(file, '.md')).trim();
     const linked = [...new Set([...arr(data.entities), ...chunkEntities(content)])];
+    const linkedThemes = [...new Set([...arr(data.topics), ...chunkTopics(content)])];
     resources.push({
       slug,
       source_file: data.source_file ? String(data.source_file) : null,
+      origin: String(data.origin ?? '').trim(),
       linked,
+      linkedThemes,
       proseNorm: normalize(proseOnly(content)),
     });
   }
+
+  // --- Origine (interne/externe) ---
+  // (a) valeur d'origin bornée à l'enum ; (b) les DEUX pages de valeur existent
+  // toujours (nœuds Obsidian distincts, cf. wiki-spec.md §3/§5).
+  const ORIGIN_VALUES = new Set(['interne', 'externe']);
+  for (const r of resources)
+    if (r.origin && !ORIGIN_VALUES.has(r.origin))
+      add('invalid-origin', 'error', `${r.slug} : origin « ${r.origin} » hors {interne, externe, ""}`);
+  for (const v of ['interne', 'externe'])
+    if (!(await readFileSafe(`origin/${v}.md`)).trim())
+      add(
+        'origin-page-missing',
+        'error',
+        `page origin/${v}.md absente (les deux origines doivent toujours exister)`,
+      );
 
   // missed-link + unknown-entity
   for (const r of resources) {
@@ -171,6 +261,27 @@ async function main() {
     for (const slug of r.linked)
       if (!registrySlugs.has(slug))
         add('unknown-entity', 'error', `${r.slug} relie un slug inconnu du registre : ${slug}`);
+  }
+
+  // missed-theme-link + unknown-theme. Un thème est une CLASSIFICATION de sujet
+  // (pas une mention littérale comme une entité) : une occurrence isolée (ex. un
+  // token dans une citation) ne prouve pas que la ressource porte sur ce thème.
+  // On exige donc une récurrence (≥ 2 occurrences d'une forme) avant de signaler.
+  const THEME_MENTION_THRESHOLD = 2;
+  for (const r of resources) {
+    const themeSet = new Set(r.linkedThemes);
+    for (const t of themes) {
+      const occ = themeForms(t).reduce((n, f) => n + countMentions(r.proseNorm, f), 0);
+      if (occ >= THEME_MENTION_THRESHOLD && !themeSet.has(t.slug))
+        add(
+          'missed-theme-link',
+          'warn',
+          `« ${t.label} » cité ${occ}× dans ${r.slug} mais absent des topics (topics:[…${t.slug}…] manquant)`,
+        );
+    }
+    for (const slug of r.linkedThemes)
+      if (!themeSlugs.has(slug))
+        add('unknown-theme', 'error', `${r.slug} relie un thème inconnu du registre : ${slug}`);
   }
 
   // --- Candidates ---
@@ -207,6 +318,32 @@ async function main() {
     }
   }
 
+  // --- Thèmes candidats ---
+  const themeCandDoc = await readFileSafe('themes/_candidates.json');
+  if (themeCandDoc.trim()) {
+    let parsed: any;
+    try {
+      parsed = JSON.parse(themeCandDoc);
+    } catch {
+      add('theme-candidates-file', 'error', 'themes/_candidates.json illisible (JSON invalide)');
+    }
+    const cands: any[] = Array.isArray(parsed?.candidates) ? parsed.candidates : [];
+    const allThemeForms = new Set<string>();
+    for (const t of themes) for (const f of themeForms(t)) allThemeForms.add(f);
+    for (const c of cands) {
+      if (c?.status && c.status !== 'pending') continue; // déjà arbitrée
+      const forms = [c?.name, ...(Array.isArray(c?.variants) ? c.variants : [])]
+        .map((x: any) => normalize(String(x ?? '')))
+        .filter(Boolean);
+      if (forms.some((f) => allThemeForms.has(f)))
+        add(
+          'theme-candidate-collision',
+          'error',
+          `thème candidat « ${c?.name} » correspond déjà à un thème — à relier/fusionner, pas laisser en attente`,
+        );
+    }
+  }
+
   // --- Graphe + manifeste ---
   let graph: any = null;
   try {
@@ -232,6 +369,24 @@ async function main() {
             `arête « mentions » manquante : ${r.slug} → ${slug}`,
           );
       }
+
+    // Origine : nœud origin:<val> + arête has_origin pour chaque origin connue.
+    const originEdgeKeys = new Set(
+      (graph.edges ?? [])
+        .filter((e: any) => e.relation === 'has_origin')
+        .map((e: any) => `${e.source}→${e.target}`),
+    );
+    for (const r of resources) {
+      if (!r.origin || !ORIGIN_VALUES.has(r.origin)) continue;
+      if (!nodeIds.has(`origin:${r.origin}`))
+        add('graph-missing-node', 'error', `nœud origin:${r.origin} absent de graph.json`);
+      if (!originEdgeKeys.has(`resource:${r.slug}→origin:${r.origin}`))
+        add(
+          'graph-missing-edge',
+          'error',
+          `arête « has_origin » manquante : ${r.slug} → origin:${r.origin}`,
+        );
+    }
   }
 
   let manifest: any = null;
@@ -271,7 +426,7 @@ async function main() {
         for (const i of list) console.log(`  ${i.severity === 'error' ? '✗' : '⚠'} ${i.message}`);
       }
       console.log(
-        `\nwiki-verify : ${errors.length} erreur(s), ${warns.length} avertissement(s) sur ${resources.length} ressource(s), ${entities.length} entité(s).`,
+        `\nwiki-verify : ${errors.length} erreur(s), ${warns.length} avertissement(s) sur ${resources.length} ressource(s), ${entities.length} entité(s), ${themes.length} thème(s).`,
       );
     }
   }
