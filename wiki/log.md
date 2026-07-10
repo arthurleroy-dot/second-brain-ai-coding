@@ -4,49 +4,6 @@ type: log
 
 # Journal des runs
 
-## [2026-07-10] ingest | Document témoin plateforme
-
-**Type** : ingestion de validation (test de la chaîne d'upload)
-**Run** : `gha` (GitHub Action)
-**Fichier traité** : `raw/temoin-agentic-coding.md` + sidecar `.meta.md`
-
-**Ressource créée** :
-- `resources/test-plateforme-panorama-agentic-coding-2026.md`
-  - Slug : `test-plateforme-panorama-agentic-coding-2026`
-  - Auteur : Test plateforme (nouvel auteur)
-  - Date : 2026-07-09 (date précise)
-  - Type : article
-  - Origin : externe
-  - Topics : agentic-coding
-  - Entités reliées : claude-code (niveau ressource)
-
-**Vues dérivées mises à jour** :
-- `authors/test-plateforme.md` — nouvelle page auteur créée
-- `themes/agentic-coding.md` — ressource ajoutée (resource_count 7 → 8)
-- `entities/claude-code.md` — mention ajoutée (ressource entière)
-- `by-date/2026/2026-07/2026-07.md` — nouvelle page mois créée
-- `by-date/2026/2026.md` — mois de juillet ajouté (resource_count 13 → 14)
-- `types.md` — article (6 → 7 ressources)
-- `origin.md` — externe (13 → 14 ressources)
-- `index.md` — compteurs mis à jour (resources 13 → 14, authors 10 → 11)
-- `graph.json` — 3 nouveaux nodes (resource, author, date:2026-07), 6 nouveaux edges
-
-**Entités traitées** :
-- Claude Code : mentionné explicitement → lié (entité existante)
-- Anthropic : mentionné comme organisation → NON relié (existe comme auteur, pas comme entité tool/client)
-
-**Candidates ajoutées** : aucune (pas de nouvelle entité inconnue détectée)
-
-**needs_review** : false (origin déductible : article classique → externe)
-
-**Notes** :
-- Document témoin court (866 octets) déposé via la plateforme pour valider la chaîne d'ingestion de bout en bout (upload → GitHub Action → écriture dans wiki/)
-- Granularité des entités : `resource` (contenu court et transverse)
-- Pas d'URL fournie dans le sidecar (champ vide)
-- Premier fichier ingéré du mois de juillet 2026 → création du répertoire et de la page `by-date/2026/2026-07/`
-
----
-
 ## [2026-07-03] ingest | Reconstruction complète — architecture 3 couches
 
 **Type** : reconstruction totale (migration depuis ancienne architecture)

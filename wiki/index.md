@@ -1,14 +1,14 @@
 ---
 type: index
-last_updated: "2026-07-10"
-resource_count: 14
+last_updated: "2026-07-03"
+resource_count: 13
 theme_count: 6
-author_count: 11
+author_count: 10
 ---
 
 ## Thèmes (6)
 
-- [[themes/agentic-coding|Agentic Coding]] — 8 ressources · agentic factories, 4 niveaux 1×→20×, Cursor, IBM, LATAM Airlines
+- [[themes/agentic-coding|Agentic Coding]] — 7 ressources · agentic factories, 4 niveaux 1×→20×, Cursor, IBM, LATAM Airlines
 - [[themes/context-engineering|Context Engineering]] — 3 ressources · knowledge graphs, spec-driven dev, agent-ready tasks
 - [[themes/finops-ia|FinOps IA]] — 8 ressources · paradoxe de Jevons, token attribution, FinOps parallèle pour LLMs
 - [[themes/outils-et-marche|Outils et Marché]] — 8 ressources · Claude Code vs Copilot vs Codex, marché $780B en 2030
@@ -17,7 +17,7 @@ author_count: 11
 
 ---
 
-## Auteurs (11)
+## Auteurs (10)
 
 - [[authors/accenture|Accenture]] — 1 ressource · 2024 · 9%→16% processus AI-led ; 2.5×/2.4×/3.3× vs pairs
 - [[authors/anthropic|Anthropic]] — 1 ressource · 2026 · 8 tendances agentic coding ; paradoxe 60/20%
@@ -29,15 +29,13 @@ author_count: 11
 - [[authors/leanops-tech|LeanOps Tech]] — 1 ressource · 2026 · 23 entreprises IA : FinOps parallèle pour LLMs
 - [[authors/mckinsey|McKinsey]] — 3 ressources · 2025-11 & 2026-04 & 2026-05 · factory agentique ; 2 shifts + 3 enablers
 - [[authors/rick-pollick|Rick Pollick]] — 1 ressource · 2026 · coût LLM = problème d'ingénierie, pas de finance
-- [[authors/test-plateforme|Test plateforme]] — 1 ressource · 2026-07-09 · document témoin pour tester la chaîne d'ingestion
 
 ---
 
-## Ressources (14)
+## Ressources (13)
 
-### Articles (7)
+### Articles (6)
 
-- [[resources/test-plateforme-panorama-agentic-coding-2026|Test plateforme — panorama agentic coding]] — Test plateforme · 2026-07-09 · document témoin d'ingestion ; définition agentic coding ; Claude Code ; fidélité, garde-fous, observabilité
 - [[resources/ai-finops-2026-runtime-cost-governance-cant-wait|AI FinOps in 2026: Why Runtime Cost Governance Can't Wait]] — ECI Research · 2026 ⚠ · token comme unité économique invisible ; windshield vs rearview mirror
 - [[resources/finops-ai-llm-cost-engineering-not-finance|FinOps for AI: Why LLM Cost Is an Engineering Problem, Not a Finance One]] — Rick Pollick · 2026 ⚠ · paradoxe de Jevons ; 280× baisse prix tokens ; 5 leviers ingénierie
 - [[resources/traditional-finops-breaks-ai-workloads|Traditional FinOps Breaks On AI Workloads]] — LeanOps Tech · 2026 ⚠ · 7 points de rupture FinOps classique ; 23 entreprises ; $580K économisés
@@ -61,7 +59,7 @@ author_count: 11
 
 - [[by-date/2024/2024|2024]] — 1 ressource
 - [[by-date/2025/2025|2025]] — 1 ressource
-- [[by-date/2026/2026|2026]] — 12 ressources (dont 4 date exacte inconnue)
+- [[by-date/2026/2026|2026]] — 11 ressources (dont 4 date exacte inconnue)
 
 ## Index par type
 

@@ -1,10 +1,10 @@
 ---
 type: index
 label: Types de ressources
-last_updated: "2026-07-10"
+last_updated: "2026-07-03"
 ---
 
-## article (7 ressources)
+## article (6 ressources)
 
 | Ressource | Auteur | Date | Origin |
 |-----------|--------|------|--------|
@@ -14,7 +14,6 @@ last_updated: "2026-07-10"
 | [[resources/microsoft-google-late-ai-coding-compete-growth\|Microsoft and Google are late to AI coding]] | CNBC | 2026-06 | externe |
 | [[resources/top-engineers-anthropic-openai-ai-writes-100-pct-code\|Top engineers at Anthropic, OpenAI say AI now writes 100% of their code]] | Fortune | 2026-01 | externe |
 | [[resources/ai-software-development-what-changes-2026-2035\|AI Software Development: What Changes from 2026 to 2035]] | First Line Software | 2026-04 | externe |
-| [[resources/test-plateforme-panorama-agentic-coding-2026\|Test plateforme — panorama agentic coding]] | Test plateforme | 2026-07-09 | externe |
 
 ## report-pdf (7 ressources)
 
