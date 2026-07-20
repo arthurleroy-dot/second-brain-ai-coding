@@ -45,7 +45,8 @@ bloc `links:` dont chaque clé est un `entity_type` :
 links:
   tool: [n8n, claude-code]
   client: [acme-corp]
-entities_granularity: auto   # auto | resource | chunk
+entities_granularity:        # granularité PAR type (map) — un type absent ⇒ auto
+  tool: chunk
 ```
 
 Le formulaire d'upload s'auto-étend : il lit les `entity_type` déjà présents dans
@@ -73,8 +74,9 @@ Deux niveaux, selon la précision voulue :
 > `wiki/entities/<slug>.md`, jamais répété dans chaque ressource.
 
 Comment la granularité est décidée :
-- déclarée par l'utilisateur à l'upload via `entities_granularity` du sidecar
-  (`resource` | `chunk`) ;
+- déclarée par l'utilisateur à l'upload via `entities_granularity` du sidecar — une
+  **map `entity_type → resource|chunk`** (un type absent ⇒ `auto`). Un scalaire
+  `resource|chunk` (ancien format) reste accepté et s'applique à tous les types déclarés ;
 - sinon `auto` : l'agent choisit `chunk` si l'entité n'est citée que dans une ou
   deux sections précises, `resource` si elle est transverse au document.
 
@@ -86,8 +88,11 @@ Comment la granularité est décidée :
 
 1. **Entité + type déclarés explicitement** (bloc `links:` du sidecar) → l'agent
    **crée et lie directement** l'entité avec ce `entity_type`, même nouvelle
-   (on fait confiance au choix humain). **Sauf** si le nom correspond à une entité
-   existante d'un **autre** type (conflit) → alors candidate.
+   (on fait confiance au choix humain). **Jamais de candidate pour une entité
+   déclarée.** Si le nom correspond à une entité existante du **même** type → il s'y
+   relie (dédoublonnage). S'il correspond à une entité existante d'un **autre** type,
+   l'agent crée quand même l'entité déclarée sous un **slug distinct déterministe**
+   (suffixe du type, ex. `databricks-tool`) — pas de candidate.
 2. **Nom déclaré sans type** (ancien `entities:` plat) ou **détecté dans le
    contenu** :
    - écriture reconnue (match casse/accents sur `label`/`aliases` d'une entité
@@ -129,13 +134,20 @@ JSON). Une entrée :
 - `suggested_types` ⊆ types du registre ; `suggested_aliases` = entités proches
   (« ressemble à »), triées par `score` décroissant.
 
-Décisions (posées via la page → `status` ≠ `pending`), appliquées et purgées par
-l'agent au run suivant :
+Décisions (posées via la page → `status` ≠ `pending`), appliquées et purgées
+**DÉTERMINISTIQUEMENT et IMMÉDIATEMENT** par la plateforme (moteur TypeScript
+`web/lib/wiki-mutate.ts`, appelé par la route `/api/candidates/resolve` → écriture
+locale atomique via `applyFileOps`). Plus aucune dépendance à l'agent d'ingestion
+(cf. §7) :
 - `merge_alias` → ajoute le nom aux `aliases` de `decision.target_slug`, relie
-  rétroactivement, supprime l'entrée.
+  rétroactivement les ressources de `seen_in`, supprime l'entrée.
 - `create` → crée `wiki/entities/<decision.slug>.md` (`entity_type =
   decision.entity_type`), relie rétroactivement, supprime l'entrée.
 - `reject` → supprime l'entrée, ne relie rien.
+
+Le moteur relie **exactement** les ressources listées dans `seen_in` (déterminisme).
+Si une mention en prose n'y figurait pas, `wiki:verify` la signale (`missed-link`,
+non bloquant) — c'est la complétude qui incombe à la détection, pas au moteur.
 
 ### Parallèle : thèmes candidats (`wiki/themes/_candidates.json`)
 
@@ -172,10 +184,45 @@ d'ingestion a pu rater. C'est à la fois le **filet de sécurité** du moteur LL
 - `duplicate-entity` — deux entités partagent une forme (label/alias) ;
 - `candidate-collision` — une candidate correspond déjà à une entité existante ;
 - `invented-type` — type suggéré d'une candidate hors des types connus ;
-- `graph-missing-node` / `graph-missing-edge` — lien absent de `graph.json` ;
-- `manifest-missing` — `source_file` d'une ressource absent de `_ingested.json`.
+- `graph-missing-node` / `graph-missing-edge` — lien absent de `graph.json` (couvre
+  désormais `mentions`, `has_origin`, `belongs_to_theme`, `written_by`, `has_type`,
+  `published_on`) ;
+- `graph-orphan-node` / `graph-orphan-edge` — `resource:<slug>` du graphe sans
+  fichier ressource (rattrape une suppression incomplète) ;
+- `manifest-missing` — `source_file` d'une ressource absent de `_ingested.json` ;
+- `manifest-orphan` — entrée `_ingested.json` pointant une ressource supprimée.
 
 Par défaut : rapport + `exit 0` (avertit sans casser). `--strict` : `exit 1` s'il
-reste un problème. `--json` : sortie machine (comptage pour la comparaison).
-L'Action lance le vérificateur après l'agent (mode non bloquant) — le rapport
-apparaît dans les logs.
+reste un problème. `--json` : sortie machine (comptage). Le moteur d'ingestion
+local (`web/lib/ingest-local.ts`) lance le vérificateur après l'agent (mode non
+bloquant) — la queue du rapport est conservée dans l'état d'ingestion (`logTail`)
+et le journal `<DATA_ROOT>/.data/ingest.log`.
+
+---
+
+## 7. Moteur déterministe de mutation (`web/lib/wiki-mutate.ts`)
+
+Les décisions sur candidates (§4) **et** la suppression de ressources sont faites
+par un **moteur TypeScript pur, déterministe** (zéro LLM), appliqué **in-process**
+par la plateforme en écriture locale atomique. C'est « l'inverse de l'ingestion » :
+édition chirurgicale des vues dérivées + graphe + manifeste.
+
+- **Fonctions pures** : `applyEntityDecision`, `applyThemeDecision`, `deleteResource`
+  reçoivent le contenu des fichiers pertinents et renvoient une liste d'opérations
+  `FileOp = { path, content } | { path, delete: true }`. Aucune I/O → testées par
+  `web/lib/__tests__/wiki-mutate.test.ts` (`npm --prefix web run test`).
+- **Application** : `applyFileOps` (`web/lib/wiki-fs.ts`) exécute la liste de
+  `FileOp` en **écriture locale atomique par fichier** (temp + `rename` ; les
+  suppressions `{ path, delete: true }` ignorent `ENOENT`), avec le garde-fou
+  « chemins sous `wiki/` ou `raw/` uniquement ». Les routes lisent l'état à jour
+  via `readRepoFile`, appellent le moteur, écrivent tout d'un coup.
+- **Routes** : `/api/candidates/resolve`, `/api/theme-candidates/resolve` (décisions),
+  `DELETE /api/sources/[slug]` (suppression). Application immédiate, aucun réseau.
+- **Suppression** — l'ordre inverse des 12 étapes d'ingestion : retire la ressource
+  canonique, ses blocs/lignes dans themes/authors/origin/by-date/entities/index/types,
+  ses nodes/edges du graphe, l'entrée manifeste, **et** les fichiers bruts
+  (`raw/<source>` + sidecar). La clé manifeste étant purgée dans le même lot, la
+  source ne peut pas être ré-ingérée. Orphelins : les **facettes dérivées** tombées
+  à 0 (author, date, type) sont supprimées ; les **registres** (theme, entity) et
+  l'enum origin sont conservés.
+- **Filet** : `wiki:verify` (§6, étendu aux orphelins) reste le garde-fou de cohérence.

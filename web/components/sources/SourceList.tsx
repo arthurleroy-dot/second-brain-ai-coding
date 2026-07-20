@@ -59,7 +59,11 @@ export default function SourceList() {
             <p className="mb-3 text-xs text-gray-500">{filtered.length} source(s)</p>
             <div className="space-y-2">
               {filtered.map((s) => (
-                <SourceRow key={s.slug} source={s} />
+                <SourceRow
+                  key={s.slug}
+                  source={s}
+                  onDeleted={(slug) => setAll((prev) => prev.filter((x) => x.slug !== slug))}
+                />
               ))}
             </div>
           </>

@@ -69,7 +69,7 @@ export default function ChatWindow({ conversationId, initialMessages = [] }: Pro
   }, [messages, loading, steps.length]);
 
   // Au montage : on initialise le store depuis le SSR, puis on recharge l'état
-  // réel depuis Supabase pour une conversation persistée. `hydrateFromDb`
+  // persisté (fichiers JSON locaux) pour une conversation. `hydrateFromDb`
   // n'écrase JAMAIS un flux en cours (cf. store) : si on revient pendant une
   // génération, on garde l'état live et on voit la réponse continuer.
   useEffect(() => {
@@ -120,7 +120,7 @@ export default function ChatWindow({ conversationId, initialMessages = [] }: Pro
       const data = await res.json().catch(() => null);
       const newId: string | null = data?.conversation?.id ?? null;
       if (!newId) {
-        // Supabase indisponible → on reste sur le chat éphémère (non persisté) ;
+        // Persistance indisponible → on reste sur le chat éphémère (non persisté) ;
         // la clé étant stable, l'état survit tout de même à la navigation interne.
         void sendMessage(getEphemeralKey(), null, text, undefined);
         return;

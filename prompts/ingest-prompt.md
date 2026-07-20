@@ -6,14 +6,18 @@ ton travail après coup — vise le zéro problème.
 Ta mission pour ce run : ingérer dans le wiki les fichiers de `raw/` listés à la
 fin de ce prompt (et EUX SEULS). Chaque fichier listé n'a pas encore de ressource.
 
-## Avant de commencer, lis (dans cet ordre) :
-1. `CLAUDE.md` — carte du projet + règles cardinales.
-2. `docs/ingestion.md` — le workflow d'ingestion étape par étape (À SUIVRE).
-3. `docs/wiki-spec.md` — les formats exacts (frontmatter, chunks, vues, graph.json).
-4. `docs/entities.md` — comment relier les ressources aux entités (outils, clients…).
+## Contexte d'exécution (IMPORTANT — lis bien)
+Tu tournes en LOCAL, avec `cwd` = la racine de données de l'application. Ton
+périmètre de fichiers se limite à **`wiki/`** et **`raw/`** : `CLAUDE.md`, `docs/` et
+le reste du dépôt **ne sont PAS accessibles** ici — n'essaie pas de les lire (Read
+échouera). **Toutes les règles dont tu as besoin sont reproduites intégralement à la
+fin de ce prompt**, sous la section « ===== RÈGLES DU PROJET (injectées) ===== » :
+`CLAUDE.md`, `docs/ingestion.md`, `docs/wiki-spec.md`, `docs/entities.md`. Quand une
+consigne ci-dessous renvoie à `docs/ingestion.md §3` (ou autre), réfère-toi à la copie
+injectée, pas au disque. Utilise `Glob`/`Read` uniquement sur `wiki/` et `raw/`.
 
 ## Règles absolues
-- Tu n'écris QUE sous `wiki/`. Jamais dans `raw/`, `web/`, `.github/`, `docs/`.
+- Tu n'écris QUE sous `wiki/`. Jamais dans `raw/` (ni ailleurs — c'est hors périmètre).
 - `raw/` est immuable : tu ne le modifies ni ne le renommes jamais.
 - Pour chaque fichier traité, ajoute son entrée dans `wiki/_ingested.json`
   (clé = nom EXACT du fichier de contenu ; valeur = { slug, ingested_at, run }).
@@ -36,8 +40,10 @@ Le registre vit dans `wiki/entities/<slug>.md` (frontmatter `entity_type`, `labe
 `aliases`). Applique la **confiance graduée** :
 
 1. **Sidecar `links:` typé** (`tool: [...]`, `client: [...]`) → crée/relie
-   DIRECTEMENT l'entité avec ce `entity_type`, même nouvelle. **Sauf** si le nom
-   correspond à une entité existante d'un AUTRE type → candidate (conflit).
+   DIRECTEMENT l'entité avec ce `entity_type`, même nouvelle. **Jamais de candidate
+   pour une entité déclarée.** Correspondance de MÊME type → relie à l'existante
+   (dédoublonnage). Nom déjà pris par une entité d'un AUTRE type → crée quand même
+   sous un slug distinct déterministe (suffixe du type, ex. `databricks-tool`).
 2. **Nom sans type / détecté dans le contenu** : écriture reconnue (match
    casse/accents sur `label` ou `aliases`) → **lien**. Écriture inconnue → NE crée
    PAS : ajoute une candidate (cf. `_candidates.json`).
@@ -50,16 +56,20 @@ connue non reliée.
 
 **Anti-doublon :** avant toute création, compare le nom normalisé (minuscules, sans
 accents/ponctuation) aux `label`+`aliases` existants (`n8n` = `N8N` = `n8n.io`).
-En cas de correspondance → relie/fusionne, ne crée pas.
+Correspondance de **même type** → relie/fusionne, ne crée pas. (Une entité *déclarée*
+qui percute le nom d'une entité d'un **autre** type → slug distinct, cf. point 1 —
+pas de fusion, pas de candidate.)
 
 **Type fermé :** tu ne proposes JAMAIS un `entity_type` nouveau. Le `suggested_types`
 d'une candidate est TOUJOURS pris parmi les types déjà présents dans le registre.
 Un nouveau type ne naît que d'une décision humaine (sidecar `links:` ou page).
 
-**Granularité** (`entities_granularity` du sidecar, sinon `auto`) : niveau
-`resource` = ligne `entities:` du frontmatter ; niveau `chunk` = ligne
-`` `entities: [...]` `` sous le heading concerné. En `auto` : `chunk` si l'entité
-n'est citée que dans 1–2 sections, `resource` si elle est transverse.
+**Granularité** (`entities_granularity` du sidecar) — **map par type**
+`{ entity_type → resource|chunk }` ; un type absent ⇒ `auto` (un scalaire `resource|chunk`
+legacy s'applique à tous les types déclarés). Niveau `resource` = ligne `entities:` du
+frontmatter ; niveau `chunk` = ligne `` `entities: [...]` `` sous le heading concerné.
+En `auto` : `chunk` si l'entité n'est citée que dans 1–2 sections, `resource` si elle est
+transverse.
 
 ## File des candidates — `wiki/entities/_candidates.json`
 

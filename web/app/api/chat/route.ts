@@ -7,12 +7,12 @@ import {
   getConversationHistory,
   renameConversationIfDefault,
   saveMessage,
-} from '@/lib/supabase';
+} from '@/lib/conversations-store';
 
 export const dynamic = 'force-dynamic';
 // Boucle agentique : plusieurs allers-retours modèle+outils par question.
-// 300 s suppose Vercel Pro/Fluid ; sur un plan inférieur, retomber à 60 et
-// abaisser le deadlineMs ci-dessous à ~50 s (cf. spec 2026-07-18, §4).
+// Serveur local long-vécu (Electron / `next start`) : pas de limite serverless ;
+// le vrai garde-temps est le `deadlineMs` passé à runWikiAgent ci-dessous.
 export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     return Response.json(
       {
         error:
-          "Clé API non configurée. Renseigne ANTHROPIC_API_KEY (et ANTHROPIC_BASE_URL) dans .env.local.",
+          "Clé API non configurée. Ajoute ta clé dans les réglages de l'app (ou ANTHROPIC_API_KEY dans .env.local en dev).",
       },
       { status: 503 },
     );

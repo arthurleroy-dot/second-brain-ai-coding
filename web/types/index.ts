@@ -15,7 +15,7 @@ export type OriginValue = 'interne' | 'externe';
 export type ResourceStatus = 'pending' | 'processing' | 'done' | 'error';
 
 export interface Source {
-  id?: string; // uuid Supabase (absent pour les sources citées par Claude non hydratées)
+  id?: string; // uuid de la ressource (absent pour les sources citées par Claude non hydratées)
   slug: string;
   title: string;
   type: ResourceType;

@@ -1,5 +1,5 @@
 import ChatWindow from '@/components/chat/ChatWindow';
-import { getConversation } from '@/lib/supabase';
+import { getConversation } from '@/lib/conversations-store';
 
 export const dynamic = 'force-dynamic';
 

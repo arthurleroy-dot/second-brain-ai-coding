@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { getConversation } from '@/lib/supabase';
+import { getConversation } from '@/lib/conversations-store';
 
 export const dynamic = 'force-dynamic';
 

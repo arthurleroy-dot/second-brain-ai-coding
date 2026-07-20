@@ -4,6 +4,7 @@ import {
   AuthorEntry,
   Candidate,
   DateEntry,
+  GraphData,
   OriginEntry,
   OriginValue,
   ResourceType,
@@ -14,27 +15,18 @@ import {
   WikiTopic,
 } from '@/types';
 import { listWikiDir, readWikiFile } from '@/lib/wiki-fs';
-import { ALL_ORIGINS, ALL_TYPES, TYPE_TO_FOLDER, originLabel, typeLabel } from '@/lib/ui';
+import {
+  ALL_ORIGINS,
+  ALL_TYPES,
+  TYPE_TO_FOLDER,
+  originLabel,
+  resolveSourceType,
+  typeLabel,
+} from '@/lib/ui';
 
 const RESOURCES = 'resources';
 const THEMES = 'themes';
 const ENTITIES = 'entities';
-
-// Valeurs du champ `source_type` (frontmatter wiki) → ResourceType (web).
-const SOURCE_TYPE_TO_TYPE: Record<string, ResourceType> = {
-  article: 'article',
-  'report-pdf': 'report_pdf',
-  report_pdf: 'report_pdf',
-  tweet: 'tweet',
-  interview: 'interview',
-  presentation: 'presentation',
-  'meeting-notes': 'meeting_note',
-  meeting_note: 'meeting_note',
-  transcript: 'transcript',
-  'personal-notes': 'personal_note',
-  personal_note: 'personal_note',
-  unknown: 'unknown',
-};
 
 export function slugify(s: string): string {
   return s
@@ -63,10 +55,7 @@ function cleanOrigin(v: unknown): OriginValue | null {
 }
 
 function normalizeType(rawType: unknown): ResourceType {
-  if (typeof rawType === 'string' && SOURCE_TYPE_TO_TYPE[rawType.trim()]) {
-    return SOURCE_TYPE_TO_TYPE[rawType.trim()];
-  }
-  return 'unknown';
+  return typeof rawType === 'string' ? resolveSourceType(rawType) : 'unknown';
 }
 
 /** Récupère les entités déclarées en chunk (`entities: [...]` sous un heading). */
@@ -368,6 +357,25 @@ export async function listCandidates(): Promise<Candidate[]> {
     }));
   } catch {
     return [];
+  }
+}
+
+/**
+ * Graphe de connaissances (wiki/graph.json) — vue dérivée générée à l'ingestion.
+ * Lecture seule pour la page de visualisation. Renvoie un graphe vide si le
+ * fichier est absent ou illisible (même contrat défensif que listCandidates).
+ */
+export async function getGraph(): Promise<GraphData> {
+  const content = await readWikiFile('graph.json');
+  if (!content.trim()) return { nodes: [], edges: [] };
+  try {
+    const json = JSON.parse(content);
+    return {
+      nodes: Array.isArray(json?.nodes) ? json.nodes : [],
+      edges: Array.isArray(json?.edges) ? json.edges : [],
+    };
+  } catch {
+    return { nodes: [], edges: [] };
   }
 }
 

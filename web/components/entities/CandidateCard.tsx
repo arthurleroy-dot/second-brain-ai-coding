@@ -68,15 +68,11 @@ export default function CandidateCard({
       }
       const label =
         action === 'merge_alias'
-          ? 'Fusion enregistrée'
+          ? 'Fusion appliquée'
           : action === 'create'
-            ? 'Création enregistrée'
-            : 'Rejet enregistré';
-      setDone(
-        d.dispatched
-          ? `${label} — ingestion relancée, appliquée sous peu.`
-          : `${label} — sera appliquée à la prochaine ingestion.`,
-      );
+            ? 'Création appliquée'
+            : 'Rejet appliqué';
+      setDone(`${label} — mise à jour du wiki immédiate.`);
     } catch {
       setError('Erreur réseau');
       setBusy(false);

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   MessageCircle,
+  Network,
   BookOpen,
   Files,
   Compass,
@@ -12,10 +13,10 @@ import {
   Upload,
   Settings,
 } from 'lucide-react';
-import { useUpload } from '@/components/UploadProvider';
 
 const NAV = [
   { href: '/chat', icon: MessageCircle, label: 'Chat' },
+  { href: '/graph', icon: Network, label: 'Graph' },
   { href: '/wiki', icon: BookOpen, label: 'Wiki' },
   { href: '/sources', icon: Files, label: 'Sources' },
   { href: '/explore', icon: Compass, label: 'Explorer' },
@@ -25,7 +26,7 @@ const NAV = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { openPicker } = useUpload();
+  const uploadActive = pathname.startsWith('/upload');
 
   return (
     <nav className="flex h-full w-12 flex-col items-center justify-between border-r border-gray-200 bg-white py-3">
@@ -50,14 +51,17 @@ export default function Sidebar() {
 
         <div className="my-2 h-px w-6 bg-gray-200" />
 
-        <button
-          type="button"
-          onClick={openPicker}
+        <Link
+          href="/upload"
           title="Déposer une source"
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+          className={`flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
+            uploadActive
+              ? 'bg-gray-900 text-white'
+              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+          }`}
         >
           <Upload size={18} />
-        </button>
+        </Link>
       </div>
 
       <button

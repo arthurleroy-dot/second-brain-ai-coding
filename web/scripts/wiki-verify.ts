@@ -9,11 +9,14 @@
  *   - duplicate-entity   : deux entités partagent une même forme (label/alias)
  *   - candidate-collision: une candidate correspond déjà à une entité existante
  *   - invented-type      : type suggéré d'une candidate hors des types connus
- *   - graph-missing-node : entité/origine reliée sans nœud (entity:/origin:<slug>) dans graph.json
- *   - graph-missing-edge : lien ressource↔entité/origine sans arête (« mentions »/« has_origin »)
+ *   - graph-missing-node : node manquant (entity:/origin:/theme:/author:/type:/date:<slug>) dans graph.json
+ *   - graph-missing-edge : lien manquant (mentions/has_origin/belongs_to_theme/written_by/has_type/published_on)
+ *   - graph-orphan-node  : node resource:<slug> sans fichier ressource (suppression incomplète)
+ *   - graph-orphan-edge  : arête référençant une ressource inexistante
  *   - invalid-origin     : ressource dont l'origin est hors {interne, externe, ""}
  *   - origin-page-missing: page origin/interne.md ou origin/externe.md absente
  *   - manifest-missing   : ressource dont le source_file n'est pas dans le manifeste
+ *   - manifest-orphan    : entrée _ingested.json pointant une ressource supprimée
  *   - duplicate-theme        : deux thèmes partagent une même forme (label/alias)
  *   - unknown-theme          : ressource reliée à un slug de thème absent du registre
  *   - missed-theme-link      : thème connu cité dans la prose mais absent des topics
@@ -45,6 +48,16 @@ function normalize(s: string): string {
     .replace(/\p{Diacritic}/gu, '')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
+}
+
+/** Minuscules, sans accents, non-alphanum → tiret (slug d'auteur, etc.). */
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 /** Vrai si `form` (déjà normalisée) apparaît comme « mot » dans `haystack` normalisé. */
@@ -145,8 +158,12 @@ interface Resource {
   slug: string;
   source_file: string | null;
   origin: string; // 'interne' | 'externe' | '' (inconnu)
+  author: string | null;
+  date: string | null;
+  sourceType: string | null;
   linked: string[]; // slugs d'entités reliés
-  linkedThemes: string[]; // slugs de thèmes reliés (topics)
+  linkedThemes: string[]; // slugs de thèmes reliés (topics frontmatter ∪ chunks)
+  feThemes: string[]; // topics du FRONTMATTER seul (= source des arêtes belongs_to_theme)
   proseNorm: string;
 }
 
@@ -225,8 +242,12 @@ async function main() {
       slug,
       source_file: data.source_file ? String(data.source_file) : null,
       origin: String(data.origin ?? '').trim(),
+      author: data.author ? String(data.author).trim() : null,
+      date: data.date ? String(data.date).trim() : null,
+      sourceType: data.source_type ? String(data.source_type).trim() : null,
       linked,
       linkedThemes,
+      feThemes: arr(data.topics),
       proseNorm: normalize(proseOnly(content)),
     });
   }
@@ -387,6 +408,67 @@ async function main() {
           `arête « has_origin » manquante : ${r.slug} → origin:${r.origin}`,
         );
     }
+
+    // belongs_to_theme / written_by / has_type / published_on : miroir de
+    // « mentions »/« has_origin ». Rattrape une suppression qui aurait laissé un
+    // node/edge dérivé désynchronisé (ces relations n'étaient pas vérifiées).
+    const relEdges = (rel: string) =>
+      new Set(
+        (graph.edges ?? [])
+          .filter((e: any) => e.relation === rel)
+          .map((e: any) => `${e.source}→${e.target}`),
+      );
+    const themeEdges = relEdges('belongs_to_theme');
+    const authorEdges = relEdges('written_by');
+    const typeEdges = relEdges('has_type');
+    const dateEdges = relEdges('published_on');
+    for (const r of resources) {
+      // belongs_to_theme suit les topics du FRONTMATTER (union des sections),
+      // pas les topics chunk isolés — c'est ainsi que le graphe est construit.
+      for (const t of r.feThemes) {
+        if (!nodeIds.has(`theme:${t}`))
+          add('graph-missing-node', 'error', `nœud theme:${t} absent de graph.json`);
+        if (!themeEdges.has(`resource:${r.slug}→theme:${t}`))
+          add('graph-missing-edge', 'error', `arête « belongs_to_theme » manquante : ${r.slug} → ${t}`);
+      }
+      if (r.author) {
+        const a = slugify(r.author);
+        if (!nodeIds.has(`author:${a}`))
+          add('graph-missing-node', 'error', `nœud author:${a} absent de graph.json`);
+        if (!authorEdges.has(`resource:${r.slug}→author:${a}`))
+          add('graph-missing-edge', 'error', `arête « written_by » manquante : ${r.slug} → author:${a}`);
+      }
+      if (r.sourceType) {
+        if (!nodeIds.has(`type:${r.sourceType}`))
+          add('graph-missing-node', 'error', `nœud type:${r.sourceType} absent de graph.json`);
+        if (!typeEdges.has(`resource:${r.slug}→type:${r.sourceType}`))
+          add('graph-missing-edge', 'error', `arête « has_type » manquante : ${r.slug} → type:${r.sourceType}`);
+      }
+      if (r.date) {
+        const target = r.date.length >= 7 ? `date:${r.date.slice(0, 7)}` : `date:${r.date.slice(0, 4)}`;
+        if (!nodeIds.has(target))
+          add('graph-missing-node', 'error', `nœud ${target} absent de graph.json`);
+        if (!dateEdges.has(`resource:${r.slug}→${target}`))
+          add('graph-missing-edge', 'error', `arête « published_on » manquante : ${r.slug} → ${target}`);
+      }
+    }
+
+    // Orphelins : node/edge « resource:<slug> » sans fichier ressource (rattrape
+    // une suppression incomplète du graphe).
+    const resourceSlugs = new Set(resources.map((r) => r.slug));
+    for (const n of graph.nodes ?? []) {
+      const id = String(n.id);
+      if (id.startsWith('resource:') && !resourceSlugs.has(id.slice('resource:'.length)))
+        add('graph-orphan-node', 'error', `nœud ${id} sans ressource correspondante`);
+    }
+    for (const e of graph.edges ?? []) {
+      for (const ep of [String(e.source), String(e.target)]) {
+        if (ep.startsWith('resource:') && !resourceSlugs.has(ep.slice('resource:'.length))) {
+          add('graph-orphan-edge', 'error', `arête « ${e.relation} » référence une ressource inexistante : ${ep}`);
+          break;
+        }
+      }
+    }
   }
 
   let manifest: any = null;
@@ -404,6 +486,14 @@ async function main() {
           'error',
           `${r.slug} : source_file « ${r.source_file} » absent de _ingested.json`,
         );
+    // manifest-orphan : entrée pointant une ressource supprimée (rattrape une
+    // purge de clé manquée à la suppression).
+    const resourceSlugs = new Set(resources.map((r) => r.slug));
+    for (const [file, entry] of Object.entries(manifest.files ?? {})) {
+      const slug = (entry as any)?.slug;
+      if (slug && !resourceSlugs.has(String(slug)))
+        add('manifest-orphan', 'error', `_ingested.json : « ${file} » pointe une ressource inexistante (${slug})`);
+    }
   }
 
   // --- Rapport ---

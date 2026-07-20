@@ -1,6 +1,9 @@
 # Second Brain — AI Coding
 
-Un **second brain collaboratif** sur l'**AI Coding** (développement assisté par IA), entretenu automatiquement par un agent Claude Code.
+Un **second brain** sur l'**AI Coding** (développement assisté par IA), entretenu
+automatiquement par un agent IA embarqué. **Application de bureau locale (Electron)** :
+chaque personne installe l'app et dispose de sa propre instance et de son propre
+wiki, entièrement **en local** sur sa machine.
 
 L'idée : chacun dépose ses trouvailles brutes (articles, notes, liens, réflexions) dans une inbox, et un agent se charge de les digérer en un wiki structuré et toujours à jour. **Personne n'organise le savoir à la main.**
 
@@ -25,7 +28,7 @@ L'idée : chacun dépose ses trouvailles brutes (articles, notes, liens, réflex
 ├── web/                    # Interface web Next.js (chat, navigation, upload)
 │   ├── app/                # App Router (pages + API routes)
 │   ├── components/         # Composants React
-│   └── lib/                # Logique métier (wiki parser, LLM client, GitHub, Supabase…)
+│   └── lib/                # Logique métier (wiki parser, écriture locale, ingestion locale, chat…)
 ├── docs/                   # Spécifications détaillées (lues à la demande par l'agent)
 ├── tasks/                  # todo.md (plan courant) + lessons.md
 ├── CLAUDE.md               # Carte du projet + règles cardinales (renvoie vers docs/)
@@ -36,7 +39,7 @@ L'idée : chacun dépose ses trouvailles brutes (articles, notes, liens, réflex
 
 ## Workflow
 
-1. **Vous déposez** un fichier brut dans [`/raw`](raw/README.md) — depuis l'interface web (qui le committe pour vous), ou directement en git. Aucun tri ni renommage manuel. `/raw` est **immuable** : on n'y modifie jamais rien ensuite.
+1. **Vous déposez** un fichier brut dans [`/raw`](raw/README.md) — depuis l'interface de l'app (qui l'écrit sur votre disque local), ou en copiant le fichier à la main. Aucun tri ni renommage manuel. `/raw` est **immuable** : on n'y modifie jamais rien ensuite.
 2. **L'agent traite** les nouveaux fichiers (ceux absents de [`wiki/_ingested.json`](wiki/_ingested.json)) :
    - il extrait les **métadonnées** (le sidecar `.meta.md` saisi à l'upload prime, sinon inférence) et le contenu ;
    - il crée une **fiche ressource complète** dans [`wiki/resources/`](wiki/resources/) avec le contenu intégral annoté par chunk (`topics:` et `entities:` sur chaque section) ;
@@ -44,9 +47,9 @@ L'idée : chacun dépose ses trouvailles brutes (articles, notes, liens, réflex
    - il met à jour [`graph.json`](wiki/graph.json) (nodes + edges, dont les entités) ;
    - il enregistre le fichier comme traité dans `wiki/_ingested.json` (il **ne modifie jamais** `/raw`) ;
    - il tient l'[index](wiki/index.md) et le [journal](wiki/log.md) à jour.
-3. **Automatisation** : la GitHub Action [`ingest.yml`](.github/workflows/ingest.yml) se déclenche **à chaque commit dans `raw/**`** (donc à chaque upload), plus un **cron nocturne** (23h) qui rattrape les dépôts manuels et les runs échoués. Elle lance un agent Claude Code qui n'écrit que dans `wiki/`, puis commit et push.
+3. **Automatisation** : l'ingestion est **locale et embarquée** (`web/lib/ingest-local.ts`, agent via `@anthropic-ai/claude-agent-sdk`). Elle se déclenche **automatiquement en fin d'upload** (en arrière-plan) et peut être **relancée à la main** (`POST /api/ingest`). Un verrou sérialise les runs ; un garde-fou déterministe restreint l'écriture de l'agent au seul dossier `wiki/`. Un fichier déposé à la main dans `raw/` est rattrapé au prochain déclenchement (détection idempotente via `wiki/_ingested.json`).
 
-Le comportement de l'agent est défini dans [CLAUDE.md](CLAUDE.md) (carte) et [`docs/`](docs/) (spécifications). Git est la **seule source de vérité du wiki** — Supabase ne stocke que l'historique du chat.
+Le comportement de l'agent est défini dans [CLAUDE.md](CLAUDE.md) (carte) et [`docs/`](docs/) (spécifications), **injectés dans le prompt d'ingestion**. Le markdown local est la **seule source de vérité du wiki** ; l'historique du chat est stocké en fichiers JSON locaux.
 
 ## Thèmes de départ
 
@@ -68,22 +71,22 @@ L'application Next.js dans `web/` offre quatre vues :
 | Sources | `/sources` | Liste filtrée (type, auteur, date, `needs_review`) + vue complète |
 | Explorer | `/explore` | Navigation par auteur et par date avec compteurs |
 
-Un bouton d'upload permet de déposer un fichier directement depuis l'interface : la plateforme **committe le fichier dans `/raw`** (via l'API GitHub) avec un sidecar `.meta.md` (titre, type, auteur, date, url, entités). Ce commit déclenche l'ingestion. La modale affiche l'avancement (« en attente → en cours → ingéré »).
+Un bouton d'upload permet de déposer un fichier directement depuis l'interface : la plateforme **écrit le fichier dans `/raw`** sur le disque local avec un sidecar `.meta.md` (titre, type, auteur, date, url, entités). L'écriture déclenche l'ingestion en arrière-plan. La vue d'upload affiche l'avancement (« en attente → en cours → ingéré »).
 
-La plateforme lit le wiki **directement depuis les fichiers markdown** (aucune base intermédiaire). Les PDF sont servis par un proxy (`/api/raw/...`) depuis git.
+La plateforme lit **et écrit** le wiki **directement sur le disque local** (aucune base intermédiaire, aucune API distante). Les PDF sont servis par un proxy (`/api/raw/...`) depuis le disque local.
 
-**Variables d'environnement** (`web/.env.local`, voir [`.env.local.example`](web/.env.local.example)) :
+**Variables d'environnement** (`web/.env.local`, voir [`.env.local.example`](web/.env.local.example)). Aucune n'est obligatoire pour démarrer et lire le wiki ; dans l'app Electron, elles viennent de l'écran de réglages (clé chiffrée) :
 
 ```env
-ANTHROPIC_API_KEY=          # chat (clé LiteLLM ou Anthropic)
-ANTHROPIC_BASE_URL=         # proxy LiteLLM (optionnel)
-NEXT_PUBLIC_SUPABASE_URL=   # historique du chat (conversations/messages)
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-GITHUB_TOKEN=               # PAT fine-grained (Contents R/W) — upload + proxy PDF
-GITHUB_REPO=owner/repo
-SITE_PASSWORD=              # protection d'accès (vide en local = ouvert)
-SITE_SECRET=                # clé de signature du cookie
+# Accès IA (chat + ingestion) via la gateway LiteLLM de l'entreprise
+ANTHROPIC_API_KEY=          # clé de la gateway (partagée) — vide = chat/ingestion off
+ANTHROPIC_BASE_URL=https://llm-gateway.m33.tech
+ANTHROPIC_MODEL=claude-sonnet-4-6
+
+# Emplacement des données (optionnel — défaut dev : racine du dépôt)
+# DATA_ROOT=/chemin/absolu/vers/les/donnees
+# WIKI_ROOT=/chemin/absolu/vers/wiki
+# RAW_ROOT=/chemin/absolu/vers/raw
 ```
 
 ```bash
@@ -94,21 +97,10 @@ cd web && npm install && npm run dev   # http://localhost:3000
 
 ### Contribuer
 
-Déposez une source depuis l'interface web (bouton d'upload), ou committez un fichier dans `/raw` en git. L'agent fait le reste au prochain passage de l'Action.
+Déposez une source depuis l'interface (bouton d'upload), ou copiez un fichier dans `/raw` à la main. L'agent d'ingestion local fait le reste (automatiquement après un upload, ou via la relance manuelle).
 
-### Automatisation (GitHub Actions)
+### Application de bureau (Electron)
 
-Secrets à configurer (Settings → Secrets and variables → Actions) :
-
-- `ANTHROPIC_API_KEY` — clé pour l'agent d'ingestion.
-- `ANTHROPIC_BASE_URL` *(optionnel)* — si l'agent passe par un proxy LiteLLM.
-
-L'Action [`ingest.yml`](.github/workflows/ingest.yml) tourne à chaque commit dans `raw/**`, au cron de 23h, et à la demande (onglet **Actions** → *Run workflow*).
-
-### Déploiement (Vercel)
-
-- **Root Directory** : `web`. Activer **« Include files outside root directory »** (nécessaire pour lire `../wiki`).
-- Renseigner les variables d'environnement ci-dessus dans le projet Vercel.
-- Chaque commit du wiki (par l'agent) redéploie automatiquement → contenu frais.
+L'app est distribuée en application de bureau : chaque utilisateur installe sa propre instance et dispose de son wiki en local (sous `DATA_ROOT`, le dossier de données utilisateur). GitHub ne sert plus qu'à **distribuer les mises à jour** de l'app (auto-updater Electron) — plus aucun commit de contenu, plus de déploiement serveur.
 
 Détails d'architecture : [`docs/platform.md`](docs/platform.md).

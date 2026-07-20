@@ -48,6 +48,15 @@ export default function FilterBar({ sources }: { sources: Source[] }) {
     new Set(sources.map((s) => (s.date ? s.date.slice(0, 7) : null)).filter(Boolean) as string[]),
   ).sort((a, b) => b.localeCompare(a));
 
+  // Les options sont des `AAAA-MM`, mais un nœud date-année du graphe filtre sur
+  // `AAAA` seul. On injecte la valeur courante si elle manque, sinon le menu
+  // resterait vide (non auto-rempli) alors que la liste, elle, est bien filtrée.
+  const currentDate = params.get('date') ?? '';
+  const dateOptions =
+    currentDate && !dates.includes(currentDate)
+      ? [...dates, currentDate].sort((a, b) => b.localeCompare(a))
+      : dates;
+
   const setParam = (key: string, value: string) => {
     const next = new URLSearchParams(params.toString());
     if (value) next.set(key, value);
@@ -123,7 +132,7 @@ export default function FilterBar({ sources }: { sources: Source[] }) {
         onChange={(e) => setParam('date', e.target.value)}
       >
         <option value="">Toutes les dates</option>
-        {dates.map((d) => (
+        {dateOptions.map((d) => (
           <option key={d} value={d}>
             {d}
           </option>

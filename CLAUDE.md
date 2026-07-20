@@ -10,23 +10,36 @@ gonfle pas — toute spécification longue va dans `docs/`.
 raw/     ← Couche 1 : sources brutes IMMUABLES (déposées, jamais modifiées)
 wiki/    ← Couches 2 & 3 : resources/ (canonique) + vues dérivées + graph.json
            SEULE zone d'écriture de l'agent d'ingestion
-web/     ← Plateforme Next.js : lit le wiki (markdown), chat, upload
+web/     ← Plateforme Next.js : lit le wiki, chat, upload, ingestion LOCALE
 docs/    ← Spécifications détaillées (lues à la demande)
-tasks/   ← todo.md (plan courant) + lessons.md (leçons des corrections)
+tasks/   ← todo.md + lessons.md + specs/ (plans validés → implémentation)
 ```
+
+> **Architecture LOCAL-FIRST (refonte 2026-07-20).** L'app est une application de
+> bureau (Electron) : chacun a sa propre instance et son propre wiki EN LOCAL. Toutes
+> les écritures (dépôt, arbitrages, suppression) et l'ingestion (agent IA embarqué)
+> se font sur le disque local — plus de GitHub Action, plus de Supabase, plus de Vercel,
+> plus d'auth mot de passe. GitHub ne sert qu'à distribuer les mises à jour. Accès IA :
+> gateway LiteLLM de l'entreprise (clé partagée). Détails : `docs/platform.md` +
+> `tasks/specs/2026-07-20-refonte-local-first-electron.md`.
 
 ## Règles cardinales
 
-1. **Git markdown = seule source de vérité du wiki.** Supabase ne stocke QUE les
-   données applicatives (conversations/messages du chat, comptes). Jamais de
-   contenu wiki en base.
+1. **Le markdown local = seule source de vérité du wiki.** L'historique de chat vit
+   en fichiers JSON locaux (`<DATA_ROOT>/.data/conversations/`) ; JAMAIS de contenu
+   wiki hors des fichiers markdown.
 2. **`raw/` est immuable.** On y dépose, on n'y modifie/renomme/réorganise jamais
-   rien. Le marqueur « déjà ingéré » vit dans `wiki/_ingested.json`.
+   rien. Le marqueur « déjà ingéré » vit dans `wiki/_ingested.json`. **Seule
+   exception sanctionnée :** la _suppression_ d'une ressource via la plateforme
+   retire aussi son fichier brut `raw/<source>` (+ sidecar + entrée manifeste),
+   dans le même lot d'écritures — sinon l'ingestion ré-ingérerait la source. Moteur
+   déterministe : `web/lib/wiki-mutate.ts` (voir [docs/entities.md](docs/entities.md) §7).
 3. **`wiki/resources/*.md` est canonique.** Tout le reste sous `wiki/` (themes/,
    authors/, entities/, by-date/, types.md, origin/, index.md, graph.json) est
    une **vue dérivée** — jamais de contenu original dedans.
-4. **L'agent d'ingestion n'écrit QUE sous `wiki/`.** C'est ce qui empêche la
-   boucle de la GitHub Action (filtrée sur `raw/**`).
+4. **L'agent d'ingestion n'écrit QUE sous `wiki/`.** Garde-fou déterministe
+   (`canUseTool` scopé `wiki/`) dans `web/lib/ingest-local.ts` — toute écriture hors
+   `wiki/` est refusée.
 5. **Les slugs sont immuables** une fois assignés — les renommer casse les wikilinks.
 6. **Fidélité > brièveté** : une ressource reproduit toute l'information de la
    source (chiffres, exemples, citations), paraphrasée mais non raccourcie.

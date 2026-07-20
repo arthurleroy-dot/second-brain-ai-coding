@@ -1,11 +1,7 @@
 import { NextRequest } from 'next/server';
-import {
-  commitFiles,
-  dispatchIngest,
-  fetchRepoFileRaw,
-  isGithubConfigured,
-} from '@/lib/github';
+import { applyFileOps, readRepoFile } from '@/lib/wiki-fs';
 import { slugify } from '@/lib/wiki-parser';
+import { applyThemeDecision, type SeenIn } from '@/lib/wiki-mutate';
 import { CandidateStatus } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -25,21 +21,13 @@ function today(): string {
 }
 
 /**
- * Enregistre une décision humaine sur un thème candidat : fusionner comme alias
- * d'un thème existant, créer un nouveau thème, ou rejeter. On écrit la décision
- * dans wiki/themes/_candidates.json (commit GitHub) puis on déclenche
- * l'ingestion — le moteur d'ingestion applique la décision, relie les topics et
- * purge l'entrée au run suivant. Miroir de /api/candidates/resolve, sans le
- * champ `entity_type` (un thème n'a pas de type).
+ * Applique DÉTERMINISTIQUEMENT une décision humaine sur un thème candidat
+ * (fusionner comme alias, créer, ou rejeter). Miroir de /api/candidates/resolve,
+ * sans le champ `entity_type` (un thème n'a pas de type). Relie les `topics:` des
+ * ressources de `seen_in`, met à jour graphe + index, purge l'entrée — écrit
+ * localement via `applyFileOps`, aucun réseau.
  */
 export async function POST(req: NextRequest) {
-  if (!isGithubConfigured()) {
-    return Response.json(
-      { error: 'Dépôt GitHub non configuré (GITHUB_TOKEN / GITHUB_REPO).' },
-      { status: 503 },
-    );
-  }
-
   let body: ResolveBody;
   try {
     body = await req.json();
@@ -59,62 +47,82 @@ export async function POST(req: NextRequest) {
     );
   }
   if (action === 'merge_alias' && !body.target_slug?.trim()) {
-    return Response.json(
-      { error: 'Fusion : « target_slug » (thème cible) requis' },
-      { status: 400 },
-    );
+    return Response.json({ error: 'Fusion : « target_slug » (thème cible) requis' }, { status: 400 });
   }
 
-  // On relit le fichier le plus à jour du dépôt (pas le snapshot bundlé au build).
-  const res = await fetchRepoFileRaw(CANDIDATES_PATH);
-  if (!res.ok || !res.buffer) {
-    return Response.json(
-      { error: `Lecture de ${CANDIDATES_PATH} impossible (statut ${res.status}).` },
-      { status: 502 },
-    );
+  const candidatesJson = await readRepoFile(CANDIDATES_PATH);
+  if (candidatesJson === null) {
+    return Response.json({ error: `Lecture de ${CANDIDATES_PATH} impossible.` }, { status: 502 });
   }
-
   let doc: any;
   try {
-    doc = JSON.parse(res.buffer.toString('utf-8'));
+    doc = JSON.parse(candidatesJson);
   } catch {
     return Response.json({ error: 'Fichier _candidates.json corrompu' }, { status: 502 });
   }
-
-  const list: any[] = Array.isArray(doc?.candidates) ? doc.candidates : [];
-  const cand = list.find((c) => String(c?.normalized) === normalized);
+  const cand = (doc.candidates ?? []).find((c: any) => String(c?.normalized) === normalized);
   if (!cand) {
-    return Response.json(
-      { error: `Candidate « ${normalized} » introuvable` },
-      { status: 404 },
-    );
+    return Response.json({ error: `Thème candidat « ${normalized} » introuvable` }, { status: 404 });
   }
 
-  const newSlug =
-    action === 'create'
-      ? (body.slug?.trim() ? slugify(body.slug) : slugify(String(cand.name ?? normalized)))
-      : null;
+  const seenIn: SeenIn[] = Array.isArray(cand.seen_in)
+    ? cand.seen_in.map((s: any) => ({
+        resource: String(s?.resource ?? ''),
+        section: s?.section ?? null,
+        context: String(s?.context ?? ''),
+      }))
+    : [];
+  const variants: string[] = Array.isArray(cand.variants) ? cand.variants.map(String) : [];
+  const name = String(cand.name ?? normalized);
 
-  cand.status = action;
-  cand.decision = {
+  const decision = {
     target_slug: action === 'merge_alias' ? slugify(body.target_slug!) : null,
-    slug: newSlug,
+    slug: action === 'create' ? (body.slug?.trim() ? slugify(body.slug) : slugify(name)) : null,
   };
-  cand.updated_at = today();
 
-  const content = JSON.stringify(doc, null, 2) + '\n';
+  const graph = await readRepoFile('wiki/graph.json');
+  const index = await readRepoFile('wiki/index.md');
+  if (graph === null || index === null) {
+    return Response.json({ error: 'Lecture de wiki/graph.json ou index.md impossible.' }, { status: 502 });
+  }
+  const resources: Record<string, string> = {};
+  const uniqueResources = [...new Set(seenIn.map((s) => s.resource).filter(Boolean))];
+  await Promise.all(
+    uniqueResources.map(async (r) => {
+      const c = await readRepoFile(`wiki/resources/${r}.md`);
+      if (c !== null) resources[r] = c;
+    }),
+  );
+  let themePage: string | null = null;
+  if (action === 'merge_alias') {
+    themePage = await readRepoFile(`wiki/themes/${decision.target_slug}.md`);
+    if (themePage === null) {
+      return Response.json(
+        { error: `Thème cible « ${decision.target_slug} » introuvable.` },
+        { status: 404 },
+      );
+    }
+  }
+
+  const ops = applyThemeDecision({
+    action: action as 'merge_alias' | 'create' | 'reject',
+    candidate: { name, normalized, variants, seen_in: seenIn },
+    decision,
+    resources,
+    themePage,
+    graph,
+    candidatesJson,
+    index,
+    today: today(),
+  });
 
   try {
-    const { commitSha } = await commitFiles(
-      [{ path: CANDIDATES_PATH, content }],
-      `chore(themes): décision « ${action} » sur thème candidat ${normalized}`,
-    );
-    const dispatched = await dispatchIngest();
-    return Response.json({ ok: true, commit_sha: commitSha, dispatched });
+    await applyFileOps(ops);
+    return Response.json({ ok: true, applied: true });
   } catch (e: any) {
     return Response.json(
-      { error: `Commit GitHub échoué : ${e?.message ?? 'inconnu'}` },
-      { status: 502 },
+      { error: `Écriture locale échouée : ${e?.message ?? 'inconnu'}` },
+      { status: 500 },
     );
   }
 }

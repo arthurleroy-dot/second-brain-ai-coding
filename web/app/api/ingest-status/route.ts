@@ -1,28 +1,39 @@
 import { NextRequest } from 'next/server';
-import { fetchIngestManifest, hasActiveIngestRun, isGithubConfigured } from '@/lib/github';
+import { readRepoFile } from '@/lib/wiki-fs';
+import { readIngestState, lockHeld } from '@/lib/ingest-local';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Statut d'ingestion d'un fichier déposé dans /raw.
- * - "ingested" : présent dans wiki/_ingested.json (avec le slug de la ressource).
- * - "processing" : un run de l'Action est en cours/en file.
- * - "pending" : déposé, en attente (traitement auto + rattrapage nocturne).
+ * Statut d'ingestion d'un fichier déposé dans /raw — état 100 % LOCAL.
+ * - "ingested"   : présent dans wiki/_ingested.json (avec le slug de la ressource).
+ * - "processing" : une ingestion locale tourne (état `running` ou verrou tenu).
+ * - "error"      : le dernier run local a échoué (message dans `error`).
+ * - "pending"    : déposé, pas encore ingéré.
  */
 export async function GET(req: NextRequest) {
   const file = new URL(req.url).searchParams.get('file');
   if (!file) return Response.json({ error: 'Paramètre `file` manquant' }, { status: 400 });
 
-  if (!isGithubConfigured()) {
-    return Response.json({ state: 'pending', configured: false });
+  // 1. Déjà ingéré ? (le manifeste fait foi)
+  const manifestJson = await readRepoFile('wiki/_ingested.json');
+  if (manifestJson !== null) {
+    try {
+      const manifest = JSON.parse(manifestJson);
+      const entry = manifest?.files?.[file];
+      if (entry?.slug) return Response.json({ state: 'ingested', slug: entry.slug });
+    } catch {
+      /* manifeste illisible : on continue */
+    }
   }
 
-  const manifest = await fetchIngestManifest();
-  const entry = manifest?.[file];
-  if (entry) {
-    return Response.json({ state: 'ingested', slug: entry.slug });
+  // 2. Sinon, état du moteur d'ingestion local.
+  const state = await readIngestState();
+  if (state.status === 'running' || lockHeld()) {
+    return Response.json({ state: 'processing' });
   }
-
-  const active = await hasActiveIngestRun();
-  return Response.json({ state: active ? 'processing' : 'pending', configured: true });
+  if (state.status === 'error') {
+    return Response.json({ state: 'error', error: state.error });
+  }
+  return Response.json({ state: 'pending' });
 }

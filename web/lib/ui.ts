@@ -25,6 +25,29 @@ export const TYPE_BADGE: Record<ResourceType, string> = {
   unknown: 'bg-orange-50 text-orange-700',
 };
 
+// Valeurs du champ `source_type` (frontmatter wiki, ex. `report-pdf`) →
+// ResourceType (web, ex. `report_pdf`). Table client-safe (aucune dépendance fs)
+// réutilisée par le parser serveur ET les composants client (graphe).
+export const SOURCE_TYPE_TO_TYPE: Record<string, ResourceType> = {
+  article: 'article',
+  'report-pdf': 'report_pdf',
+  report_pdf: 'report_pdf',
+  tweet: 'tweet',
+  interview: 'interview',
+  presentation: 'presentation',
+  'meeting-notes': 'meeting_note',
+  meeting_note: 'meeting_note',
+  transcript: 'transcript',
+  'personal-notes': 'personal_note',
+  personal_note: 'personal_note',
+  unknown: 'unknown',
+};
+
+/** Résout un `source_type` brut du wiki → ResourceType (fallback `unknown`). */
+export function resolveSourceType(raw: string): ResourceType {
+  return SOURCE_TYPE_TO_TYPE[raw.trim()] ?? 'unknown';
+}
+
 export function typeLabel(t: ResourceType): string {
   return TYPE_LABELS[t] ?? 'Inconnu';
 }

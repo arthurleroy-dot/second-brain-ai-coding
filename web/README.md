@@ -1,79 +1,93 @@
 # Second Brain — Front-end Next.js
 
 Front-end du *second brain* AI Coding : chat IA branché sur le wiki, navigation par
-thème / auteur / date / type / entité, et dépôt de nouvelles sources.
+thème / auteur / date / type / entité, dépôt de nouvelles sources et ingestion locale.
+Empaqueté en **application de bureau Electron** (modèle local-first).
 
-Le wiki est lu **directement depuis les fichiers markdown** (`../wiki`, aucune base
-intermédiaire). Les uploads sont **committés dans `../raw` via l'API GitHub** (le
-filesystem de prod est read-only). Le proxy LLM est **LiteLLM** (compatible API
-Anthropic). Voir [`../docs/platform.md`](../docs/platform.md) pour l'architecture.
+Le wiki est lu **et écrit directement sur le disque local** (sous `DATA_ROOT`,
+aucune base intermédiaire, aucune API distante). L'accès au modèle passe par la
+**gateway LiteLLM de l'entreprise** (compatible API Anthropic). Voir
+[`../docs/platform.md`](../docs/platform.md) pour l'architecture.
 
 ## Prérequis
 
 - Node.js 18+
-- Une clé LiteLLM (ou Anthropic) + l'URL du proxy
-- Un PAT GitHub fine-grained (Contents R/W) pour l'upload et le proxy des binaires
-- (Optionnel) un projet Supabase pour persister l'historique du chat
+- (Optionnel) une clé de la gateway LiteLLM + son URL pour activer le chat et
+  l'ingestion. Sans clé, l'app démarre et lit le wiki ; seuls chat et ingestion
+  sont désactivés.
 
 ## Installation
 
 ```bash
 cd web
 npm install
-cp .env.local.example .env.local   # puis renseigner les valeurs
+cp .env.local.example .env.local   # puis renseigner les valeurs (optionnelles)
 npm run dev                          # http://localhost:3000
 ```
 
 ## Variables d'environnement (`.env.local`)
 
-Voir [`.env.local.example`](.env.local.example). En résumé : LLM
-(`ANTHROPIC_*`), Supabase (chat uniquement), GitHub (`GITHUB_TOKEN`, `GITHUB_REPO`),
-protection d'accès (`SITE_PASSWORD`, `SITE_SECRET`), et overrides optionnels
-`WIKI_ROOT` / `RAW_ROOT`.
+Voir [`.env.local.example`](.env.local.example). **Aucune n'est obligatoire** pour
+démarrer et lire le wiki. Dans l'app Electron, ces valeurs sont fournies par l'écran
+de réglages (clé chiffrée via `safeStorage`) et injectées à l'exécution ; le fichier
+ne sert qu'au dev.
 
-Sans Supabase, le chat fonctionne mais ne **persiste pas** l'historique (mode dégradé).
-Sans `SITE_PASSWORD`, l'accès n'est pas protégé (pratique en local).
-
-## Schéma Supabase
-
-`supabase/schema.sql` (conversations + messages uniquement). Pour une base qui
-contenait encore les anciennes tables wiki, exécuter d'abord
-`supabase/migrations/2026-07-drop-wiki-tables.sql`.
+- `ANTHROPIC_API_KEY` — clé de la gateway LiteLLM (chat + ingestion). Vide = chat
+  et ingestion désactivés (le reste fonctionne).
+- `ANTHROPIC_BASE_URL` — URL de la gateway (ex. `https://llm-gateway.m33.tech`).
+- `ANTHROPIC_MODEL` — modèle routé par la gateway (défaut `claude-sonnet-4-6`).
+- `DATA_ROOT` / `WIKI_ROOT` / `RAW_ROOT` — emplacement des données (optionnel ;
+  défaut dev : racine du dépôt, un cran au-dessus de `/web`).
+- `REFERENCE_DOCS_ROOT` — racine des assets injectés à l'ingestion (prompt + `docs/` ;
+  défaut : racine du dépôt).
 
 ## Architecture
 
-- `lib/wiki-fs.ts` — accès disque au wiki (`../wiki`) et à `../raw` (garde anti path-traversal).
+- `lib/wiki-fs.ts` — accès disque au wiki et à `raw/` sous `DATA_ROOT`
+  (`WIKI_ROOT`/`RAW_ROOT`, garde anti path-traversal). **Écriture locale atomique**
+  via `applyFileOps(ops)` (temp + `rename` ; garde-fou : chemins sous `wiki/` ou
+  `raw/` uniquement) ; lecture `readRepoFile`/`readRepoBinary` ; `resolveAvailableRawName`.
 - `lib/wiki-parser.ts` — parse `resources/*.md` (frontmatter + chunks `topics:`/`entities:`) → `Source` ;
   expose `listAllSources`, `getResource`, `getSourceDetail`, `listTopics`, `listAuthors`,
   `listTypes`, `listDates`, `listEntities`.
 - `lib/wiki-md.ts` — transforme les wikilinks Obsidian en liens plateforme, strip des annotations.
-- `lib/wiki-query.ts` — façade de lecture (mêmes signatures) + helpers chat.
-- `lib/chat-context.ts` — `getRelevantContext` : sélection du contexte depuis le markdown
-  (filtres + détection auteurs/thèmes/entités, budget de caractères).
-- `lib/github.ts` — API GitHub : commit atomique des uploads dans `raw/`, proxy des binaires,
-  lecture du manifeste d'ingestion.
-- `lib/claude.ts` — client Anthropic pointé sur le proxy LiteLLM.
-- `lib/supabase.ts` — persistance du chat (conversations/messages), à dégradation gracieuse.
-- `lib/auth.ts` + `middleware.ts` — protection par mot de passe partagé (cookie signé HMAC).
+- `lib/wiki-query.ts` — façade de lecture + helpers chat.
+- `lib/chat-agent.ts` — boucle agentique du chat (`runWikiAgent` : outils
+  `read_wiki_page` / `list_wiki_folder`, `buildSystemPrompt`).
+- `lib/chat-filters.ts` — validation des sources citées contre les filtres du panneau.
+- `lib/ingest-local.ts` — **ingestion locale** : agent embarqué (`@anthropic-ai/claude-agent-sdk`),
+  `detectPending`, verrou anti-double-run, garde-fou d'écriture `wiki/` (`canUseTool`),
+  état `ingest-state.json`, filet `wiki:verify`, `runIngestion`.
+- `lib/wiki-mutate.ts` — moteur déterministe de mutation (décisions candidates +
+  suppression) : fonctions pures renvoyant des `FileOp`, appliquées par `applyFileOps`.
+- `lib/claude.ts` — client Anthropic (`@anthropic-ai/sdk`) pointé sur la gateway LiteLLM (chat).
+- `lib/conversations-store.ts` — historique de chat **local** : un fichier JSON par
+  conversation sous `<DATA_ROOT>/.data/conversations/<id>.json`.
 
 ### Routes API
 
 | Route | Rôle |
 |-------|------|
-| `POST /api/chat` | contexte wiki (markdown) → Claude → texte + sources → Supabase |
-| `GET /api/sources` | liste filtrable (type / auteur / date / `needs_review`) + compteurs |
-| `GET /api/wiki` | liste des thèmes (lus depuis `themes/`) |
+| `POST /api/chat` | agent wiki (navigation markdown) → Claude → texte + sources → historique local |
+| `GET /api/sources`, `GET /api/sources/[id]` | liste filtrable (type / auteur / date / `needs_review`) + détail |
+| `DELETE /api/sources/[slug]` | suppression déterministe (wiki-mutate → écriture locale) |
+| `GET /api/wiki`, `GET /api/themes` | liste des thèmes (lus depuis `themes/`) |
 | `GET /api/explore` | auteurs / dates / types avec compteurs |
-| `POST /api/upload` | committe le fichier + sidecar `.meta.md` dans `raw/` (API GitHub) |
-| `GET /api/ingest-status` | statut d'ingestion d'un fichier (manifeste / run actif) |
-| `GET /api/raw/[...file]` | proxy des binaires de `raw/` (fs en dev, GitHub en prod) |
-| `POST /api/auth` | vérifie le mot de passe partagé, pose le cookie de session |
-| `GET/POST /api/conversations`, `GET /api/conversations/[id]` | historique (Supabase) |
+| `GET /api/graph` | graphe (`graph.json`) |
+| `GET /api/entities`, `GET /api/candidates`, `POST /api/candidates/resolve` | entités + arbitrage des candidates |
+| `GET /api/theme-candidates`, `POST /api/theme-candidates/resolve` | thèmes candidats + arbitrage |
+| `POST /api/upload` | écrit le fichier + sidecar `.meta.md` dans `raw/` (disque local) puis déclenche l'ingestion |
+| `POST /api/ingest` | relance manuelle de l'ingestion locale |
+| `GET /api/ingest-status` | statut d'ingestion d'un fichier (manifeste / état local) |
+| `GET /api/raw/[...file]` | proxy des binaires de `raw/` (lecture disque local) |
+| `GET/POST /api/conversations`, `GET /api/conversations/[id]` | historique de chat (fichiers JSON locaux) |
 
 ## Notes
 
 - La **dictée vocale** (Web Speech API) nécessite HTTPS ou `localhost`.
-- L'app **n'écrit jamais dans le wiki** : elle committe dans `raw/`, et l'agent d'ingestion
-  (GitHub Action) produit le wiki. Git est la seule source de vérité du contenu.
-- Déploiement Vercel : Root Directory `web`, option « Include files outside root » activée
-  (pour lire `../wiki`). Voir [`../docs/platform.md`](../docs/platform.md).
+- Toutes les écritures (upload, décisions candidates, suppression, ingestion) se font
+  **sur le disque local** ; le markdown local est la seule source de vérité du contenu.
+  L'agent d'ingestion (`lib/ingest-local.ts`) n'écrit que sous `wiki/` (garde-fou
+  déterministe) ; les uploads écrivent sous `raw/`.
+- **Pas d'authentification** : accès direct à l'app (le login par mot de passe partagé
+  a été retiré). Voir [`../docs/platform.md`](../docs/platform.md).

@@ -5,8 +5,10 @@ dérivées. Suppose la connaissance de [wiki-spec.md](wiki-spec.md) (formats) et
 [entities.md](entities.md) (liens).
 
 **Invariant absolu :** l'agent d'ingestion n'écrit **que sous `wiki/`**. Il ne
-touche jamais `/raw` ni `web/`. C'est ce qui empêche la boucle de re-déclenchement
-de la GitHub Action (filtrée sur `raw/**`).
+touche jamais `/raw` ni `web/`. Cet invariant est garanti **déterministiquement**
+par le garde-fou `canUseTool` du moteur local (`web/lib/ingest-local.ts`) : toute
+écriture hors `wiki/` est refusée. Il empêche aussi que l'agent modifie ses propres
+sources d'entrée (`raw/` reste immuable).
 
 ---
 
@@ -21,7 +23,7 @@ La source de vérité du « déjà traité » est le manifeste `wiki/_ingested.j
     "state-of-ai-2026.pdf": {
       "slug": "state-of-ai-2026-untapped-edge",
       "ingested_at": "2026-07-08",
-      "run": "gha-1234567890"
+      "run": "local"
     }
   }
 }
@@ -35,15 +37,21 @@ Un fichier `/raw` est **à traiter** s'il remplit toutes ces conditions :
 - n'est pas `README.md` ni un `*.meta.md` (sidecar de métadonnées) ;
 - sa clé est absente de `wiki/_ingested.json`.
 
-Cette logique est identique au push et au cron de rattrapage. Si aucun fichier
-n'est à traiter → ne rien faire (l'Action skippe, coût nul).
+Cette logique est implémentée en TypeScript par `detectPending()`
+(`web/lib/ingest-local.ts`) : contenu de `raw/` moins `README.md`, moins les
+sidecars `*.meta.md`, moins les clés déjà présentes dans le manifeste. Elle vaut
+pour tout déclencheur (fin d'upload ou relance manuelle). Si aucun fichier n'est à
+traiter → ne rien faire (coût nul). Un fichier déposé **directement par git** dans
+`raw/` (sans passer par la plateforme) est rattrapé au prochain déclenchement
+(détection idempotente).
 
 ---
 
 ## 2. Sidecar de métadonnées `<source>.meta.md`
 
 Tout fichier déposé via la plateforme est accompagné d'un sidecar
-`raw/<source>.meta.md` porté par le commit d'upload. Le fichier de contenu reste
+`raw/<source>.meta.md`, écrit sur le disque local à côté du fichier de contenu par
+la route d'upload (même lot `applyFileOps`). Le fichier de contenu reste
 **byte-identique** (raw immuable) ; le sidecar porte ce que l'humain a saisi :
 
 ```yaml
@@ -57,7 +65,8 @@ deposited_by: "Prénom"
 links:                        # liens TYPÉS déclarés (optionnel) — voir entities.md
   tool: [n8n, claude-code]
   client: [acme-corp]
-entities_granularity: auto    # auto | resource | chunk
+entities_granularity:         # granularité PAR type (map) — un type absent ⇒ auto
+  tool: chunk
 themes: [agentic-coding, finops-ia]   # thèmes déclarés (optionnel) — liste plate
 themes_granularity: auto      # auto | resource | chunk (indice pour l'agent)
 ---
@@ -90,7 +99,8 @@ l'agent infère tout (et applique l'heuristique origin de wiki-spec.md §5).
 3. Détecter les entités (voir [entities.md](entities.md)) : alias connu → lien
    (mandat de complétude : TOUTE mention connue est reliée) ; écriture inconnue →
    candidate dans `entities/_candidates.json`. Déterminer la granularité
-   (resource vs chunk). Appliquer les décisions humaines déjà posées
+   (resource vs chunk ; `entities_granularity` déclaré = indice PAR type d'entité).
+   Une entité déclarée ne part jamais en candidate. Appliquer les décisions humaines déjà posées
    (`status` ≠ `pending`) et purger.
 3bis. Déterminer les thèmes (`topics:`) — même confiance graduée : `themes:` du
    sidecar → crée/relie directement (même nouveau) ; thème détecté connu → relie ;
@@ -112,40 +122,66 @@ l'agent infère tout (et applique l'heuristique origin de wiki-spec.md §5).
     `wiki/_ingested.json`.
 12. Ajouter une entrée dans `log.md`.
 
+> **Décisions candidates & suppression.** L'application des décisions
+> `merge_alias`/`create`/`reject` (étapes 3 et 3bis) et la suppression de ressources
+> sont désormais faites **DÉTERMINISTIQUEMENT et in-process par la plateforme** (moteur
+> `web/lib/wiki-mutate.ts`, cf. [entities.md](entities.md) §7) — dès le clic, sans
+> attendre l'ingestion. L'application par cet agent reste un **fallback idempotent**
+> (une décision déjà appliquée a purgé son entrée : rien à faire).
+
 Traiter tout le lot sans demander validation à chaque fichier. Résumé final :
 nombre de ressources créées, tensions détectées, `needs_review` à résoudre,
 entités candidates ajoutées.
 
 ---
 
-## 4. Automatisation (GitHub Action)
+## 4. Automatisation (ingestion locale)
 
-Le pipeline est piloté par `.github/workflows/ingest.yml` :
+Le pipeline est piloté **in-process** par `web/lib/ingest-local.ts` : un agent IA
+embarqué via `@anthropic-ai/claude-agent-sdk` (le moteur `claude` packagé en
+librairie, PAS le CLI externe). `runIngestion()` :
 
-- **Déclencheurs** : `push` sur `paths: ['raw/**']` (dépôt via la plateforme ou
-  git direct) + `workflow_dispatch` (manuel) + `schedule` nocturne (rattrapage
-  des dépôts manuels et des runs échoués).
-- **`concurrency`** : groupe unique, `cancel-in-progress: false` → deux uploads
-  rapprochés sont sérialisés.
-- **Détection** : un step shell calcule la liste des fichiers à traiter (§1) et
-  la passe au prompt. Liste vide → run skippé.
-- **Agent** : `claude -p "$(cat .github/prompts/ingest-prompt.md)"`
-  `--permission-mode acceptEdits --settings .github/ingest-settings.json`. Ce
-  fichier de settings **dédié à l'Action** refuse toute écriture hors `wiki/`
-  (double ceinture avec le `git add wiki/`). Il n'est chargé QUE dans l'Action —
-  jamais dans les sessions de dev (le `.claude/settings.json` partagé ne contient
-  aucun deny bloquant).
-- **Vérification** : après l'agent, `npm --prefix web run wiki:verify` recontrôle
-  la cohérence des liens/entités (liens ratés, doublons, graphe/manifeste — voir
-  [entities.md](entities.md) §6). Mode non bloquant : le rapport va dans les logs,
-  le commit a lieu quand même (le cron rattrapera). C'est le filet du moteur LLM.
-- **Commit** : `git add wiki/ && git commit && git pull --rebase && git push`
-  (le rebase encaisse un éventuel commit d'upload concurrent).
-- **Échec** : ouvre une issue GitHub. Pas de retry dans le run — le cron nocturne
-  EST le retry (la détection par manifeste est idempotente).
+- **Déclencheurs** : automatique en **fin d'upload** (arrière-plan, non bloquant —
+  `web/app/api/upload/route.ts`) + **relance manuelle** via `POST /api/ingest`
+  (bouton de l'UI). Il n'y a ni GitHub Action, ni cron : la détection idempotente
+  (§1) rattrape au prochain déclenchement tout fichier déposé entre-temps (y
+  compris par git direct dans `raw/`).
+- **Verrou** : `acquireLock()` crée `<DATA_ROOT>/.data/ingest.lock` de façon
+  atomique (`O_EXCL`). Si le verrou est déjà tenu, `runIngestion()` est un no-op →
+  les déclenchements rapprochés sont **sérialisés** (jamais de double run).
+- **Détection** : `detectPending()` (§1) calcule la liste des fichiers à traiter.
+  Liste vide → état `done`, rien d'autre.
+- **Agent** : `query({ prompt, options })` du SDK, avec `cwd = DATA_ROOT`. L'agent
+  n'a accès qu'à `wiki/` + `raw/` (il ne voit ni `CLAUDE.md` ni `docs/`, qui vivent
+  hors du dossier de données) — c'est pourquoi **les règles du projet sont INJECTÉES
+  dans le prompt** : `buildIngestPrompt` concatène `prompts/ingest-prompt.md` +
+  `CLAUDE.md` + `docs/ingestion.md` + `docs/wiki-spec.md` + `docs/entities.md`
+  (lus depuis `REFERENCE_DOCS_ROOT`), puis la liste des fichiers du run. Outils
+  lecture seule auto-approuvés (`Read`, `Glob`, `Grep`, `TodoWrite`) ; `Bash`,
+  `WebFetch`, `WebSearch`, `Task` interdits ; `settingSources: []` (n'hérite
+  d'aucun réglage utilisateur/projet).
+- **Garde-fou écriture** : `canUseTool` intercepte tout outil d'écriture
+  (`Write`/`Edit`/`MultiEdit`/`NotebookEdit`) et n'autorise que les chemins
+  résolus **sous `wiki/`** (`allow`), refuse tout le reste (`deny`). C'est la
+  ceinture déterministe qui remplace l'ancien `settings.json` dédié à l'Action.
+- **Auth** : l'agent SDK s'authentifie sur la gateway LiteLLM en **Bearer**
+  (`ANTHROPIC_AUTH_TOKEN` + `ANTHROPIC_BASE_URL`), dans un `HOME`/`CLAUDE_CONFIG_DIR`
+  temporaire isolé (cf. [platform.md](platform.md) §6).
+- **Vérification** : après l'agent, `runWikiVerify()` lance
+  `npm run wiki:verify` (spawn `scripts/wiki-verify.ts`) qui recontrôle la
+  cohérence liens/entités/graphe/manifeste (voir [entities.md](entities.md) §6).
+  Mode **non bloquant** : la queue du rapport est stockée dans l'état
+  (`logTail`), rien n'est annulé. C'est le filet du moteur LLM.
+- **État** : `<DATA_ROOT>/.data/ingest-state.json`
+  (`status: idle|running|done|error`, `pending`, `slug`, `error`, `logTail`) +
+  journal détaillé `<DATA_ROOT>/.data/ingest.log`. Lu par `GET /api/ingest-status`
+  (voir [platform.md](platform.md) §4). Un run non abouti passe en `error` ; la
+  relance manuelle (ou le prochain upload) le rejoue — la détection par manifeste
+  est idempotente.
 
 Le **texte paraphrasé** peut varier d'un run à l'autre (le LLM n'est pas
 déterministe sur la prose) ; tout ce qui touche le graphe est cadré par le mandat
 de complétude du prompt + le vérificateur `wiki:verify`, l'idempotence du manifeste,
-et le deny hors `wiki/`. La comparaison avec un moteur TypeScript déterministe
-(branche `feat/ts-resolver`) se fera via `wiki:verify --json` (comptage des ratés).
+et le garde-fou d'écriture hors `wiki/`. Les décisions candidates et les
+suppressions, elles, sont **entièrement déterministes** (moteur TypeScript
+`web/lib/wiki-mutate.ts`, cf. [entities.md](entities.md) §7).

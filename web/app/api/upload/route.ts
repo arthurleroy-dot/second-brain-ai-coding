@@ -1,12 +1,8 @@
 import { NextRequest } from 'next/server';
 import path from 'path';
 import { ResourceType } from '@/types';
-import {
-  commitFiles,
-  isGithubConfigured,
-  resolveAvailableRawName,
-  FileToCommit,
-} from '@/lib/github';
+import { applyFileOps, resolveAvailableRawName, type WriteOp } from '@/lib/wiki-fs';
+import { runIngestion } from '@/lib/ingest-local';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,6 +72,36 @@ function parseLinks(raw: string | null): Record<string, string[]> {
   return out;
 }
 
+/**
+ * Parse le champ `entities_granularity` en map { entity_type → resource|chunk }.
+ * Nouveau format : JSON objet { type → granularité }. `auto` (et valeurs inconnues)
+ * sont ignorées — un type absent retombe sur `auto` côté agent. Restreint aux types
+ * réellement présents dans `links`. Rétro-compat : un scalaire `resource|chunk`
+ * (ancien client, non JSON) s'applique à tous les types déclarés.
+ */
+function parseGranularity(raw: string | null, linkTypes: string[]): Record<string, string> {
+  if (!raw) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = raw; // ancien format : scalaire brut non quoté ('chunk', 'resource', 'auto')
+  }
+  const valid = (v: unknown): v is string => v === 'resource' || v === 'chunk';
+  const out: Record<string, string> = {};
+  if (typeof parsed === 'string') {
+    if (valid(parsed)) for (const t of linkTypes) out[t] = parsed;
+    return out;
+  }
+  if (parsed && typeof parsed === 'object') {
+    for (const [type, val] of Object.entries(parsed as Record<string, unknown>)) {
+      const t = slugify(type);
+      if (t && valid(val) && linkTypes.includes(t)) out[t] = val;
+    }
+  }
+  return out;
+}
+
 /** Parse le champ `themes` (JSON : liste plate de noms) en slugs uniques. */
 function parseThemes(raw: string | null): string[] {
   if (!raw) return [];
@@ -99,7 +125,7 @@ function buildSidecar(meta: {
   url: string | null;
   depositedBy: string | null;
   links: Record<string, string[]>;
-  granularity: string;
+  granularity: Record<string, string>;
   themes: string[];
   themesGranularity: string;
 }): string {
@@ -118,7 +144,12 @@ function buildSidecar(meta: {
     // Bloc `links:` typé — chaque clé = entity_type, valeur = liste de slugs.
     lines.push('links:');
     for (const t of linkTypes) lines.push(`  ${t}: [${meta.links[t].join(', ')}]`);
-    lines.push(`entities_granularity: ${meta.granularity}`);
+    // Granularité PAR type (map) — n'émet que les entrées non-auto ; type absent ⇒ auto.
+    const granTypes = linkTypes.filter((t) => meta.granularity[t]);
+    if (granTypes.length) {
+      lines.push('entities_granularity:');
+      for (const t of granTypes) lines.push(`  ${t}: ${meta.granularity[t]}`);
+    }
   }
   if (meta.themes.length) {
     // Liste plate `themes:` — les thèmes n'ont pas de type (cf. docs/entities.md).
@@ -130,13 +161,6 @@ function buildSidecar(meta: {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isGithubConfigured()) {
-    return Response.json(
-      { error: 'Dépôt GitHub non configuré (GITHUB_TOKEN / GITHUB_REPO).' },
-      { status: 503 },
-    );
-  }
-
   let form: FormData;
   try {
     form = await req.formData();
@@ -177,7 +201,7 @@ export async function POST(req: NextRequest) {
   const originRaw = field(form, 'origin');
   const origin = originRaw === 'interne' || originRaw === 'externe' ? originRaw : null;
   const links = parseLinks(field(form, 'links'));
-  const granularity = field(form, 'entities_granularity') ?? 'auto';
+  const granularity = parseGranularity(field(form, 'entities_granularity'), Object.keys(links));
   const themes = parseThemes(field(form, 'themes'));
   const themesGranularity = field(form, 'themes_granularity') ?? 'auto';
 
@@ -200,20 +224,26 @@ export async function POST(req: NextRequest) {
       themesGranularity,
     });
 
-    const files: FileToCommit[] = [
+    // Écriture locale : la source brute + son sidecar, sur le disque de la machine.
+    const files: WriteOp[] = [
       { path: `raw/${finalName}`, content: buffer },
       { path: `raw/${finalName}.meta.md`, content: sidecar },
     ];
-    const { commitSha } = await commitFiles(
-      files,
-      `feat(raw): dépôt "${title ?? finalName}" via plateforme`,
-    );
+    await applyFileOps(files);
 
-    return Response.json({ ok: true, file: finalName, commit_sha: commitSha });
+    // Déclenche l'ingestion en ARRIÈRE-PLAN (ne bloque pas la réponse HTTP).
+    // No-op si une ingestion tourne déjà (verrou). Le client suit l'avancement
+    // via GET /api/ingest-status. Serveur long-vécu (Electron/next start) → la
+    // tâche de fond survit à la réponse.
+    void runIngestion().catch((e) => {
+      console.error('[upload] ingestion en arrière-plan échouée :', e?.message ?? e);
+    });
+
+    return Response.json({ ok: true, file: finalName });
   } catch (e: any) {
     return Response.json(
-      { error: `Commit GitHub échoué : ${e?.message ?? 'inconnu'}` },
-      { status: 502 },
+      { error: `Écriture locale échouée : ${e?.message ?? 'inconnu'}` },
+      { status: 500 },
     );
   }
 }

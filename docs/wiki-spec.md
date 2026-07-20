@@ -294,7 +294,9 @@ Ajouter une entrée `lint` dans `log.md`.
 
 ## 9. Ce que tu ne dois jamais faire
 
-- Écrire, renommer ou réorganiser quoi que ce soit sous `/raw` (immuable).
+- Écrire, renommer ou réorganiser quoi que ce soit sous `/raw` (immuable). _Seule
+  exception :_ la **suppression** d'une ressource via la plateforme retire son
+  fichier brut — chemin déterministe dédié (`web/lib/wiki-mutate.ts`), pas l'agent.
 - Écrire du contenu original dans themes/, authors/, entities/, by-date/, types.md, origin/.
 - Déduire `origin` depuis le nom de l'auteur, l'URL ou le contenu.
 - Raccourcir le contenu d'une ressource pour "faire court" — la fidélité prime.
