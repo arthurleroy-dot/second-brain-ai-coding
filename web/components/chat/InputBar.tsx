@@ -1,24 +1,43 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { Mic, MicOff, Paperclip, Send } from 'lucide-react';
-import { useUpload } from '@/components/UploadProvider';
+import { useEffect, useRef, useState } from 'react';
+import { Mic, MicOff, Send, Square } from 'lucide-react';
 
 interface Props {
   onSend: (text: string) => void;
+  onStop?: () => void;
+  // Génération en cours : le bouton devient Stop et l'envoi est bloqué — mais
+  // la frappe reste libre (le texte partira une fois la génération finie).
+  isGenerating?: boolean;
+  // Autres blocages (ex. aller-retour de création de la conversation).
   disabled?: boolean;
 }
 
-export default function InputBar({ onSend, disabled }: Props) {
+// Classes communes des boutons ronds de la barre (pas de design system, une
+// simple constante locale suffit).
+const iconBtn = 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full';
+
+export default function InputBar({ onSend, onStop, isGenerating, disabled }: Props) {
   const [input, setInput] = useState('');
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const { openPicker, uploading } = useUpload();
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-grow : la hauteur suit le contenu, plafonnée à 200px (scroll interne
+  // au-delà). `height:auto` d'abord pour que scrollHeight reflète aussi les
+  // suppressions de lignes.
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }, [input]);
+
+  const canSend = !!input.trim() && !disabled && !isGenerating;
 
   const send = () => {
-    const text = input.trim();
-    if (!text || disabled) return;
-    onSend(text);
+    if (!canSend) return;
+    onSend(input.trim());
     setInput('');
   };
 
@@ -49,12 +68,12 @@ export default function InputBar({ onSend, disabled }: Props) {
 
   return (
     <div className="border-t border-gray-200 bg-white px-4 py-3">
-      <div className="flex items-end gap-2 rounded-2xl border border-gray-300 bg-white px-3 py-2 focus-within:border-gray-400">
+      <div className="flex items-end gap-2 rounded-[26px] border border-gray-200 bg-white px-2.5 py-2 shadow-sm transition-shadow focus-within:border-gray-300 focus-within:shadow-md">
         <button
           type="button"
           onClick={toggleMic}
           title="Dictée vocale"
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+          className={`${iconBtn} ${
             listening ? 'bg-red-50 text-red-600' : 'text-gray-500 hover:bg-gray-100'
           }`}
         >
@@ -62,6 +81,7 @@ export default function InputBar({ onSend, disabled }: Props) {
         </button>
 
         <textarea
+          ref={taRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
@@ -72,28 +92,29 @@ export default function InputBar({ onSend, disabled }: Props) {
           }}
           rows={1}
           placeholder="Pose une question sur le wiki…"
-          className="max-h-32 flex-1 resize-none bg-transparent py-1 text-sm outline-none"
+          className="flex-1 resize-none overflow-y-auto bg-transparent py-1 text-sm outline-none"
         />
 
-        <button
-          type="button"
-          onClick={openPicker}
-          disabled={uploading}
-          title="Déposer une source"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-50"
-        >
-          <Paperclip size={18} />
-        </button>
-
-        <button
-          type="button"
-          onClick={send}
-          disabled={disabled || !input.trim()}
-          title="Envoyer"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40"
-        >
-          <Send size={16} />
-        </button>
+        {isGenerating ? (
+          <button
+            type="button"
+            onClick={onStop}
+            title="Arrêter la génération"
+            className={`${iconBtn} bg-gray-900 text-white hover:bg-gray-700`}
+          >
+            <Square size={13} fill="currentColor" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={send}
+            disabled={!canSend}
+            title="Envoyer"
+            className={`${iconBtn} bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-30`}
+          >
+            <Send size={16} />
+          </button>
+        )}
       </div>
     </div>
   );

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { History, Plus } from 'lucide-react';
 import { Conversation } from '@/types';
+import { clearActiveConversationId } from '@/lib/active-conversation';
+import { resetEphemeralKey } from '@/lib/chat-stream-store';
 
 export default function ConversationHistory({
   currentId,
@@ -13,7 +15,6 @@ export default function ConversationHistory({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [enabled, setEnabled] = useState(true);
 
   useEffect(() => {
     if (!open) return;
@@ -23,16 +24,14 @@ export default function ConversationHistory({
       .catch(() => {});
   }, [open]);
 
-  const newConversation = async () => {
-    const res = await fetch('/api/conversations', { method: 'POST' });
-    const data = await res.json();
-    if (data?.conversation?.id) {
-      router.push(`/chat/${data.conversation.id}`);
-    } else {
-      // Supabase non configuré : on reste sur un chat éphémère.
-      setEnabled(false);
-      router.push('/chat');
-    }
+  const newConversation = () => {
+    // Repart à neuf : on oublie la conversation active et on repurge la clé
+    // éphémère, puis on va sur /chat vierge. La conversation n'est créée qu'au
+    // premier message (création lazy dans ChatWindow) — pas de conversation vide
+    // dans l'historique.
+    clearActiveConversationId();
+    resetEphemeralKey();
+    router.push('/chat');
   };
 
   return (
@@ -58,9 +57,7 @@ export default function ConversationHistory({
         <div className="absolute left-0 top-8 z-40 w-72 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
           {conversations.length === 0 ? (
             <p className="px-2 py-3 text-xs text-gray-400">
-              {enabled
-                ? 'Aucune conversation enregistrée (Supabase requis pour l’historique).'
-                : 'Historique indisponible.'}
+              Aucune conversation enregistrée (Supabase requis pour l’historique).
             </p>
           ) : (
             <ul className="max-h-80 space-y-0.5 overflow-y-auto">

@@ -64,6 +64,10 @@ export interface Message {
   content: string;
   sources: Source[]; // sources citées dans la réponse
   created_at: string;
+  // Checklist des ressources consultées pendant la génération (assistant
+  // uniquement). Trace TRANSIENTE attachée côté client à la fin du streaming —
+  // jamais persistée en base, absente après un hard reload.
+  steps?: ChatStep[];
 }
 
 export interface Conversation {
@@ -72,6 +76,19 @@ export interface Conversation {
   messages: Message[];
   created_at: string;
   updated_at: string;
+}
+
+// Étape de navigation de l'agent de chat dans le wiki (événement NDJSON `step`).
+// Affichée en direct (spinner → coche) puis conservée repliée sous la réponse
+// via Message.steps — pas persistée.
+export interface ChatStep {
+  label: string;
+  tool: string;
+  path: string;
+  // Dérivé côté client (absent de l'événement serveur) : l'agent exécute ses
+  // outils séquentiellement, donc l'étape N est 'done' dès que la N+1 arrive,
+  // et toutes le sont au premier delta de texte.
+  status?: 'reading' | 'done';
 }
 
 // Filtre date structuré : intervalle, avant une borne, ou après une borne.
@@ -186,4 +203,29 @@ export interface ThemeCandidate {
   status: CandidateStatus;
   decision: ThemeCandidateDecision;
   updated_at: string | null;
+}
+
+// ————————————————————————————————————————————————————————————————
+// Graphe de connaissances — vue dérivée wiki/graph.json (générée à
+// l'ingestion). La plateforme la lit seulement pour la visualiser.
+// `type` = genre de nœud (resource | theme | entity | author | date |
+// source_type | origin) ; les champs optionnels dépendent du genre.
+export interface GraphNode {
+  id: string; // '<genre>:<slug>' — ex. 'resource:...', 'type:article'
+  type: string;
+  label: string;
+  date?: string; // nœuds resource
+  granularity?: string; // nœuds date
+  entity_type?: string; // nœuds entity
+}
+
+export interface GraphEdge {
+  source: string; // id du nœud source
+  target: string; // id du nœud cible
+  relation: string; // written_by | has_type | belongs_to_theme | mentions | …
+}
+
+export interface GraphData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
 }

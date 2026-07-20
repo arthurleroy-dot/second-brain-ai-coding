@@ -1,16 +1,30 @@
 'use client';
 
+import { memo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { ChevronRight } from 'lucide-react';
 import { Message as MessageType } from '@/types';
 import SourceChip from '@/components/chat/SourceChip';
+import StepTrail from '@/components/chat/StepTrail';
 
-export default function Message({ message }: { message: MessageType }) {
+function Message({ message }: { message: MessageType }) {
   const isUser = message.role === 'user';
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-[80%] ${isUser ? 'items-end' : 'items-start'} flex flex-col gap-2`}>
+        {!isUser && message.steps && message.steps.length > 0 && (
+          <details className="group text-xs text-gray-400">
+            <summary className="flex cursor-pointer list-none items-center gap-1">
+              <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
+              {message.steps.length} étape{message.steps.length > 1 ? 's' : ''} de recherche
+            </summary>
+            <div className="mt-1.5 pl-3">
+              <StepTrail steps={message.steps} />
+            </div>
+          </details>
+        )}
         <div
           className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
             isUser
@@ -100,3 +114,16 @@ export default function Message({ message }: { message: MessageType }) {
     </div>
   );
 }
+
+// Mémoïsation : pendant un streaming, seul le message en cours de rédaction
+// change — les messages figés ne re-parsent pas leur markdown à chaque frame
+// du drain. `steps` est comparé par référence : le tableau n'est posé qu'une
+// fois (au 'done') et n'est jamais muté ensuite.
+export default memo(
+  Message,
+  (prev, next) =>
+    prev.message.id === next.message.id &&
+    prev.message.content === next.message.content &&
+    prev.message.sources.length === next.message.sources.length &&
+    prev.message.steps === next.message.steps,
+);

@@ -1,11 +1,8 @@
 import { NextRequest } from 'next/server';
-import { anthropic, CLAUDE_MODEL, isClaudeConfigured } from '@/lib/claude';
-import {
-  describeChatFilters,
-  getRelevantContext,
-  parseResponse,
-  listSources,
-} from '@/lib/wiki-query';
+import { isClaudeConfigured } from '@/lib/claude';
+import { buildSystemPrompt, runWikiAgent } from '@/lib/chat-agent';
+import { sourcePassesFilters } from '@/lib/chat-filters';
+import { describeChatFilters, parseResponse, listSources } from '@/lib/wiki-query';
 import {
   getConversationHistory,
   renameConversationIfDefault,
@@ -13,7 +10,10 @@ import {
 } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+// Boucle agentique : plusieurs allers-retours modèle+outils par question.
+// 300 s suppose Vercel Pro/Fluid ; sur un plan inférieur, retomber à 60 et
+// abaisser le deadlineMs ci-dessous à ~50 s (cf. spec 2026-07-18, §4).
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   const { message, conversation_id, filters } = await req.json();
@@ -37,50 +37,18 @@ export async function POST(req: NextRequest) {
     ? await getConversationHistory(conversation_id)
     : [];
 
-  // Texte de détection d'entités : intégralité de la conversation (historique +
-  // message courant) concaténée, et non seulement le dernier message.
-  const conversationText = [...history.map((m) => m.content), message].join(
-    '\n',
-  );
+  // 2. System prompt : l'agent navigue lui-même dans le wiki (lecture par
+  // paliers) — aucun contexte pré-construit.
+  const systemPrompt = buildSystemPrompt(describeChatFilters(filters));
 
-  // 2. Contexte wiki pertinent (Supabase, source de vérité unique)
-  const { context: wikiContext } = await getRelevantContext(
-    message,
-    filters,
-    conversationText,
-  );
-
-  // 3. System prompt
-  const filterDesc = describeChatFilters(filters);
-  const filterBlock = filterDesc
-    ? `\nFILTRES ACTIFS : ${filterDesc}.
-Le contenu ci-dessus a DÉJÀ été restreint à ces filtres. Tu dois répondre
-UNIQUEMENT à partir de ce contenu. N'évoque, ne cite et ne prends en compte
-AUCUNE ressource qui ne respecte pas ces filtres, même si tu en as connaissance.
-`
-    : '';
-
-  const systemPrompt = `Tu es un assistant qui répond aux questions sur une base de connaissances sur l'AI Coding.
-
-Voici le contenu pertinent de la base pour cette question :
-${wikiContext || '(aucun contenu pertinent trouvé)'}
-${filterBlock}
-RÈGLES DE RÉPONSE :
-- Cite toujours tes sources avec le format JSON suivant à la TOUTE FIN de ta réponse, sur une ligne dédiée :
-  SOURCES: [{"slug":"...", "title":"...", "type":"...", "author":"...", "date":"..."}]
-- N'inclus dans SOURCES que des ressources réellement présentes dans le contenu ci-dessus.
-- Si tu ne trouves pas d'information pertinente, dis-le clairement et renvoie SOURCES: []
-- Réponds en français.
-- Sois concis et factuel.`;
-
-  // 4. Messages envoyés à Claude : intégralité de l'historique en ordre
+  // 3. Messages envoyés à Claude : intégralité de l'historique en ordre
   // chronologique + message courant, sans aucune limite de nombre de messages.
   const messages = [
     ...history.map((m) => ({ role: m.role, content: m.content })),
     { role: 'user' as const, content: message },
   ];
 
-  // 5. Persistance IMMÉDIATE du message utilisateur, AVANT tout appel à Claude.
+  // 4. Persistance IMMÉDIATE du message utilisateur, AVANT tout appel à Claude.
   // Indispensable avec le streaming : si le client quitte la page (navigation)
   // ou si le flux est interrompu/erroné, le `start()` du stream ci-dessous est
   // annulé et son code de persistance final ne s'exécute jamais. En sauvegardant
@@ -88,9 +56,10 @@ RÈGLES DE RÉPONSE :
   await saveMessage(conversation_id ?? null, 'user', message, []);
   await renameConversationIfDefault(conversation_id ?? null, message);
 
-  // 6. Appel Claude en streaming (via proxy LiteLLM).
-  // On diffuse le texte au fur et à mesure ; le bloc `SOURCES: [...]` final est
-  // retiré du flux pendant le streaming et n'est parsé qu'une fois terminé.
+  // 5. Boucle agentique en streaming (via proxy LiteLLM).
+  // On diffuse le texte au fur et à mesure (+ un événement `step` par outil
+  // exécuté) ; le bloc `SOURCES: [...]` final est retiré du flux pendant le
+  // streaming et n'est parsé qu'une fois terminé.
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
@@ -130,7 +99,7 @@ RÈGLES DE RÉPONSE :
         // Hydrate les sources citées avec les vraies métadonnées (id, url,
         // topics…) en faisant correspondre par slug (puis par titre en repli).
         const allSources = await listSources();
-        const sources = citedSources.map((c) => {
+        const hydrated = citedSources.map((c) => {
           const match =
             allSources.find((s) => s.slug === c.slug) ||
             allSources.find(
@@ -139,8 +108,23 @@ RÈGLES DE RÉPONSE :
           return match ?? c;
         });
 
+        // Validation DURE des filtres du panneau : le prompt est la première
+        // défense, ceci est le filet déterministe. Les sources hors filtres (ou
+        // inconnues du wiki quand des filtres sont actifs) sont retirées des
+        // chips et de la persistance ; le texte, lui, n'est pas réécrit.
+        const sources = filters
+          ? hydrated.filter((s) => {
+              const known = allSources.some((a) => a.slug === s.slug);
+              if (!known) return false;
+              return sourcePassesFilters(s, filters);
+            })
+          : hydrated;
+        if (sources.length !== hydrated.length) {
+          console.warn('[chat] sources hors filtres retirées');
+        }
+
         // Persistance du message assistant (le message utilisateur a déjà été
-        // persisté avant le streaming, étape 5).
+        // persisté avant le streaming, étape 4).
         await saveMessage(conversation_id ?? null, 'assistant', text, sources);
 
         // Événement final : texte propre canonique + sources hydratées.
@@ -149,35 +133,37 @@ RÈGLES DE RÉPONSE :
       };
 
       try {
-        const claudeStream = anthropic.messages.stream({
-          model: CLAUDE_MODEL,
-          max_tokens: 4000,
+        await runWikiAgent({
           system: systemPrompt,
-          messages: messages as any,
+          messages,
+          deadlineMs: Date.now() + 280_000,
+          // Abort du client (bouton Stop) : coupe réellement le stream
+          // Anthropic. L'exception qui en résulte tombe dans le catch
+          // ci-dessous, où finalize() persiste le texte partiel — l'affichage
+          // client et la base restent donc cohérents au rechargement.
+          signal: req.signal,
+          callbacks: {
+            onText: (delta) => {
+              rawText += delta;
+              // Ne diffuse que la portion sûre (avant un éventuel marqueur
+              // SOURCES, y compris un préfixe partiel en fin de buffer).
+              const safe = emittableLength(rawText);
+              if (safe > emittedLen) {
+                send({ type: 'delta', text: rawText.slice(emittedLen, safe) });
+                emittedLen = safe;
+              }
+            },
+            onStep: (s) => send({ type: 'step', ...s }),
+          },
         });
 
-        for await (const event of claudeStream) {
-          if (
-            event.type === 'content_block_delta' &&
-            event.delta.type === 'text_delta'
-          ) {
-            rawText += event.delta.text;
-            // Ne diffuse que la portion sûre (avant un éventuel marqueur SOURCES,
-            // y compris un préfixe partiel en fin de buffer).
-            const safe = emittableLength(rawText);
-            if (safe > emittedLen) {
-              send({ type: 'delta', text: rawText.slice(emittedLen, safe) });
-              emittedLen = safe;
-            }
-          }
-        }
-
-        // 7. Stream terminé proprement → finalise (persiste + done).
+        // 6. Boucle terminée proprement → finalise (persiste + done).
         await finalize();
       } catch (e: any) {
         // Le flux a levé une exception (souvent « Premature close » du proxy en
         // fin de génération). Si du texte a déjà été reçu, on le persiste malgré
         // l'erreur ; sinon, on remonte l'erreur au client.
+        console.error('[chat] erreur amont pendant la boucle agentique :', e?.message ?? e);
         const recovered = await finalize().catch(() => false);
         if (!recovered) {
           send({

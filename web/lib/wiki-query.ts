@@ -10,7 +10,6 @@ import {
   listTypes,
   slugify,
 } from '@/lib/wiki-parser';
-import { getRelevantContext } from '@/lib/chat-context';
 
 // Façade de lecture du wiki : le contenu vit dans les fichiers markdown
 // (wiki/), lus par wiki-parser. On ré-exporte sous les mêmes noms que
@@ -25,9 +24,6 @@ export {
   listDates,
 };
 export type { SourceDetail } from '@/lib/wiki-parser';
-
-// Contexte de chat : sélection depuis le wiki markdown (lib/chat-context).
-export { getRelevantContext };
 
 /** Toutes les ressources (alias fs de l'ancien listSources Supabase). */
 export const listSources = listAllSources;
