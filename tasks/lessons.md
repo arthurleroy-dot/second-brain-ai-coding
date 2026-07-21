@@ -135,6 +135,45 @@ que des métadonnées d'index.
 « tout ce que la réponse cite figure dans la trace » — on l'obtient en corrigeant le
 comportement qui produit la trace, pas en truquant l'affichage.
 
+## 2026-07-21 — Remplacer un agent IA par du code déterministe : énumérer TOUTES ses branches
+**Contexte :** en spécifiant la refonte « IA + déterministe » de l'ingestion (l'IA
+n'écrit que la page ressource, `projectResource` reconstruit les vues), la spec ne
+gérait que le chemin nominal des entités : connue → lien, inconnue-détectée → candidate.
+Le cas « entité **déclarée** au sidecar mais nouvelle » (que l'ancien agent créait
+directement, `docs/entities.md §4`) était perdu. Arthur l'a repéré en posant la question.
+**Correction :** capturer la confiance graduée complète dans la spec (§R11) :
+déclaré-nouveau → création directe de la page (règle de slug suffixé en cas de collision
+de type) ; détecté-inconnu → candidate ; connu → lien.
+**Règle :** quand on remplace un agent LLM par du code déterministe, lister explicitement
+**toutes** les branches conditionnelles que l'agent gérait implicitement (relire la spec de
+référence branche par branche — ici `docs/entities.md §4`), pas seulement le happy path.
+Une branche non traduite disparaît silencieusement.
+
+## 2026-07-21 — Ingestion PDF peu coûteuse : extraire le texte en local, pas le PDF natif
+**Contexte :** pour donner un PDF au modèle dans le nouvel appel unique, j'avais
+recommandé le « bloc document » natif Anthropic (fidélité tables/graphes).
+**Correction :** Arthur ne veut QUE le texte, au coût minimal. Le PDF natif fait payer
+l'IA pour « regarder » chaque page comme une image (2–4× l'input) sans bénéfice voulu.
+**Règle :** pour une ingestion de texte cost-sensitive, extraire le texte **en local**
+(librairie type `unpdf`, coût 0) et n'envoyer que le texte. Réserver le PDF natif aux
+cas où la mise en page (tableaux, graphiques) est réellement nécessaire. Distinguer
+toujours deux coûts : l'extraction (gratuite en local) vs la lecture par l'IA
+(incompressible mais bon marché sur du texte).
+
+## 2026-07-21 — Le prompt caching ne passe pas forcément la gateway (mesurer avant de compter dessus)
+**Contexte :** la spec « ingestion peu coûteuse » comptait sur des cache hits dès la 2ᵉ
+ressource (`cache_control: ephemeral` sur le système). Vrai run mesuré :
+`cache_creation_input_tokens = 0` au 1ᵉ appel → la gateway
+(`vercel/anthropic-claude-sonnet-4.5` via LiteLLM) n'honore pas `cache_control`.
+**Correction :** ne pas AFFIRMER un gain de caching sans l'avoir mesuré à travers la vraie
+gateway (`usage.cache_read_input_tokens` / `cache_creation_input_tokens`). Ici l'impact est
+marginal (la sortie domine le coût), donc non bloquant — mais le fait était supposé, pas prouvé.
+**Règle :** toute optimisation qui dépend d'une capacité du fournisseur (caching, sorties
+structurées, blocs document) doit être **vérifiée sur la vraie route de gateway** ; logguer
+le `usage` détaillé pour pouvoir le constater, et présenter le coût comme estimation tant
+que le chiffre gateway réel n'est pas confirmé. (Rappel connexe : le budget d'équipe LiteLLM
+a un plafond — un run peut échouer en 429 `budget_exceeded`.)
+
 ## 2026-07-20 — Un auto-scroll doit être conditionné à la position de l'utilisateur
 **Contexte :** pendant le streaming du chat, un `useEffect` scrollait en bas à chaque
 mise à jour (≈30×/s), avec `behavior:'smooth'` : impossible de remonter lire, la vue

@@ -21,7 +21,17 @@ export async function GET(req: NextRequest) {
     try {
       const manifest = JSON.parse(manifestJson);
       const entry = manifest?.files?.[file];
-      if (entry?.slug) return Response.json({ state: 'ingested', slug: entry.slug });
+      if (entry?.slug) {
+        // Coût : total du run + coût de CE fichier (depuis l'état persistant).
+        const st = await readIngestState();
+        const fileCost = st.perFile?.find((p) => p.file === file)?.costUsd;
+        return Response.json({
+          state: 'ingested',
+          slug: entry.slug,
+          costUsd: st.costUsd,
+          fileCostUsd: fileCost,
+        });
+      }
     } catch {
       /* manifeste illisible : on continue */
     }
