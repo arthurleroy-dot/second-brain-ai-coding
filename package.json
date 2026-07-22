@@ -1,0 +1,41 @@
+{
+  "name": "secondbrain-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Coquille Electron local-first pour AI Coding Second Brain (wiki + chat).",
+  "main": "electron/main.js",
+  "scripts": {
+    "build:web": "node -e \"require('fs').rmSync('web/.next',{recursive:true,force:true})\" && npm --prefix web install && npm --prefix web run build && node electron/copy-standalone-assets.js",
+    "start": "electron .",
+    "app": "npm run build:web && electron .",
+    "dist": "npm run build:web && electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "tech.m33.secondbrain",
+    "productName": "SecondBrain",
+    "afterPack": "electron/after-pack.js",
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      { "from": "wiki", "to": "seed/wiki" },
+      { "from": "raw", "to": "seed/raw" },
+      { "from": "prompts", "to": "reference/prompts" },
+      { "from": "docs", "to": "reference/docs" },
+      { "from": "CLAUDE.md", "to": "reference/CLAUDE.md" }
+    ],
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.productivity",
+      "identity": null
+    },
+    "win": {
+      "target": ["nsis"]
+    }
+  }
+}

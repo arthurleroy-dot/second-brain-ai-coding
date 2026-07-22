@@ -207,3 +207,71 @@ lancer **UNE** instance `next dev`. Le dev survit alors au stress (recompilation
 détachés survivent aux notifs « completed ») ; (b) sous Node récent, `config.cache = false`
 en dev sinon crash `pack.gz`. Préférer **dev** (HMR) quand l'utilisateur itère sur de
 nouvelles pages ; `next start` ne montre pas les routes ajoutées après le boot.
+
+## 2026-07-21 — Node 26 : `next dev` crashe aussi en `MODULE_NOT_FOUND`, préférer build+start pour un test fonctionnel
+
+**Contexte :** Arthur voulait juste *tester* l'app (upload → ingestion → graphe →
+suppression), pas itérer sur du code. Symptôme : « l'application ne s'ouvre pas »
+= page blanche, tous les `/_next/static/*.js|css` en **404**.
+**Diagnostic :** (1) plusieurs `next dev` de sessions passées tournaient en parallèle
+(ports 3000+3001 + un 3e) → build `.next` corrompu, chunks 404. (2) Après `pkill` de
+tout + `rm -rf .next` + **une seule** instance dév propre : le serveur a **planté puis
+s'est arrêté** sur `GET /` avec `Error: Cannot find module … .next/server/pages/_document.js`
+(`code: MODULE_NOT_FOUND`, requireStack `_not-found/page.js` → `webpack-runtime.js`).
+C'est un crash DIFFÉRENT du `pack.gz`/`cache=false` déjà documenté : ici le bundler dév
+n'émet pas le chunk du `_document`/`_not-found` à la volée sous **Node 26** → le process meurt.
+**Correction :** `rm -rf .next && npm run build && npm run start`. Le build de prod émet
+TOUS les chunks d'un coup ⇒ plus de résolution paresseuse à la requête ⇒ plus de crash.
+Vérifié : les 6 pages du test (`/chat /upload /graph /reglages /sources`, `/`→307) en 200,
+un chunk statique en 200, et le serveur **toujours vivant** après les requêtes.
+**Règle :** quand l'utilisateur veut *utiliser/tester* l'app (pas coder) sous Node récent,
+lancer `build && start`, pas `next dev`. Rappel du compromis (déjà noté) : `next start` fige
+son manifeste au boot → une route ajoutée APRÈS ne sera pas servie (rebuild nécessaire) ;
+donc revenir à `next dev` uniquement pour l'itération sur de nouvelles pages. NB avertissement
+bénin `"next start" does not work with "output: standalone"` : sans effet ici (assets servis,
+vérifiés 200) — l'alternative stricte est `node .next/standalone/server.js`.
+
+## 2026-07-21 — electron-builder exclut les node_modules d'un extraResources (Next standalone)
+**Contexte :** coquille Electron embarquant le serveur Next `output: standalone`. J'avais mis
+`extraResources: [{ from: "web/.next/standalone", to: "standalone" }]` pour copier le serveur
+dans le `.app`. Le seeding et les chemins marchaient, mais le serveur packagé plantait
+immédiatement : `Cannot find module 'next'` (`server.js:16`). Constat : `Resources/standalone/
+node_modules` était **vide (0 entrée)** alors que la source en a 23 (dont `next`).
+**Correction :** electron-builder **saute les `node_modules` imbriqués** d'un `extraResources`
+— **même avec `filter: ["**/*"]`** (testé, toujours 0). Solution robuste : un hook
+`afterPack` (`electron/after-pack.js`) qui copie soi-même l'arbre standalone (node_modules
+inclus) dans les `Resources`, en pur Node (`fs.cpSync`), avant la fabrication du `.dmg`.
+Vérifier `node_modules/next` présent dans le `.app` AVANT de tester l'app (évite un cycle de
+lancement pour rien). `getResourcesDir(appOutDir)` du packager donne le bon dossier (mac ET win).
+**Règle :** ne jamais compter sur `extraResources` pour copier un dossier **contenant des
+`node_modules`** ; le faire dans un hook `afterPack`. Corollaire : après un packaging, inspecter
+le contenu réel du `.app`/`Resources` (pas seulement « le dmg s'est construit »).
+
+## 2026-07-21 — ELECTRON_RUN_AS_NODE dans l'env ambiant fait démarrer Electron sans fenêtre
+**Contexte :** `electron .` ne montrait aucune fenêtre ; `electron --version` affichait
+`v24.18.0` (≠ v43 installé). Cause : l'environnement (shell/sandbox) portait
+`ELECTRON_RUN_AS_NODE=1`. Sous ce drapeau, le binaire Electron **se comporte comme Node** — pas
+d'API Electron, pas de `BrowserWindow`, et `--version` imprime la version **Node embarquée**.
+**Correction :** (1) diagnostiquer avec `env -u ELECTRON_RUN_AS_NODE electron --version` (a
+bien rendu `v43.1.1`) ; (2) garde-fou dans `main.js` : si `process.env.ELECTRON_RUN_AS_NODE`
+est présent au lancement, se **re-`spawn`** proprement sans le drapeau puis `process.exit`.
+Le serveur Next embarqué, lui, est spawné **avec** `ELECTRON_RUN_AS_NODE=1` (voulu : binaire
+Electron = pur Node pour lancer `server.js`).
+**Règle :** un binaire Electron peut être « détourné » en Node par l'env ambiant. Pour tout
+lancement GUI de test, neutraliser le drapeau (`env -u …`) ET prévoir un re-spawn défensif
+dans le process principal. Ne jamais lire une version Electron sans vérifier ce drapeau.
+
+## 2026-07-21 — Sur un dépôt partagé, une autre session Claude peut muter l'arbre pendant qu'on travaille
+**Contexte :** en fin de session Electron, `git status` montrait des fichiers que je n'avais
+jamais touchés (`raw/note-*.txt`, `wiki/resources/note-*.md`, entités, `graph.json`/vues
+régénérées, et un ajout à `tasks/lessons.md`). Un `ps` a révélé **plusieurs process
+`claude` + un `next-server`** portant `CLAUDE_EFFORT` : une autre session ingérait en parallèle.
+Effets : compte de ressources 13 → 15, **1 test sur 98 en échec** (count codé en dur), et un
+`next-server` détaché qui a corrompu un `next build`.
+**Correction :** (1) avant tout build, `pgrep`/`pkill` les `next-server` détachés et vérifier
+0 process ; (2) **ne pas** committer en bloc — cadrer le `git add` sur ses propres fichiers,
+laisser à l'utilisateur les fichiers d'une autre session ; (3) relire un fichier partagé
+(`lessons.md`) **juste avant** de l'éditer pour ne pas écraser l'ajout concurrent.
+**Règle :** ne jamais présumer que le working tree n'appartient qu'à moi. Vérifier les process
+concurrents, isoler mon commit, et traiter un échec de test « data-dépendant » comme
+possiblement dû à une mutation externe avant de l'imputer à mon code.
