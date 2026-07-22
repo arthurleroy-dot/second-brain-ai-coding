@@ -5,6 +5,7 @@ import { getEntity } from '@/lib/wiki-parser';
 import { entityTypeLabel } from '@/lib/ui';
 import { derivedPageForDisplay } from '@/lib/wiki-md';
 import FullContentProse from '@/components/sources/FullContentProse';
+import EntityDeleteButton from '@/components/entities/EntityDeleteButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +30,8 @@ export default async function EntityDetailPage({
         >
           <ArrowLeft size={16} /> Entités
         </Link>
-        <span className="truncate text-sm font-medium text-gray-900">{entity.label}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">{entity.label}</span>
+        <EntityDeleteButton slug={entity.slug} label={entity.label} />
       </div>
 
       <div className="flex-1 overflow-y-auto px-10 py-8">

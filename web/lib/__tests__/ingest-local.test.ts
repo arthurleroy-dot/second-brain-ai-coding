@@ -355,3 +355,189 @@ test('chaîne complète : 3 branches §R11 + wiki:verify sans erreur', async () 
     `wiki:verify erreurs : ${JSON.stringify(report.issues.filter((i: any) => i.severity === 'error'), null, 2)}`,
   );
 });
+
+// ————————————————————————————————————————————————————————————————
+// Chantier 5 : les DÉCLARATIONS deviennent des fiches validées dans le run,
+// même si l'IA les OMET du frontmatter (forceDeclaredLinks + exclusion durcie).
+
+// Fixture fraîche et isolée (slugs uniques ; on RÉINITIALISE graphe/index/candidats).
+const FIX5 = {
+  'wiki/origin/interne.md': `---
+type: origin
+slug: interne
+label: Interne
+resource_count: 0
+last_updated: "2026-01-01"
+---
+`,
+  'wiki/origin/externe.md': `---
+type: origin
+slug: externe
+label: Externe
+resource_count: 0
+last_updated: "2026-01-01"
+---
+`,
+  'wiki/types.md': `---
+type: index
+label: Types de ressources
+last_updated: "2026-01-01"
+---
+`,
+  'wiki/index.md': `---
+type: index
+last_updated: "2026-01-01"
+resource_count: 0
+theme_count: 0
+author_count: 0
+---
+
+## Thèmes (0)
+
+## Auteurs (0)
+
+## Ressources (0)
+
+## Index par date
+
+## Index par type
+
+→ [[types]]
+
+## Origine (2)
+
+- [[origin/externe|Externe]] — 0 ressource
+- [[origin/interne|Interne]] — 0 ressource
+`,
+  'wiki/graph.json': JSON.stringify(
+    {
+      generated: '2026-01-01',
+      nodes: [
+        { id: 'origin:externe', type: 'origin', label: 'Externe' },
+        { id: 'origin:interne', type: 'origin', label: 'Interne' },
+      ],
+      edges: [],
+    },
+    null,
+    2,
+  ),
+  'wiki/_ingested.json': JSON.stringify({ version: 1, files: {} }, null, 2),
+  // Candidats RÉINITIALISÉS à vide (assertions propres).
+  'wiki/entities/_candidates.json': JSON.stringify({ version: 1, generated: '2026-01-01', candidates: [] }, null, 2),
+  'wiki/themes/_candidates.json': JSON.stringify({ version: 1, generated: '2026-01-01', candidates: [] }, null, 2),
+};
+
+// Sidecar : entité « julien » (personnes) + thème « veille-perso » déclarés.
+const SIDECAR5 = `---
+title: "Note perso"
+type: personal-notes
+origin: interne
+author: "Arthur"
+date: "2026-07"
+links:
+  personnes: [julien]
+entities_granularity:
+  personnes: resource
+themes: [veille-perso]
+themes_granularity: auto
+---
+`;
+
+// Ressource « produite par l'IA » qui OMET les déclarations : entities/topics VIDES.
+// (Reproduit le bug observé : l'IA ne recopie pas fidèlement la déclaration.)
+const RESOURCE5 = `---
+slug: note-perso
+title: "Note perso"
+author: "Arthur"
+date: "2026-07"
+source_type: personal-notes
+origin: interne
+topics: []
+entities: []
+source_file: "note-perso.txt"
+needs_review: false
+---
+
+> Par [[../authors/arthur|Arthur]] · [[../by-date/2026/2026-07/2026-07|2026-07]]
+
+## Contexte
+
+Julien a partagé une note de veille perso. Elle sera enrichie plus tard.
+`;
+
+// L'IA détecte « Julien » (= déclaré, forme normalisée identique) ET « Julien Ye »
+// (nom réellement différent). Le 1er doit être EXCLU ; le 2nd PEUT rester en file.
+const DETECTED5 = {
+  entities: [
+    { name: 'Julien', entity_type: 'personnes', section: 'contexte', context: 'Julien a partagé.' },
+    { name: 'Julien Ye', entity_type: 'personnes', section: 'contexte', context: 'nom complet supposé' },
+  ],
+  themes: [
+    { name: 'Veille perso', section: null, context: 'thème central' }, // = déclaré → exclu
+  ],
+};
+
+test('chantier 5 : déclarations omises par l’IA → fiches créées directement, hors file d’attente', async () => {
+  for (const [rel, content] of Object.entries(FIX5)) {
+    const abs = path.join(tmp, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, content);
+  }
+
+  const { ingestOne, parseSidecar, resolveDeclarations, loadRegistries } = await load();
+  const { applyFileOps, readRepoFile } = await import('../wiki-fs');
+
+  const registries = await loadRegistries();
+  const { declaredEntities, declaredThemes } = resolveDeclarations(parseSidecar(SIDECAR5), registries);
+  assert.ok(declaredEntities.some((d) => d.slug === 'julien' && d.isNew), 'julien déclaré nouveau');
+  assert.ok(declaredThemes.some((d) => d.slug === 'veille-perso' && d.isNew), 'veille-perso déclaré nouveau');
+
+  const { ops, slug } = await ingestOne({
+    file: 'note-perso.txt',
+    markdown: RESOURCE5, // entities/topics VIDES dans le frontmatter
+    detectedNew: DETECTED5,
+    declaredEntities,
+    declaredThemes,
+    registries,
+    today: '2026-07-22',
+  });
+  assert.equal(slug, 'note-perso');
+
+  // L'op de la fiche entité déclarée EST présente dans les ops retournées (avant écriture).
+  const juOp = ops.find((o) => o.path === 'wiki/entities/julien.md' && 'content' in o);
+  assert.ok(juOp, 'op de création de wiki/entities/julien.md présente');
+
+  await applyFileOps(ops);
+
+  // ENTITÉ déclarée-omise → fiche CRÉÉE directement, avec son entity_type.
+  const julien = await readRepoFile('wiki/entities/julien.md');
+  assert.ok(julien, 'wiki/entities/julien.md créée');
+  assert.ok(julien!.includes('entity_type: personnes'), 'julien : entity_type déclaré');
+  assert.ok(julien!.includes('### [[../resources/note-perso'), 'julien : bloc de mention');
+
+  // Graphe : nœud + arête de mention présents.
+  const graph = JSON.parse((await readRepoFile('wiki/graph.json'))!);
+  assert.ok(graph.nodes.some((n: any) => n.id === 'entity:julien'), 'nœud entity:julien');
+  assert.ok(
+    graph.edges.some((e: any) => e.source === 'resource:note-perso' && e.target === 'entity:julien' && e.relation === 'mentions'),
+    'arête mentions vers julien',
+  );
+
+  // THÈME déclaré-omis → page CRÉÉE + arête belongs_to_theme.
+  assert.ok(await readRepoFile('wiki/themes/veille-perso.md'), 'wiki/themes/veille-perso.md créée');
+  assert.ok(
+    graph.edges.some((e: any) => e.target === 'theme:veille-perso' && e.relation === 'belongs_to_theme'),
+    'arête belongs_to_theme vers veille-perso',
+  );
+
+  // EXCLUSION durcie (5b) : le déclaré redétecté (« Julien ») N'EST PAS en candidate ;
+  // le thème « Veille perso » (= déclaré) non plus.
+  const eCand = JSON.parse((await readRepoFile('wiki/entities/_candidates.json'))!);
+  assert.ok(!eCand.candidates.some((c: any) => c.normalized === 'julien'), 'Julien (déclaré) exclu des candidats');
+  assert.equal(await readRepoFile('wiki/entities/julien.md') === null, false, 'julien.md bien présente (pas en attente)');
+  const tCand = JSON.parse((await readRepoFile('wiki/themes/_candidates.json'))!);
+  assert.ok(!tCand.candidates.some((c: any) => c.normalized === 'veille perso'), 'thème déclaré exclu des candidats');
+
+  // CONFORME : un nom réellement DIFFÉRENT (« Julien Ye ») PEUT rester en file d'attente.
+  assert.ok(eCand.candidates.some((c: any) => c.normalized === 'julien ye'), 'Julien Ye (nom différent) reste candidate');
+});

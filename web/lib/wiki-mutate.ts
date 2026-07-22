@@ -937,6 +937,141 @@ export function deleteResource(input: DeleteResourceInput): FileOp[] {
   return ops;
 }
 
+// ————————————————————————————————————————————————————————————————
+// DELETE : entité (miroir de deleteResource — geste EXPLICITE, pas de cascade)
+
+/** Retire un item d'un tableau inline `key: [a, b]` du frontmatter (préserve le reste verbatim). */
+export function removeFromInlineArray(fm: string, key: string, item: string): string {
+  const lines = fm.split('\n');
+  const re = new RegExp(`^(${escapeRe(key)}):\\s*\\[(.*)\\]\\s*$`);
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(re);
+    if (m) {
+      const items = m[2].trim()
+        ? m[2].split(',').map((s) => s.trim().replace(/^["']|["']$/g, ''))
+        : [];
+      const kept = items.filter((x) => x !== item);
+      lines[i] = `${m[1]}: [${kept.join(', ')}]`;
+      return lines.join('\n');
+    }
+  }
+  return fm;
+}
+
+/** Retire un item des annotations chunk `` `key: [a, b]` `` du corps (préserve l'indentation). */
+function removeFromBacktickedArrays(body: string, key: string, item: string): string {
+  const re = new RegExp(`^\`${escapeRe(key)}:\\s*\\[(.*)\\]\`\\s*$`);
+  return body
+    .split('\n')
+    .map((line) => {
+      const trimmed = line.trim();
+      const m = trimmed.match(re);
+      if (!m) return line;
+      const items = m[1].trim() ? m[1].split(',').map((s) => s.trim()) : [];
+      const kept = items.filter((x) => x !== item);
+      const indent = line.slice(0, line.length - trimmed.length);
+      return `${indent}\`${key}: [${kept.join(', ')}]\``;
+    })
+    .join('\n');
+}
+
+/** Retire une entité (frontmatter `entities:` + annotations chunk) d'une ressource. */
+function removeEntityLink(resourceContent: string, slug: string): string {
+  const { fm, rest } = splitFrontmatter(resourceContent);
+  const newFm = removeFromInlineArray(fm, 'entities', slug);
+  const newBody = removeFromBacktickedArrays(rest, 'entities', slug);
+  return withFrontmatter(newFm, newBody);
+}
+
+/** Slugs des ressources citées dans la section `## Mentions` d'une fiche entité (`### [[../resources/<slug>…]]`). */
+export function entityReferencingResources(entityContent: string): string[] {
+  const slugs = new Set<string>();
+  const re = /^###\s+\[\[[^\]]*resources\/([a-z0-9-]+)[|#\]]/;
+  for (const line of entityContent.split('\n')) {
+    const m = line.match(re);
+    if (m) slugs.add(m[1]);
+  }
+  return [...slugs];
+}
+
+/**
+ * Purge DÉFENSIVE d'une candidate dont la décision (ou le nom slugifié) résout au slug
+ * supprimé. En marche normale une entité validée n'a plus de candidate (create/merge la
+ * purgent), d'où le `null` fréquent (= rien à écrire). Renvoie le JSON ou `null` si no-op.
+ */
+export function purgeCandidatesForEntity(
+  candidatesJson: string,
+  slug: string,
+  slugify?: (s: string) => string,
+): string | null {
+  let doc: any;
+  try {
+    doc = JSON.parse(candidatesJson);
+  } catch {
+    return null;
+  }
+  const before = Array.isArray(doc.candidates) ? doc.candidates.length : 0;
+  if (!before) return null;
+  doc.candidates = doc.candidates.filter((c: any) => {
+    const dslug = c?.decision?.slug ?? null;
+    const dtarget = c?.decision?.target_slug ?? null;
+    const nameSlug = slugify ? slugify(String(c?.name ?? '')) : null;
+    return !(dslug === slug || dtarget === slug || nameSlug === slug);
+  });
+  if (doc.candidates.length === before) return null;
+  return JSON.stringify(doc, null, 2) + '\n';
+}
+
+export interface DeleteEntityInput {
+  slug: string;
+  /** Contenu de `wiki/entities/<slug>.md` (source des ressources citantes). */
+  entityContent: string;
+  graph: string;
+  /** `resources/<r>.md` par slug, pour chaque ressource citant l'entité (l'appelant les lit). */
+  referencingResources?: Record<string, string>;
+  /** `_candidates.json` — purge défensive d'une entrée éventuelle. */
+  candidatesJson?: string;
+  /** slugify (injecté) — rapproche une candidate éventuelle du slug supprimé. */
+  slugify?: (s: string) => string;
+}
+
+/**
+ * Supprime une entité du registre — geste EXPLICITE (jamais en cascade depuis
+ * `deleteResource`). Retire : la fiche, le nœud `entity:<slug>` + ses arêtes, le lien
+ * dans le frontmatter/annotations de chaque ressource citante, et purge défensivement
+ * une candidate résiduelle. Fonction PURE (l'appelant applique les `FileOp`).
+ */
+export function deleteEntity(input: DeleteEntityInput): FileOp[] {
+  const { slug } = input;
+  const ops: FileOp[] = [];
+  const eid = `entity:${slug}`;
+
+  // 1. La fiche entité.
+  ops.push({ path: `wiki/entities/${slug}.md`, delete: true });
+
+  // 2. Ressources citantes : retirer le lien (frontmatter + chunk). Best-effort si illisible.
+  const refResources = input.referencingResources ?? {};
+  for (const r of entityReferencingResources(input.entityContent)) {
+    const content = refResources[r];
+    if (!content) continue;
+    ops.push({ path: `wiki/resources/${r}.md`, content: removeEntityLink(content, slug) });
+  }
+
+  // 3. graph.json : retirer le nœud entité + toute arête le touchant (mentions, etc.).
+  const graph = parseGraph(input.graph);
+  graph.nodes = graph.nodes.filter((n) => n.id !== eid);
+  graph.edges = graph.edges.filter((e) => e.source !== eid && e.target !== eid);
+  ops.push({ path: 'wiki/graph.json', content: serializeGraph(graph) });
+
+  // 4. _candidates.json : purge défensive (rare).
+  if (input.candidatesJson) {
+    const purged = purgeCandidatesForEntity(input.candidatesJson, slug, input.slugify);
+    if (purged !== null) ops.push({ path: 'wiki/entities/_candidates.json', content: purged });
+  }
+
+  return ops;
+}
+
 /** Retire la ligne bullet du mois `- [[by-date/Y/Y-M/Y-M|Y-M]] — …` de la page année. */
 function removeLinesWithMonth(yearContent: string, ym: string): string {
   const re = new RegExp(`by-date/[^/]+/${escapeRe(ym)}/${escapeRe(ym)}[|\\]]`);

@@ -25,6 +25,10 @@ import {
   applyEntityDecision,
   applyThemeDecision,
   deleteResource,
+  deleteEntity,
+  entityReferencingResources,
+  removeFromInlineArray,
+  purgeCandidatesForEntity,
   type FileOp,
 } from '../wiki-mutate';
 
@@ -611,4 +615,175 @@ type: index
   // by-date année : bullet du mois orphelin retiré, resource_count décrémenté
   const yr = byPath(ops, 'wiki/by-date/2026/2026.md')!;
   assert.ok(!yr.content.includes('2026-05/2026-05'), 'bullet mois orphelin retiré de l’année');
+});
+
+// ————————————————————————————————————————————————————————————————
+// deleteEntity — suppression EXPLICITE d'une entité (miroir de deleteResource)
+
+const ORPHAN_ENTITY = `---
+type: entity
+entity_type: personnes
+slug: julien-ye
+label: "Julien Ye"
+aliases: ["Julien Ye"]
+---
+
+# Julien Ye
+
+\`entity_type: personnes\`
+
+## Mentions
+`;
+
+const CITED_ENTITY = `---
+type: entity
+entity_type: tool
+slug: claude-code
+label: "Claude Code"
+aliases: ["claude code"]
+---
+
+# Claude Code
+
+\`entity_type: tool\`
+
+## Mentions
+
+### [[../resources/alpha|Alpha]]
+
+\`2026-05 · article — A\`
+
+- Ressource entière : cité comme outil clé.
+
+---
+
+### [[../resources/beta|Beta]]
+
+\`2026-06 · article — B\`
+
+- Section [[../resources/beta#contexte|Contexte]] : mentionné.
+`;
+
+const RES_ALPHA = `---
+slug: alpha
+title: "Alpha"
+topics: [finops-ia]
+entities: [claude-code, other]
+source_file: "alpha.md"
+---
+
+## Contexte
+\`entities: [claude-code]\`
+
+Corps.
+`;
+
+const RES_BETA = `---
+slug: beta
+title: "Beta"
+topics: [finops-ia]
+entities: [claude-code]
+source_file: "beta.md"
+---
+
+## Contexte
+\`entities: [claude-code, other]\`
+
+Corps.
+`;
+
+const GRAPH_WITH_ENTITY = JSON.stringify({
+  generated: '2026-01-01',
+  nodes: [
+    { id: 'resource:alpha', type: 'resource', label: 'Alpha' },
+    { id: 'resource:beta', type: 'resource', label: 'Beta' },
+    { id: 'entity:claude-code', type: 'entity', entity_type: 'tool', label: 'Claude Code' },
+    { id: 'entity:julien-ye', type: 'entity', entity_type: 'personnes', label: 'Julien Ye' },
+    { id: 'theme:finops-ia', type: 'theme', label: 'FinOps IA' },
+  ],
+  edges: [
+    { source: 'resource:alpha', target: 'entity:claude-code', relation: 'mentions' },
+    { source: 'resource:beta', target: 'entity:claude-code', relation: 'mentions', sections: ['contexte'] },
+    { source: 'resource:alpha', target: 'theme:finops-ia', relation: 'belongs_to_theme' },
+  ],
+});
+
+test('deleteEntity : orpheline (0 mention) → fiche + nœud retirés, rien d’autre touché', () => {
+  const ops = deleteEntity({
+    slug: 'julien-ye',
+    entityContent: ORPHAN_ENTITY,
+    graph: GRAPH_WITH_ENTITY,
+  });
+  // Fiche supprimée.
+  assert.ok(deletes(ops).some((o) => o.path === 'wiki/entities/julien-ye.md'), 'fiche supprimée');
+  // Aucune ressource touchée (0 mention).
+  assert.ok(!upserts(ops).some((o) => o.path.startsWith('wiki/resources/')), 'aucune ressource touchée');
+  // Graphe : nœud julien-ye retiré, le reste conservé.
+  const g = JSON.parse(byPath(ops, 'wiki/graph.json')!.content);
+  const ids = g.nodes.map((n: any) => n.id);
+  assert.ok(!ids.includes('entity:julien-ye'), 'nœud julien-ye retiré');
+  assert.ok(ids.includes('entity:claude-code'), 'autre entité conservée');
+  assert.equal(g.edges.length, 3, 'aucune arête retirée (orpheline)');
+});
+
+test('deleteEntity : entité citée → slug retiré du frontmatter + annotations de chaque ressource, arêtes retirées', () => {
+  const ops = deleteEntity({
+    slug: 'claude-code',
+    entityContent: CITED_ENTITY,
+    graph: GRAPH_WITH_ENTITY,
+    referencingResources: { alpha: RES_ALPHA, beta: RES_BETA },
+  });
+  assert.ok(deletes(ops).some((o) => o.path === 'wiki/entities/claude-code.md'), 'fiche supprimée');
+
+  const alpha = byPath(ops, 'wiki/resources/alpha.md')!.content;
+  assert.ok(alpha.includes('entities: [other]'), 'alpha : frontmatter ne garde que other');
+  assert.ok(!/entities: \[[^\]]*claude-code/.test(alpha), 'alpha : claude-code retiré partout');
+  assert.ok(alpha.includes('`entities: []`'), 'alpha : annotation chunk vidée');
+
+  const beta = byPath(ops, 'wiki/resources/beta.md')!.content;
+  assert.ok(beta.includes('entities: []'), 'beta : frontmatter vidé');
+  assert.ok(beta.includes('`entities: [other]`'), 'beta : annotation chunk ne garde que other');
+
+  // Graphe : nœud + les 2 arêtes mentions retirés ; l'arête theme conservée.
+  const g = JSON.parse(byPath(ops, 'wiki/graph.json')!.content);
+  assert.ok(!g.nodes.some((n: any) => n.id === 'entity:claude-code'), 'nœud retiré');
+  assert.ok(!g.edges.some((e: any) => e.target === 'entity:claude-code'), 'arêtes mentions retirées');
+  assert.ok(g.edges.some((e: any) => e.relation === 'belongs_to_theme'), 'arête thème conservée');
+});
+
+test('deleteEntity : purge défensive d’une candidate résiduelle (par nom slugifié)', () => {
+  const cand = JSON.stringify({
+    version: 1,
+    generated: '2026-07-22',
+    candidates: [
+      { name: 'Julien Ye', normalized: 'julien ye', decision: { slug: null, target_slug: null } },
+      { name: 'Cursor', normalized: 'cursor', decision: { slug: null, target_slug: null } },
+    ],
+  });
+  const ops = deleteEntity({
+    slug: 'julien-ye',
+    entityContent: ORPHAN_ENTITY,
+    graph: GRAPH_WITH_ENTITY,
+    candidatesJson: cand,
+    slugify,
+  });
+  const purged = JSON.parse(byPath(ops, 'wiki/entities/_candidates.json')!.content);
+  assert.equal(purged.candidates.length, 1, 'la candidate Julien Ye retirée');
+  assert.equal(purged.candidates[0].name, 'Cursor', 'Cursor conservée');
+});
+
+test('entityReferencingResources : extrait les slugs des blocs ### Mentions', () => {
+  assert.deepEqual(entityReferencingResources(CITED_ENTITY), ['alpha', 'beta']);
+  assert.deepEqual(entityReferencingResources(ORPHAN_ENTITY), []);
+});
+
+test('removeFromInlineArray : retire un item en préservant les autres, no-op si absent', () => {
+  assert.equal(removeFromInlineArray('entities: [a, b, c]', 'entities', 'b'), 'entities: [a, c]');
+  assert.equal(removeFromInlineArray('entities: [a]', 'entities', 'a'), 'entities: []');
+  assert.equal(removeFromInlineArray('entities: [a, b]', 'entities', 'z'), 'entities: [a, b]');
+});
+
+test('purgeCandidatesForEntity : null si rien ne matche (pas d’op inutile)', () => {
+  const cand = JSON.stringify({ version: 1, candidates: [{ name: 'Cursor', normalized: 'cursor', decision: { slug: null } }] });
+  assert.equal(purgeCandidatesForEntity(cand, 'julien-ye', slugify), null);
 });
