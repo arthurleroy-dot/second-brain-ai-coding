@@ -1,23 +1,36 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { getAiSettings, ANTHROPIC_DIRECT_URL } from '@/lib/ai-settings';
 
-// Accès IA via la gateway LiteLLM de l'entreprise (décision D2 amendée 2026-07-20 :
-// clé de gateway partagée par les employés, PAS de clé Anthropic personnelle).
-// - `apiKey`  : clé de la gateway. En dev, lue depuis web/.env.local ; dans l'app
-//               Electron, injectée à l'exécution dans process.env depuis le stockage
-//               chiffré (safeStorage) via l'écran de réglages (Phase 6).
-// - `baseURL` : URL de la gateway (conservée — on n'appelle pas Anthropic en direct).
-// Le SDK web (chat, lecture seule) s'authentifie en `x-api-key` ; c'est suffisant
-// pour la gateway (cf. tasks/lessons.md 2026-07-09 — le token Bearer n'est requis
-// que pour le CLI/SDK Agent de l'ingestion).
-export const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY ?? '',
-  baseURL: process.env.ANTHROPIC_BASE_URL || undefined,
-});
+// Accès IA reconstruit À L'EXÉCUTION depuis le store de réglages (`@/lib/ai-settings`),
+// plus au chargement du module : la saisie de l'écran `/reglages` prend donc effet à
+// chaud, sans redémarrer le serveur. Le client SDK est mémorisé par signature (clé+URL)
+// pour n'être reconstruit que lorsque l'un des deux change.
+//
+// L'app ne parle QUE le protocole « Messages » d'Anthropic (auth `x-api-key`) : soit
+// Anthropic en direct, soit une passerelle compatible (gateway LiteLLM). Le triplet
+// clé/adresse/modèle vient de getAiSettings() (store prime, env = secours dev).
 
-// Modèle piloté par le réglage « modèle » de l'app (injecté dans l'env) ; défaut
-// raisonnable routé par la gateway.
-export const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-6';
+let cached: { sig: string; client: Anthropic } | null = null;
+
+export function getAnthropic(): Anthropic {
+  const { apiKey, baseUrl } = getAiSettings();
+  const sig = `${apiKey} ${baseUrl}`; // reconstruit seulement si clé/URL change
+  if (!cached || cached.sig !== sig) {
+    // baseURL TOUJOURS explicite : sinon le SDK relit process.env.ANTHROPIC_BASE_URL
+    // (client.js:68) et la gateway du .env.local fuite dans le preset « Anthropic direct ».
+    // apiKey toujours passé (même '') → l'env ne peut pas le shadow (client.js:75).
+    cached = {
+      sig,
+      client: new Anthropic({ apiKey, baseURL: baseUrl || ANTHROPIC_DIRECT_URL }),
+    };
+  }
+  return cached.client;
+}
+
+export function getModel(): string {
+  return getAiSettings().model;
+}
 
 export function isClaudeConfigured(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+  return Boolean(getAiSettings().apiKey);
 }

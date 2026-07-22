@@ -5,7 +5,7 @@ import { spawn } from 'child_process';
 import matter from 'gray-matter';
 import { extractText, getDocumentProxy } from 'unpdf';
 import { DATA_ROOT, RAW_ROOT, readRepoFile, applyFileOps, listWikiDir } from '@/lib/wiki-fs';
-import { anthropic, CLAUDE_MODEL } from '@/lib/claude';
+import { getAnthropic, getModel } from '@/lib/claude';
 import { slugify } from '@/lib/wiki-parser';
 import { typeLabel } from '@/lib/ui';
 import { ResourceType } from '@/types';
@@ -14,6 +14,7 @@ import {
   splitFrontmatter,
   withFrontmatter,
   setScalar,
+  patchInlineArray,
   type FileOp,
 } from '@/lib/wiki-mutate';
 import { projectResource, type ProjectViews, type NewEntityDecl } from '@/lib/wiki-project';
@@ -390,9 +391,9 @@ export function parseGeneration(text: string): { markdown: string; detectedNew: 
 
 /** L'UNIQUE appel payant — isolé pour être injectable/mockable (cf. tests). */
 async function callModel(system: string, user: string): Promise<GenResult> {
-  const { data, response } = await anthropic.messages
-    .create({
-      model: CLAUDE_MODEL,
+  const { data, response } = await getAnthropic()
+    .messages.create({
+      model: getModel(),
       max_tokens: 16000,
       system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: user }],
@@ -491,10 +492,17 @@ export async function buildCandidateOps(
 
   const knownEntForms = new Set(reg.entities.flatMap((e) => [e.label, ...e.aliases].map(normalizeForm)));
   const declEntSlugs = new Set(declaredEntities.map((d) => d.slug));
+  // Un déclaré est reconnu par SON SLUG (résolu, possiblement suffixé) OU par la forme
+  // normalisée de son label/alias — ferme la fuite « slug suffixé, mais l'IA a détecté
+  // l'entité par son nom brut ». Un nom réellement différent (« Julien Ye » ≠ « Julien »)
+  // ne matche aucun des deux → reste en file d'attente (conforme : réservée aux détections IA).
+  const declEntForms = new Set(declaredEntities.flatMap((d) => [d.label, ...d.aliases].map(normalizeForm)));
   const eDet = (detected.entities ?? []).filter((d: any) => {
     const name = String(d?.name ?? '');
     if (!name) return false;
-    return !knownEntForms.has(normalizeForm(name)) && !declEntSlugs.has(slugify(name));
+    const nf = normalizeForm(name);
+    const isDeclared = declEntSlugs.has(slugify(name)) || declEntForms.has(nf);
+    return !knownEntForms.has(nf) && !isDeclared;
   });
   if (eDet.length) {
     const doc = parseCandidates(await readRepoFile('wiki/entities/_candidates.json'), today);
@@ -508,10 +516,13 @@ export async function buildCandidateOps(
 
   const knownThemeForms = new Set(reg.themes.flatMap((t) => [t.label, ...t.aliases].map(normalizeForm)));
   const declThemeSlugs = new Set(declaredThemes.map((d) => d.slug));
+  const declThemeForms = new Set(declaredThemes.map((d) => normalizeForm(d.label)));
   const tDet = (detected.themes ?? []).filter((d: any) => {
     const name = String(d?.name ?? '');
     if (!name) return false;
-    return !knownThemeForms.has(normalizeForm(name)) && !declThemeSlugs.has(slugify(name));
+    const nf = normalizeForm(name);
+    const isDeclared = declThemeSlugs.has(slugify(name)) || declThemeForms.has(nf);
+    return !knownThemeForms.has(nf) && !isDeclared;
   });
   if (tDet.length) {
     const doc = parseCandidates(await readRepoFile('wiki/themes/_candidates.json'), today);
@@ -540,6 +551,26 @@ function forceSourceFile(markdown: string, file: string): string {
   return withFrontmatter(nf, rest);
 }
 
+/**
+ * Force les DÉCLARATIONS (sidecar) dans le frontmatter `entities:`/`topics:` avant
+ * projection — le point clé du chantier 5. Ce qui est déclaré à la main DOIT devenir
+ * une fiche validée dans le même run, sans dépendre de ce que l'IA recopie et SANS
+ * passer par la file d'attente. Insertion idempotente (`patchInlineArray`) : les
+ * déclarés forcés sont alors traités au NIVEAU RESSOURCE par `projectResource`
+ * (fiche + nœud + arête de mention), la granularité `chunk` restant un simple indice IA.
+ */
+function forceDeclaredLinks(
+  markdown: string,
+  declaredEntities: ResolvedEntity[],
+  declaredThemes: ResolvedTheme[],
+): string {
+  const { fm, rest } = splitFrontmatter(markdown);
+  let nf = fm;
+  for (const d of declaredThemes) nf = patchInlineArray(nf, 'topics', d.slug);
+  for (const d of declaredEntities) nf = patchInlineArray(nf, 'entities', d.slug);
+  return withFrontmatter(nf, rest);
+}
+
 export interface IngestOneInput {
   file: string;
   markdown: string;
@@ -557,7 +588,11 @@ export interface IngestOneInput {
  */
 export async function ingestOne(input: IngestOneInput): Promise<{ ops: FileOp[]; slug: string; warnings: string[] }> {
   const { file, today, registries: reg } = input;
-  const markdown = forceSourceFile(input.markdown, file);
+  // 1) source_file robuste, puis 2) ré-injection des déclarations sidecar dans le
+  // frontmatter → tout le downstream (fiche + graphe + exclusion des candidats) devient
+  // déterministe, quelle que soit la fidélité de recopie de l'IA (chantier 5).
+  const withSource = forceSourceFile(input.markdown, file);
+  const markdown = forceDeclaredLinks(withSource, input.declaredEntities, input.declaredThemes);
   const { fm } = splitFrontmatter(markdown);
   const meta = parseResourceMeta(markdown, '');
   const slug = meta.slug;

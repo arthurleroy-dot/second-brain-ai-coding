@@ -13,6 +13,7 @@ const TITLES: Record<string, string> = {
   '/entities': 'Entités',
   '/themes': 'Thèmes',
   '/upload': 'Déposer une ressource',
+  '/reglages': 'Réglages',
 };
 
 function titleFor(pathname: string): string {

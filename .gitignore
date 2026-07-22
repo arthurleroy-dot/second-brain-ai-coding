@@ -5,8 +5,16 @@ web/out/
 web/.env.local
 web/*.tsbuildinfo
 
+# Coquille Electron (racine) — dépendances d'outillage et sorties de packaging
+/node_modules/
+/dist/
+
 # macOS
 .DS_Store
 
 # Config Obsidian locale (workspace, cache) — non versionnée
 wiki/.obsidian/
+
+# Données locales de l'app (hors wiki/raw) : réglages IA (clé en clair en dev),
+# historique de chat, état d'ingestion — JAMAIS committable.
+/.data/

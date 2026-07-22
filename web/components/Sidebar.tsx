@@ -1,5 +1,6 @@
 'use client';
 
+import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -13,6 +14,7 @@ import {
   Upload,
   Settings,
 } from 'lucide-react';
+import { getSourcesQuery, subscribe as subscribeSourcesQuery } from '@/lib/sources-nav-store';
 
 const NAV = [
   { href: '/chat', icon: MessageCircle, label: 'Chat' },
@@ -27,16 +29,24 @@ const NAV = [
 export default function Sidebar() {
   const pathname = usePathname();
   const uploadActive = pathname.startsWith('/upload');
+  const reglagesActive = pathname.startsWith('/reglages');
+
+  // Dernière query /sources mémorisée : le lien « Sources » la rejoue pour
+  // restaurer les filtres au retour par la barre latérale (l'URL reste la source).
+  const sourcesQuery = useSyncExternalStore(subscribeSourcesQuery, getSourcesQuery, () => '');
 
   return (
     <nav className="flex h-full w-12 flex-col items-center justify-between border-r border-gray-200 bg-white py-3">
       <div className="flex flex-col items-center gap-1">
         {NAV.map(({ href, icon: Icon, label }) => {
           const active = pathname.startsWith(href);
+          // Le menu « Sources » rejoue les derniers filtres ; les autres liens sont fixes.
+          const targetHref =
+            href === '/sources' && sourcesQuery ? `/sources?${sourcesQuery}` : href;
           return (
             <Link
               key={href}
-              href={href}
+              href={targetHref}
               title={label}
               className={`flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
                 active
@@ -64,13 +74,17 @@ export default function Sidebar() {
         </Link>
       </div>
 
-      <button
-        type="button"
-        title="Paramètres"
-        className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+      <Link
+        href="/reglages"
+        title="Réglages"
+        className={`flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
+          reglagesActive
+            ? 'bg-gray-900 text-white'
+            : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+        }`}
       >
         <Settings size={18} />
-      </button>
+      </Link>
     </nav>
   );
 }

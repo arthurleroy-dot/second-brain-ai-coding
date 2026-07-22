@@ -1,5 +1,5 @@
 import type Anthropic from '@anthropic-ai/sdk';
-import { anthropic, CLAUDE_MODEL } from '@/lib/claude';
+import { getAnthropic, getModel } from '@/lib/claude';
 import { listWikiDir, readWikiFile, wikiExists } from '@/lib/wiki-fs';
 
 /**
@@ -233,8 +233,8 @@ export async function runWikiAgent(opts: {
   model?: string; // défaut : CLAUDE_MODEL
   signal?: AbortSignal; // annulation client (bouton Stop) propagée au stream
 }): Promise<{ rawText: string; iterations: number }> {
-  const client = opts.client ?? (anthropic as WikiAgentClient);
-  const model = opts.model ?? CLAUDE_MODEL;
+  const client = opts.client ?? (getAnthropic() as WikiAgentClient);
+  const model = opts.model ?? getModel();
   const loopMessages: Anthropic.Messages.MessageParam[] = opts.messages.map((m) => ({
     role: m.role,
     content: m.content,
