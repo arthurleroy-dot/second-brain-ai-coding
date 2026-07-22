@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { WikiTopic } from '@/types';
+import { useScrollRestoration } from '@/lib/use-scroll-restoration';
 import TopicCard from '@/components/wiki/TopicCard';
 
 export default function TopicGrid() {
   const [topics, setTopics] = useState<WikiTopic[]>([]);
   const [loading, setLoading] = useState(true);
+  const scrollRef = useScrollRestoration<HTMLDivElement>('wiki:scroll');
 
   useEffect(() => {
     fetch('/api/wiki')
@@ -17,7 +19,7 @@ export default function TopicGrid() {
   }, []);
 
   return (
-    <div className="h-full overflow-y-auto p-6">
+    <div ref={scrollRef} className="h-full overflow-y-auto p-6">
       <div className="mb-4">
         <p className="text-xs text-gray-500">{topics.length} thème(s)</p>
       </div>

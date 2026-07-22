@@ -3,7 +3,7 @@ type: origin
 slug: interne
 label: Interne
 resource_count: 0
-last_updated: "2026-07-09"
+last_updated: "2026-07-22"
 ---
 
 Aucune ressource interne dans le corpus actuel.

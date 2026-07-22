@@ -26,3 +26,13 @@ last_updated: "2026-07-03"
 | [[resources/ai-revolution-software-development\|The AI revolution in software development]] | McKinsey | 2026-04 | externe |
 | [[resources/unlocking-value-ai-software-development\|Unlocking the value of AI in software development]] | McKinsey | 2025-11 | externe |
 | [[resources/accenture-research-ai-led-processes-outperform-peers\|New Accenture Research Finds that Companies with AI-Led Processes Outperform Peers]] | Accenture | 2024-10-10 | externe |
+
+## personal-notes (0 ressource)
+
+| Ressource | Auteur | Date | Origin |
+|-----------|--------|------|--------|
+
+## meeting-notes (0 ressource)
+
+| Ressource | Auteur | Date | Origin |
+|-----------|--------|------|--------|

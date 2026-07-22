@@ -13,7 +13,28 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(req: NextRequest) {
   const file = new URL(req.url).searchParams.get('file');
-  if (!file) return Response.json({ error: 'Paramètre `file` manquant' }, { status: 400 });
+
+  // Mode GLOBAL (sans `file`) : renvoie l'état du moteur d'ingestion, sans avoir
+  // à connaître le nom du fichier. Sert à reprendre le suivi d'un run en cours
+  // après une navigation ou un rechargement complet (cf. ingest-view-store).
+  if (!file) {
+    const state = await readIngestState();
+    const processing = state.status === 'running' || lockHeld();
+    return Response.json({
+      state: processing
+        ? 'processing'
+        : state.status === 'error'
+          ? 'error'
+          : state.status === 'done'
+            ? 'done'
+            : 'idle',
+      pending: state.pending ?? [],
+      slug: state.slug ?? null,
+      costUsd: state.costUsd ?? null,
+      perFile: state.perFile ?? [],
+      error: state.error ?? null,
+    });
+  }
 
   // 1. Déjà ingéré ? (le manifeste fait foi)
   const manifestJson = await readRepoFile('wiki/_ingested.json');

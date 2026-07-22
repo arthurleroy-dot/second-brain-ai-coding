@@ -103,7 +103,6 @@ export function originLabel(o: OriginValue): string {
 const ENTITY_TYPE_LABELS: Record<string, string> = {
   tool: 'Outils',
   client: 'Clients',
-  person: 'Personnes',
   company: 'Entreprises',
   concept: 'Concepts',
 };

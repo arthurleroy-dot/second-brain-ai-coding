@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { entityTypeLabel } from '@/lib/ui';
+import { addName, mergeLinkDrafts } from '@/lib/upload-drafts';
 import ConfirmDialog from '@/components/ConfirmDialog';
 
 interface Entity {
@@ -24,6 +25,19 @@ export type Gran = 'auto' | 'resource' | 'chunk';
 // Valeur sentinelle du menu déroulant pour « créer un nouveau type ».
 const NEW_TYPE = '__new__';
 
+// Poignée impérative exposée au parent (UploadForm). Au submit, `flush()` fusionne
+// SYNCHRONEMENT tout brouillon d'entité tapé mais non validé (`+`/Entrée) dans la
+// valeur, et RETOURNE la valeur fusionnée — le FormData est bâti dessus, sans
+// attendre un re-render. Sans cela, taper un nom puis « Déposer → » perdait la saisie.
+export type LinkPickerHandle = { flush: () => LinksValue };
+
+interface LinkPickerProps {
+  value: LinksValue;
+  onChange: (v: LinksValue) => void;
+  granularity: Record<string, Gran>;
+  onGranularityChange: (v: Record<string, Gran>) => void;
+}
+
 function slugify(s: string): string {
   return s
     .toLowerCase()
@@ -40,17 +54,10 @@ function slugify(s: string): string {
  * + création libre) et régler leur granularité. Un « + » ajoute d'autres types.
  * Le registre s'auto-étend : les types déjà présents viennent de /api/entities.
  */
-export default function LinkPicker({
-  value,
-  onChange,
-  granularity,
-  onGranularityChange,
-}: {
-  value: LinksValue;
-  onChange: (v: LinksValue) => void;
-  granularity: Record<string, Gran>;
-  onGranularityChange: (v: Record<string, Gran>) => void;
-}) {
+const LinkPicker = forwardRef<LinkPickerHandle, LinkPickerProps>(function LinkPicker(
+  { value, onChange, granularity, onGranularityChange },
+  ref,
+) {
   const [types, setTypes] = useState<TypeInfo[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
   // Types créés à la volée cette session (persistés au registre seulement après ingestion).
@@ -104,11 +111,10 @@ export default function LinkPicker({
   };
 
   const add = (type: string, name: string) => {
-    const n = name.trim();
-    if (!n) return;
     const cur = value[type] ?? [];
-    if (cur.some((x) => x.toLowerCase() === n.toLowerCase())) return;
-    onChange({ ...value, [type]: [...cur, n] });
+    const next = addName(cur, name); // trim + dédup casse-insensible (helper partagé)
+    if (next === cur) return; // vide ou doublon : rien à ajouter
+    onChange({ ...value, [type]: next });
   };
   const remove = (type: string, name: string) => {
     const cur = (value[type] ?? []).filter((x) => x !== name);
@@ -117,6 +123,24 @@ export default function LinkPicker({
     else delete next[type]; // la carte reste ouverte via `openTypes`
     onChange(next);
   };
+  // Valide le brouillon d'un type (bouton `+` ou Entrée) puis vide le champ.
+  const commitDraft = (type: string) => {
+    add(type, drafts[type] ?? '');
+    setDrafts((p) => ({ ...p, [type]: '' }));
+  };
+
+  // Ramasse au submit les brouillons tapés mais non validés (cf. LinkPickerHandle).
+  // On ne flush volontairement PAS `addMode`/`newType`/`pendingType` : un nouveau
+  // TYPE de lien à moitié saisi reste gardé par sa confirmation (ConfirmDialog) — on
+  // ne crée jamais un type de lien en douce au dépôt. Un type ouvert sans brouillon
+  // ni entité validée ne produit aucune clé (mergeLinkDrafts filtre les vides).
+  const flush = (): LinksValue => {
+    const merged = mergeLinkDrafts(value, drafts);
+    onChange(merged); // cohérence UI : les brouillons deviennent des puces
+    setDrafts({});
+    return merged; // valeur synchrone consommée par submit()
+  };
+  useImperativeHandle(ref, () => ({ flush }), [value, drafts]);
 
   // Choix dans le menu déroulant : type existant → carte ; sentinelle → saisie d'un nom.
   const onPick = (val: string) => {
@@ -200,20 +224,34 @@ export default function LinkPicker({
               </div>
             )}
 
-            <input
-              list={`ents-${type}`}
-              value={drafts[type] ?? ''}
-              onChange={(e) => setDrafts((p) => ({ ...p, [type]: e.target.value }))}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  add(type, drafts[type] ?? '');
-                  setDrafts((p) => ({ ...p, [type]: '' }));
-                }
-              }}
-              placeholder="Ajouter une entité — Entrée pour valider"
-              className="w-full rounded-lg border border-gray-300 px-2.5 py-1 text-xs"
-            />
+            <div className="flex items-center gap-1.5">
+              <input
+                list={`ents-${type}`}
+                value={drafts[type] ?? ''}
+                onChange={(e) => setDrafts((p) => ({ ...p, [type]: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    commitDraft(type);
+                  }
+                }}
+                placeholder="Ajouter une entité — + ou Entrée pour valider"
+                className="w-full rounded-lg border border-gray-300 px-2.5 py-1 text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => commitDraft(type)}
+                aria-label="Ajouter l'entité"
+                className="shrink-0 rounded-lg border border-gray-300 p-1.5 text-gray-500 hover:border-indigo-300 hover:text-indigo-700"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+            {drafts[type]?.trim() && (
+              <p className="text-[11px] text-gray-400">
+                « {drafts[type].trim()} » sera pris en compte au dépôt.
+              </p>
+            )}
             <datalist id={`ents-${type}`}>
               {entitiesOfType(type).map((e) => (
                 <option key={e.slug} value={e.label} />
@@ -329,4 +367,7 @@ export default function LinkPicker({
       )}
     </div>
   );
-}
+});
+LinkPicker.displayName = 'LinkPicker';
+
+export default LinkPicker;

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Clock, Layers } from 'lucide-react';
 import { ThemeCandidate, ThemeEntry } from '@/types';
+import { useScrollRestoration } from '@/lib/use-scroll-restoration';
 import ThemeCandidateCard from './ThemeCandidateCard';
 
 /**
@@ -14,6 +15,7 @@ export default function ThemesView() {
   const [candidates, setCandidates] = useState<ThemeCandidate[]>([]);
   const [themes, setThemes] = useState<ThemeEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const scrollRef = useScrollRestoration<HTMLDivElement>('themes:scroll');
 
   useEffect(() => {
     let cancelled = false;
@@ -35,10 +37,12 @@ export default function ThemesView() {
 
   const pending = candidates.filter((c) => c.status === 'pending');
 
-  if (loading) return <div className="p-6 text-sm text-gray-400">Chargement…</div>;
-
   return (
-    <div className="h-full overflow-y-auto p-6">
+    <div ref={scrollRef} className="h-full overflow-y-auto p-6">
+      {loading ? (
+        <p className="text-sm text-gray-400">Chargement…</p>
+      ) : (
+        <>
       {/* En attente de décision */}
       <section className="mb-8">
         <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
@@ -87,6 +91,8 @@ export default function ThemesView() {
           </div>
         )}
       </section>
+        </>
+      )}
     </div>
   );
 }

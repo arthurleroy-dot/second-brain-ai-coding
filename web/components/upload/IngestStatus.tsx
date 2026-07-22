@@ -1,14 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, Clock, Loader2 } from 'lucide-react';
-
-type State = 'pending' | 'processing' | 'ingested';
+import { CheckCircle2, Clock, Loader2, XCircle } from 'lucide-react';
 
 interface Props {
-  file: string;
-  onResolved?: (status: 'done', slug: string) => void;
+  state: 'pending' | 'processing' | 'ingested' | 'error';
+  slug: string | null;
+  cost: number | null; // USD
+  error: string | null;
 }
 
 /** Formate un coût USD : cents pour les petits montants (« ≈ 18 ¢ »), sinon « ≈ $0,42 ». */
@@ -20,49 +19,12 @@ function formatCost(usd: number): string {
 }
 
 /**
- * Suit l'ingestion LOCALE d'un fichier déposé (dépôt dans /raw → ingestion in-process
- * → wiki/). Poll toutes les 5 s l'API /api/ingest-status jusqu'à l'état "ingested",
- * puis affiche le coût (estimation USD, tarifs Sonnet — ou coût gateway si fourni).
+ * Affiche l'état d'ingestion d'un fichier déposé — composant PRÉSENTATIONNEL pur.
+ * Le suivi (polling de /api/ingest-status) et l'état vivent dans le store module
+ * `ingest-view-store` (source unique de vérité, survit à la navigation) ; ce
+ * composant ne fait que rendre l'état que lui passe UploadForm.
  */
-export default function IngestStatus({ file, onResolved }: Props) {
-  const [state, setState] = useState<State>('pending');
-  const [slug, setSlug] = useState<string | null>(null);
-  const [cost, setCost] = useState<number | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    let timer: ReturnType<typeof setTimeout>;
-
-    const poll = async () => {
-      try {
-        const res = await fetch(`/api/ingest-status?file=${encodeURIComponent(file)}`, {
-          cache: 'no-store',
-        });
-        const data = await res.json();
-        if (!active) return;
-        if (data.state === 'ingested') {
-          setState('ingested');
-          setSlug(data.slug ?? null);
-          const c = typeof data.fileCostUsd === 'number' ? data.fileCostUsd : data.costUsd;
-          setCost(typeof c === 'number' ? c : null);
-          onResolved?.('done', data.slug ?? '');
-          return; // arrêt du polling
-        }
-        setState(data.state === 'processing' ? 'processing' : 'pending');
-      } catch {
-        /* réseau : on retentera */
-      }
-      timer = setTimeout(poll, 5000);
-    };
-
-    poll();
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file]);
-
+export default function IngestStatus({ state, slug, cost, error }: Props) {
   if (state === 'ingested') {
     return (
       <div className="space-y-2">
@@ -78,6 +40,15 @@ export default function IngestStatus({ file, onResolved }: Props) {
             Voir la fiche →
           </Link>
         )}
+      </div>
+    );
+  }
+
+  if (state === 'error') {
+    return (
+      <div className="flex items-center gap-2 text-sm text-red-600">
+        <XCircle size={18} /> Échec de l'ingestion.
+        {error && <span className="text-gray-500">— {error}</span>}
       </div>
     );
   }

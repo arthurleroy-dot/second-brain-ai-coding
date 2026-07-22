@@ -1,11 +1,13 @@
 {
   "version": 1,
-  "generated": "2026-07-09",
+  "generated": "2026-07-22",
   "candidates": [
     {
       "name": "Cursor",
       "normalized": "cursor",
-      "variants": ["Cursor"],
+      "variants": [
+        "Cursor"
+      ],
       "note": null,
       "seen_in": [
         {
@@ -20,15 +22,24 @@
         }
       ],
       "suggested_aliases": [],
-      "suggested_types": ["tool"],
+      "suggested_types": [
+        "tool"
+      ],
       "status": "pending",
-      "decision": { "target_slug": null, "entity_type": null, "slug": null },
+      "decision": {
+        "target_slug": null,
+        "entity_type": null,
+        "slug": null
+      },
       "updated_at": "2026-07-09"
     },
     {
       "name": "GitHub Copilot",
       "normalized": "github copilot",
-      "variants": ["GitHub Copilot", "Copilot"],
+      "variants": [
+        "GitHub Copilot",
+        "Copilot"
+      ],
       "note": "L'occurrence « Fountain Copilot » dans 2026-agentic-coding-trends-report est un faux positif (produit propre du client Fountain, non lié à GitHub Copilot) — non retenue.",
       "seen_in": [
         {
@@ -43,15 +54,23 @@
         }
       ],
       "suggested_aliases": [],
-      "suggested_types": ["tool"],
+      "suggested_types": [
+        "tool"
+      ],
       "status": "pending",
-      "decision": { "target_slug": null, "entity_type": null, "slug": null },
+      "decision": {
+        "target_slug": null,
+        "entity_type": null,
+        "slug": null
+      },
       "updated_at": "2026-07-09"
     },
     {
       "name": "Windsurf",
       "normalized": "windsurf",
-      "variants": ["Windsurf"],
+      "variants": [
+        "Windsurf"
+      ],
       "note": null,
       "seen_in": [
         {
@@ -61,9 +80,15 @@
         }
       ],
       "suggested_aliases": [],
-      "suggested_types": ["tool"],
+      "suggested_types": [
+        "tool"
+      ],
       "status": "pending",
-      "decision": { "target_slug": null, "entity_type": null, "slug": null },
+      "decision": {
+        "target_slug": null,
+        "entity_type": null,
+        "slug": null
+      },
       "updated_at": "2026-07-09"
     }
   ]

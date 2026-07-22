@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { User, Calendar, AlertTriangle, Layers } from 'lucide-react';
 import { AuthorEntry, DateEntry, TypeEntry } from '@/types';
 import { typeBadgeClass } from '@/lib/ui';
+import { useScrollRestoration } from '@/lib/use-scroll-restoration';
 
 export default function ExploreView() {
   const router = useRouter();
@@ -12,6 +13,7 @@ export default function ExploreView() {
   const [dates, setDates] = useState<DateEntry[]>([]);
   const [types, setTypes] = useState<TypeEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const scrollRef = useScrollRestoration<HTMLDivElement>('explore:scroll');
 
   useEffect(() => {
     fetch('/api/explore')
@@ -30,10 +32,12 @@ export default function ExploreView() {
     b.localeCompare(a),
   );
 
-  if (loading) return <div className="p-6 text-sm text-gray-400">Chargement…</div>;
-
   return (
-    <div className="h-full overflow-y-auto p-6">
+    <div ref={scrollRef} className="h-full overflow-y-auto p-6">
+      {loading ? (
+        <p className="text-sm text-gray-400">Chargement…</p>
+      ) : (
+        <>
       {/* Par type de ressource */}
       <section className="mb-8">
         <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
@@ -119,6 +123,8 @@ export default function ExploreView() {
           </div>
         </section>
       </div>
+        </>
+      )}
     </div>
   );
 }

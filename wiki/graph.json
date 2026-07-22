@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-08",
+  "generated": "2026-07-22",
   "nodes": [
     {"id": "resource:ai-finops-2026-runtime-cost-governance-cant-wait", "type": "resource", "label": "AI FinOps in 2026: Why Runtime Cost Governance Can't Wait", "date": "2026"},
     {"id": "resource:finops-ai-llm-cost-engineering-not-finance", "type": "resource", "label": "FinOps for AI: Why LLM Cost Is an Engineering Problem, Not a Finance One", "date": "2026"},
@@ -51,28 +51,23 @@
     {"source": "resource:ai-finops-2026-runtime-cost-governance-cant-wait", "target": "type:article", "relation": "has_type"},
     {"source": "resource:ai-finops-2026-runtime-cost-governance-cant-wait", "target": "origin:externe", "relation": "has_origin"},
     {"source": "resource:ai-finops-2026-runtime-cost-governance-cant-wait", "target": "theme:finops-ia", "relation": "belongs_to_theme"},
-
     {"source": "resource:finops-ai-llm-cost-engineering-not-finance", "target": "author:rick-pollick", "relation": "written_by"},
     {"source": "resource:finops-ai-llm-cost-engineering-not-finance", "target": "type:article", "relation": "has_type"},
     {"source": "resource:finops-ai-llm-cost-engineering-not-finance", "target": "origin:externe", "relation": "has_origin"},
     {"source": "resource:finops-ai-llm-cost-engineering-not-finance", "target": "theme:finops-ia", "relation": "belongs_to_theme"},
-
     {"source": "resource:traditional-finops-breaks-ai-workloads", "target": "author:leanops-tech", "relation": "written_by"},
     {"source": "resource:traditional-finops-breaks-ai-workloads", "target": "type:article", "relation": "has_type"},
     {"source": "resource:traditional-finops-breaks-ai-workloads", "target": "origin:externe", "relation": "has_origin"},
     {"source": "resource:traditional-finops-breaks-ai-workloads", "target": "theme:finops-ia", "relation": "belongs_to_theme"},
-
     {"source": "resource:microsoft-google-late-ai-coding-compete-growth", "target": "author:cnbc", "relation": "written_by"},
     {"source": "resource:microsoft-google-late-ai-coding-compete-growth", "target": "type:article", "relation": "has_type"},
     {"source": "resource:microsoft-google-late-ai-coding-compete-growth", "target": "origin:externe", "relation": "has_origin"},
     {"source": "resource:microsoft-google-late-ai-coding-compete-growth", "target": "theme:outils-et-marche", "relation": "belongs_to_theme"},
-
     {"source": "resource:top-engineers-anthropic-openai-ai-writes-100-pct-code", "target": "author:fortune", "relation": "written_by"},
     {"source": "resource:top-engineers-anthropic-openai-ai-writes-100-pct-code", "target": "type:article", "relation": "has_type"},
     {"source": "resource:top-engineers-anthropic-openai-ai-writes-100-pct-code", "target": "origin:externe", "relation": "has_origin"},
     {"source": "resource:top-engineers-anthropic-openai-ai-writes-100-pct-code", "target": "theme:agentic-coding", "relation": "belongs_to_theme"},
     {"source": "resource:top-engineers-anthropic-openai-ai-writes-100-pct-code", "target": "theme:transformation-organisationnelle", "relation": "belongs_to_theme"},
-
     {"source": "resource:ai-software-development-what-changes-2026-2035", "target": "author:first-line-software", "relation": "written_by"},
     {"source": "resource:ai-software-development-what-changes-2026-2035", "target": "type:article", "relation": "has_type"},
     {"source": "resource:ai-software-development-what-changes-2026-2035", "target": "origin:externe", "relation": "has_origin"},
@@ -80,14 +75,12 @@
     {"source": "resource:ai-software-development-what-changes-2026-2035", "target": "theme:transformation-organisationnelle", "relation": "belongs_to_theme"},
     {"source": "resource:ai-software-development-what-changes-2026-2035", "target": "theme:finops-ia", "relation": "belongs_to_theme"},
     {"source": "resource:ai-software-development-what-changes-2026-2035", "target": "theme:securite-et-risques", "relation": "belongs_to_theme"},
-
     {"source": "resource:2026-agentic-coding-trends-report", "target": "author:anthropic", "relation": "written_by"},
     {"source": "resource:2026-agentic-coding-trends-report", "target": "type:report-pdf", "relation": "has_type"},
     {"source": "resource:2026-agentic-coding-trends-report", "target": "origin:externe", "relation": "has_origin"},
     {"source": "resource:2026-agentic-coding-trends-report", "target": "theme:agentic-coding", "relation": "belongs_to_theme"},
     {"source": "resource:2026-agentic-coding-trends-report", "target": "theme:outils-et-marche", "relation": "belongs_to_theme"},
     {"source": "resource:2026-agentic-coding-trends-report", "target": "theme:securite-et-risques", "relation": "belongs_to_theme"},
-
     {"source": "resource:2026-software-industry-outlook", "target": "author:deloitte", "relation": "written_by"},
     {"source": "resource:2026-software-industry-outlook", "target": "type:report-pdf", "relation": "has_type"},
     {"source": "resource:2026-software-industry-outlook", "target": "origin:externe", "relation": "has_origin"},
@@ -95,14 +88,12 @@
     {"source": "resource:2026-software-industry-outlook", "target": "theme:transformation-organisationnelle", "relation": "belongs_to_theme"},
     {"source": "resource:2026-software-industry-outlook", "target": "theme:securite-et-risques", "relation": "belongs_to_theme"},
     {"source": "resource:2026-software-industry-outlook", "target": "theme:finops-ia", "relation": "belongs_to_theme"},
-
     {"source": "resource:rewiring-software-delivery-agentic-era", "target": "author:mckinsey", "relation": "written_by"},
     {"source": "resource:rewiring-software-delivery-agentic-era", "target": "type:report-pdf", "relation": "has_type"},
     {"source": "resource:rewiring-software-delivery-agentic-era", "target": "origin:externe", "relation": "has_origin"},
     {"source": "resource:rewiring-software-delivery-agentic-era", "target": "theme:agentic-coding", "relation": "belongs_to_theme"},
     {"source": "resource:rewiring-software-delivery-agentic-era", "target": "theme:transformation-organisationnelle", "relation": "belongs_to_theme"},
     {"source": "resource:rewiring-software-delivery-agentic-era", "target": "theme:context-engineering", "relation": "belongs_to_theme"},
-
     {"source": "resource:state-of-ai-2026-untapped-edge", "target": "author:deloitte", "relation": "written_by"},
     {"source": "resource:state-of-ai-2026-untapped-edge", "target": "type:report-pdf", "relation": "has_type"},
     {"source": "resource:state-of-ai-2026-untapped-edge", "target": "origin:externe", "relation": "has_origin"},
@@ -110,12 +101,10 @@
     {"source": "resource:state-of-ai-2026-untapped-edge", "target": "theme:transformation-organisationnelle", "relation": "belongs_to_theme"},
     {"source": "resource:state-of-ai-2026-untapped-edge", "target": "theme:securite-et-risques", "relation": "belongs_to_theme"},
     {"source": "resource:state-of-ai-2026-untapped-edge", "target": "theme:finops-ia", "relation": "belongs_to_theme"},
-
     {"source": "resource:accenture-research-ai-led-processes-outperform-peers", "target": "author:accenture", "relation": "written_by"},
     {"source": "resource:accenture-research-ai-led-processes-outperform-peers", "target": "type:report-pdf", "relation": "has_type"},
     {"source": "resource:accenture-research-ai-led-processes-outperform-peers", "target": "origin:externe", "relation": "has_origin"},
     {"source": "resource:accenture-research-ai-led-processes-outperform-peers", "target": "theme:transformation-organisationnelle", "relation": "belongs_to_theme"},
-
     {"source": "resource:ai-revolution-software-development", "target": "author:mckinsey", "relation": "written_by"},
     {"source": "resource:ai-revolution-software-development", "target": "type:report-pdf", "relation": "has_type"},
     {"source": "resource:ai-revolution-software-development", "target": "origin:externe", "relation": "has_origin"},
@@ -124,7 +113,6 @@
     {"source": "resource:ai-revolution-software-development", "target": "theme:context-engineering", "relation": "belongs_to_theme"},
     {"source": "resource:ai-revolution-software-development", "target": "theme:finops-ia", "relation": "belongs_to_theme"},
     {"source": "resource:ai-revolution-software-development", "target": "theme:outils-et-marche", "relation": "belongs_to_theme"},
-
     {"source": "resource:unlocking-value-ai-software-development", "target": "author:mckinsey", "relation": "written_by"},
     {"source": "resource:unlocking-value-ai-software-development", "target": "type:report-pdf", "relation": "has_type"},
     {"source": "resource:unlocking-value-ai-software-development", "target": "origin:externe", "relation": "has_origin"},
@@ -132,14 +120,12 @@
     {"source": "resource:unlocking-value-ai-software-development", "target": "theme:transformation-organisationnelle", "relation": "belongs_to_theme"},
     {"source": "resource:unlocking-value-ai-software-development", "target": "theme:context-engineering", "relation": "belongs_to_theme"},
     {"source": "resource:unlocking-value-ai-software-development", "target": "theme:finops-ia", "relation": "belongs_to_theme"},
-
     {"source": "resource:top-engineers-anthropic-openai-ai-writes-100-pct-code", "target": "entity:claude-code", "relation": "mentions"},
     {"source": "resource:microsoft-google-late-ai-coding-compete-growth", "target": "entity:claude-code", "relation": "mentions"},
     {"source": "resource:2026-software-industry-outlook", "target": "entity:claude-code", "relation": "mentions", "sections": ["agentifying-cybersecurity-operations"]},
-    {"source": "resource:2026-agentic-coding-trends-report", "target": "entity:claude-code", "relation": "mentions", "sections": ["capability-trends-what-agents-can-do", "impact-trends-what-agents-may-change-in-2026"]},
+    {"source": "resource:2026-agentic-coding-trends-report", "target": "entity:claude-code", "relation": "mentions", "sections": ["capability-trends-what-agents-can-do","impact-trends-what-agents-may-change-in-2026"]},
     {"source": "resource:unlocking-value-ai-software-development", "target": "entity:claude-code", "relation": "mentions", "sections": ["two-key-shifts-to-unlock-ais-full-potential-in-software-development"]},
-    {"source": "resource:traditional-finops-breaks-ai-workloads", "target": "entity:claude-code", "relation": "mentions", "sections": ["the-7-traditional-finops-practices-that-fail-on-ai", "what-ai-finops-actually-looks-like-the-practice-you-need-to-build"]},
-
+    {"source": "resource:traditional-finops-breaks-ai-workloads", "target": "entity:claude-code", "relation": "mentions", "sections": ["the-7-traditional-finops-practices-that-fail-on-ai","what-ai-finops-actually-looks-like-the-practice-you-need-to-build"]},
     {"source": "date:2024-10", "target": "date:2024", "relation": "year_of"},
     {"source": "date:2025-11", "target": "date:2025", "relation": "year_of"},
     {"source": "date:2026-01", "target": "date:2026", "relation": "year_of"},
@@ -147,7 +133,6 @@
     {"source": "date:2026-04", "target": "date:2026", "relation": "year_of"},
     {"source": "date:2026-05", "target": "date:2026", "relation": "year_of"},
     {"source": "date:2026-06", "target": "date:2026", "relation": "year_of"},
-
     {"source": "resource:ai-finops-2026-runtime-cost-governance-cant-wait", "target": "date:2026", "relation": "published_on"},
     {"source": "resource:finops-ai-llm-cost-engineering-not-finance", "target": "date:2026", "relation": "published_on"},
     {"source": "resource:traditional-finops-breaks-ai-workloads", "target": "date:2026", "relation": "published_on"},

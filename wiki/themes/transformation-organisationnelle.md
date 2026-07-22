@@ -3,7 +3,7 @@ type: theme
 slug: transformation-organisationnelle
 label: Transformation Organisationnelle
 resource_count: 8
-last_updated: "2026-07-03"
+last_updated: "2026-07-22"
 ---
 
 ## [[../resources/top-engineers-anthropic-openai-ai-writes-100-pct-code|Top engineers at Anthropic, OpenAI say AI now writes 100% of their code]]
@@ -70,3 +70,5 @@ last_updated: "2026-07-03"
 - [[../resources/unlocking-value-ai-software-development#what-sets-ai-software-leaders-apart|What sets AI software leaders apart]] — écart 15pp top vs bottom performers ; 16-30% prod/CX/TTM, 31-45% qualité
 - [[../resources/unlocking-value-ai-software-development#two-key-shifts-to-unlock-ais-full-potential-in-software-development|Two key shifts]] — Shift 2 : rôles AI-native ; PM = prototypeur/QA ; engineers = full-stack + specs + architecture ; DRI par release
 - [[../resources/unlocking-value-ai-software-development#three-critical-enablers-of-success|Three critical enablers]] — upskilling personnalisé (57% vs 20%) ; outcome metrics (79%/57%) ; AI goals dans perf reviews (8/10 top performers)
+
+---

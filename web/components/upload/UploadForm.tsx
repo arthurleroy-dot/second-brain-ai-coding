@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { ClipboardType, Info, UploadCloud } from 'lucide-react';
 import { ResourceType } from '@/types';
 import { typeLabel } from '@/lib/ui';
+import { clear, getView, seedFromServer, startTracking, subscribe } from '@/lib/ingest-view-store';
 import IngestStatus from './IngestStatus';
-import LinkPicker, { LinksValue, Gran } from './LinkPicker';
-import ThemePicker from './ThemePicker';
+import LinkPicker, { LinksValue, Gran, LinkPickerHandle } from './LinkPicker';
+import ThemePicker, { ThemePickerHandle } from './ThemePicker';
 
 type Mode = 'paste' | 'upload';
 
@@ -72,13 +73,16 @@ export default function UploadForm() {
   const [links, setLinks] = useState<LinksValue>({});
   // Granularité déclarée PAR type de lien (indice pour l'agent, cf. docs/entities.md §3).
   const [linkGranularity, setLinkGranularity] = useState<Record<string, Gran>>({});
-  const hasLinks = Object.values(links).some((names) => names.length > 0);
 
   // Thèmes déclarés (optionnel) — liste plate de noms, cf. docs/entities.md.
   const [themes, setThemes] = useState<string[]>([]);
   const [themesGranularity, setThemesGranularity] =
     useState<'auto' | 'resource' | 'chunk'>('auto');
-  const hasThemes = themes.length > 0;
+
+  // Poignées des pickers : au submit, `flush()` ramasse les brouillons tapés mais
+  // non validés (`+`/Entrée) et retourne la valeur fusionnée — cf. submit().
+  const linkRef = useRef<LinkPickerHandle>(null);
+  const themeRef = useRef<ThemePickerHandle>(null);
 
   // Spécifiques à chaque mode.
   const [text, setText] = useState('');
@@ -88,7 +92,16 @@ export default function UploadForm() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [submittedFile, setSubmittedFile] = useState<string | null>(null);
+
+  // Suivi d'ingestion : vit dans un store module-level (survit à la navigation ET
+  // au rechargement complet de l'app). `null` = rien à suivre → on montre le formulaire.
+  const ingest = useSyncExternalStore(subscribe, getView, () => null);
+
+  // Au montage : si le store est vide, tenter d'adopter un run serveur RÉELLEMENT
+  // en cours (reprise après navigation ou rechargement complet).
+  useEffect(() => {
+    seedFromServer();
+  }, []);
 
   // Prénom du déposant mémorisé d'un dépôt à l'autre.
   useEffect(() => {
@@ -113,8 +126,6 @@ export default function UploadForm() {
   }, []);
 
   const typeOptions = mode === 'paste' ? PASTE_TYPES : UPLOAD_TYPES;
-  const displayName =
-    mode === 'paste' ? title.trim() || 'Note collée' : file?.name ?? 'Ressource';
 
   // Réinitialise le formulaire pour un nouveau dépôt (garde le déposant mémorisé).
   const reset = () => {
@@ -132,7 +143,7 @@ export default function UploadForm() {
     setUrl('');
     setFile(null);
     setError(null);
-    setSubmittedFile(null);
+    clear();
   };
 
   const submit = async () => {
@@ -166,6 +177,12 @@ export default function UploadForm() {
         /* ignore */
       }
 
+      // Ramasse les brouillons tapés-non-validés des pickers AVANT de bâtir le
+      // FormData. `flush()` retourne SYNCHRONEMENT la valeur fusionnée : on bâtit
+      // dessus, jamais sur l'état `links`/`themes` (pas encore re-rendu à ce tick).
+      const mergedLinks = linkRef.current?.flush() ?? links;
+      const mergedThemes = themeRef.current?.flush() ?? themes;
+
       const form = new FormData();
       form.append('file', payloadFile);
       if (title.trim()) form.append('title', title.trim());
@@ -178,11 +195,12 @@ export default function UploadForm() {
       // URL : pertinente seulement pour un article collé (sans PDF).
       if (mode === 'paste' && type === 'article' && url.trim())
         form.append('url', url.trim());
-      if (hasLinks) {
+      const anyLinks = Object.values(mergedLinks).some((names) => names.length > 0);
+      if (anyLinks) {
         // Ne garde que les types réellement renseignés + leur granularité par type.
         const clean: LinksValue = {};
         const gran: Record<string, Gran> = {};
-        for (const [t, names] of Object.entries(links))
+        for (const [t, names] of Object.entries(mergedLinks))
           if (names.length) {
             clean[t] = names;
             gran[t] = linkGranularity[t] ?? 'auto';
@@ -190,8 +208,9 @@ export default function UploadForm() {
         form.append('links', JSON.stringify(clean));
         form.append('entities_granularity', JSON.stringify(gran));
       }
-      if (hasThemes) {
-        form.append('themes', JSON.stringify(themes));
+      const anyThemes = mergedThemes.length > 0;
+      if (anyThemes) {
+        form.append('themes', JSON.stringify(mergedThemes));
         form.append('themes_granularity', themesGranularity);
       }
 
@@ -201,7 +220,7 @@ export default function UploadForm() {
         setError(data.error ?? "Échec de l'upload");
         return;
       }
-      setSubmittedFile(data.file);
+      startTracking(data.file);
     } catch {
       setError("Erreur réseau pendant l'upload.");
     } finally {
@@ -211,14 +230,23 @@ export default function UploadForm() {
 
   const authorLabel = type === 'meeting_note' ? 'Participants (optionnel)' : 'Auteur (optionnel)';
 
-  // ---- Vue ingestion (après un dépôt réussi) ----
-  if (submittedFile) {
+  // ---- Vue ingestion (après un dépôt réussi, ou reprise d'un run en cours) ----
+  if (ingest) {
+    // Nom affiché : les champs du formulaire s'ils sont encore là (dépôt de la même
+    // session), sinon le nom du fichier suivi (reprise après rechargement complet,
+    // où le formulaire est reparti vierge).
+    const trackedName = file?.name?.trim() || title.trim() || ingest.file || 'Ressource';
     return (
       <div className="space-y-4">
         <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-          {displayName}
+          {trackedName}
         </div>
-        <IngestStatus file={submittedFile} />
+        <IngestStatus
+          state={ingest.state}
+          slug={ingest.slug}
+          cost={ingest.cost}
+          error={ingest.error}
+        />
         <button
           type="button"
           onClick={reset}
@@ -408,34 +436,20 @@ export default function UploadForm() {
         </label>
 
         <LinkPicker
+          ref={linkRef}
           value={links}
           onChange={setLinks}
           granularity={linkGranularity}
           onGranularityChange={setLinkGranularity}
         />
 
-        <ThemePicker value={themes} onChange={setThemes} />
-
-        {hasThemes && (
-          <label className="text-xs text-gray-600">
-            Granularité des thèmes
-            <select
-              value={themesGranularity}
-              onChange={(e) =>
-                setThemesGranularity(e.target.value as 'auto' | 'resource' | 'chunk')
-              }
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
-            >
-              <option value="auto">Auto (l'agent décide)</option>
-              <option value="resource">Ressource entière</option>
-              <option value="chunk">Sections concernées</option>
-            </select>
-            <span className="mt-1 block text-[11px] text-gray-400">
-              Indice transmis à l'agent : « ressource » = thème central/transverse,
-              « sections » = thème localisé. L'agent choisit les sections exactes.
-            </span>
-          </label>
-        )}
+        <ThemePicker
+          ref={themeRef}
+          value={themes}
+          onChange={setThemes}
+          granularity={themesGranularity}
+          onGranularityChange={setThemesGranularity}
+        />
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}

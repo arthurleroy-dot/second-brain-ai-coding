@@ -2,16 +2,20 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Clock, Tags } from 'lucide-react';
+import { Clock, Tags, Trash2 } from 'lucide-react';
 import { Candidate } from '@/types';
 import { entityTypeLabel } from '@/lib/ui';
+import { useScrollRestoration } from '@/lib/use-scroll-restoration';
 import CandidateCard, { Entity, TypeInfo } from './CandidateCard';
+import DeleteEntityModal from './DeleteEntityModal';
 
 export default function EntitiesView() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
   const [types, setTypes] = useState<TypeInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<Entity | null>(null);
+  const scrollRef = useScrollRestoration<HTMLDivElement>('entities:scroll');
 
   useEffect(() => {
     let cancelled = false;
@@ -34,10 +38,12 @@ export default function EntitiesView() {
 
   const pending = candidates.filter((c) => c.status === 'pending');
 
-  if (loading) return <div className="p-6 text-sm text-gray-400">Chargement…</div>;
-
   return (
-    <div className="h-full overflow-y-auto p-6">
+    <div ref={scrollRef} className="h-full overflow-y-auto p-6">
+      {loading ? (
+        <p className="text-sm text-gray-400">Chargement…</p>
+      ) : (
+        <>
       {/* En attente de décision */}
       <section className="mb-8">
         <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
@@ -73,27 +79,51 @@ export default function EntitiesView() {
         ) : (
           <div className="space-y-1.5">
             {entities.map((e) => (
-              <Link
+              <div
                 key={e.slug}
-                href={`/entities/${e.slug}`}
-                className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-2.5 hover:border-gray-300"
+                className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white pr-2 hover:border-gray-300"
               >
-                <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
-                  {entityTypeLabel(e.entity_type)}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
-                  {e.label}
-                </span>
-                {e.aliases.length > 0 && (
-                  <span className="shrink-0 text-xs text-gray-400">
-                    {e.aliases.length} alias
+                <Link
+                  href={`/entities/${e.slug}`}
+                  className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2.5"
+                >
+                  <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+                    {entityTypeLabel(e.entity_type)}
                   </span>
-                )}
-              </Link>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
+                    {e.label}
+                  </span>
+                  {e.aliases.length > 0 && (
+                    <span className="shrink-0 text-xs text-gray-400">
+                      {e.aliases.length} alias
+                    </span>
+                  )}
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setDeleting(e)}
+                  aria-label={`Supprimer ${e.label}`}
+                  title="Supprimer l'entité"
+                  className="shrink-0 rounded-md p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-600"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
             ))}
           </div>
         )}
       </section>
+        </>
+      )}
+
+      {deleting && (
+        <DeleteEntityModal
+          slug={deleting.slug}
+          label={deleting.label}
+          onClose={() => setDeleting(null)}
+          onDeleted={(slug) => setEntities((prev) => prev.filter((x) => x.slug !== slug))}
+        />
+      )}
     </div>
   );
 }

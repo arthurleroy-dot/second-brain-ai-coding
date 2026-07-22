@@ -5,6 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import { Source } from '@/types';
 import { TYPE_TO_FOLDER } from '@/lib/ui';
 import { ResourceType } from '@/types';
+import { setSourcesQuery } from '@/lib/sources-nav-store';
+import { useScrollRestoration } from '@/lib/use-scroll-restoration';
 import SourceRow from '@/components/sources/SourceRow';
 import FilterBar from '@/components/sources/FilterBar';
 
@@ -13,6 +15,9 @@ export default function SourceList() {
   const [all, setAll] = useState<Source[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Conserve la position de défilement de la liste au va-et-vient de navigation.
+  const scrollRef = useScrollRestoration<HTMLDivElement>('sources:scroll');
+
   useEffect(() => {
     fetch('/api/sources')
       .then((r) => r.json())
@@ -20,6 +25,13 @@ export default function SourceList() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  // Mémorise la query courante pour que le lien « Sources » de la barre latérale
+  // (vers /sources nu) restaure les filtres au retour. L'URL reste la seule source.
+  const qs = params.toString();
+  useEffect(() => {
+    setSourcesQuery(qs);
+  }, [qs]);
 
   const type = params.get('type');
   const author = params.get('author');
@@ -49,7 +61,7 @@ export default function SourceList() {
       <div className="border-b border-gray-200 bg-white px-6 py-3">
         <FilterBar sources={all} />
       </div>
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-4">
         {loading ? (
           <p className="text-sm text-gray-400">Chargement…</p>
         ) : filtered.length === 0 ? (

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
+import { useScrollRestoration } from '@/lib/use-scroll-restoration';
 import UploadForm from './UploadForm';
 
 /**
@@ -12,9 +13,10 @@ import UploadForm from './UploadForm';
  */
 export default function UploadView() {
   const router = useRouter();
+  const scrollRef = useScrollRestoration<HTMLDivElement>('upload:scroll');
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div ref={scrollRef} className="h-full overflow-y-auto">
       <div className="mx-auto max-w-2xl px-6 py-6">
         <button
           type="button"

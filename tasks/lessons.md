@@ -275,3 +275,79 @@ laisser à l'utilisateur les fichiers d'une autre session ; (3) relire un fichie
 **Règle :** ne jamais présumer que le working tree n'appartient qu'à moi. Vérifier les process
 concurrents, isoler mon commit, et traiter un échec de test « data-dépendant » comme
 possiblement dû à une mutation externe avant de l'imputer à mon code.
+
+## 2026-07-22 — Restauration de scroll : ne PAS sauver au démontage (le navigateur remet scrollTop à 0 d'abord)
+**Contexte :** hook `useScrollRestoration` (persistance d'état à la navigation). Croquis
+initial de la spec : « `el.scrollTop = saved` au montage, `scrollStore.set(scrollTop)` au
+cleanup ». Pilotage Chrome réel : le scroll revenait toujours à **0** au retour. Trace
+instrumentée : `onScroll` enregistrait bien 150, puis le **cleanup lisait `scrollTop === 0`**
+(au démontage lors d'une navigation, le navigateur/Next a déjà remis le conteneur à 0) et
+**écrasait 150 par 0**. Second piège : les pages chargent leurs données APRÈS le montage →
+au montage le conteneur n'est pas assez haut, `scrollTop = saved` est clampé à 0.
+**Correction :** (1) enregistrer la position **en continu** via l'écouteur `scroll`, JAMAIS
+au cleanup ; (2) **ré-appliquer** `saved` tant que le contenu grandit (boucle rAF bornée),
+en cessant dès un vrai geste utilisateur (`wheel`/`touchstart`/`keydown`, pas l'événement
+`scroll` que nos propres sets déclenchent). Re-testé en CDP : scroll 150 px/120 px restauré.
+**Règle :** pour restaurer une position de scroll à travers un démontage/remontage, la source
+de vérité est un écouteur `scroll` **continu** (dernière position réelle) — surtout pas une
+lecture au cleanup, car `scrollTop` y vaut déjà 0. Et prévoir le contenu asynchrone :
+réappliquer jusqu'à ce que la hauteur le permette, sans combattre l'utilisateur.
+
+## 2026-07-22 — Prouver un comportement UI sans serveur exclusif ni coût : instance isolée + CDP + état simulé
+**Contexte :** devoir démontrer de bout en bout (scroll, survie de navigation, reprise d'upload)
+alors que (a) une session concurrente faisait tourner `npm run start` sur `.next`/port 3000 —
+rebuilder l'aurait corrompu — et (b) le vrai chemin d'upload déclenche une ingestion LLM payante.
+Aucun Playwright/Puppeteer installé.
+**Correction :** monter une **instance totalement isolée** : `rsync` de `web/` (sans
+`node_modules`/`.next`) + symlink `node_modules`, config allégée (`eslint/typescript
+ignoreBuildErrors`, pas de `standalone`), build vers son propre `.next`, `next start -p 3005`,
+et surtout **`DATA_ROOT` surchargé** vers un dossier scratch (wiki copié, `.data/ingest-state.json`
+**simulé** → zéro coût LLM, wiki réel intact). Piloter un **Chrome headless via CDP** sans
+dépendance (Node 26 a `WebSocket`+`fetch` globaux) : `Page.navigate` + `Runtime.evaluate` +
+`.click()` pour la navigation SPA, lecture de `scrollTop`/DOM pour les assertions. Compléter par
+des tests unitaires du store (fetch mocké) et du handler de route (import direct avec `DATA_ROOT`
+isolé). Piège rencontré : des Chrome zombies sur le même port de debug faussent la cible CDP →
+`pkill` avant chaque run.
+**Règle :** quand l'app est monopolisée par une autre session et/ou que le vrai chemin coûte de
+l'argent, ne pas renoncer à la preuve : cloner l'app en isolé (`DATA_ROOT`/`WIKI_ROOT`/`RAW_ROOT`
+surchargeables), simuler l'état serveur sur disque, et piloter un vrai navigateur en CDP (zéro
+dépendance). Tuer les Chrome de debug traînants entre les runs.
+
+## 2026-07-22 — Un champ à validation explicite (`+`/Entrée) perd sa saisie au submit → flush()
+**Contexte :** à l'upload, taper un nom d'entité (LinkPicker) ou de thème (ThemePicker) puis
+cliquer « Déposer → » **sans** presser `+`/Entrée perdait la saisie : le brouillon vivait dans
+un état LOCAL du picker (`drafts`/`draft`) et ne rejoignait la valeur remontée au parent qu'à la
+validation explicite. Conséquence en aval : item non déclaré au sidecar → jamais créé
+directement → au mieux détecté par l'IA → tombe en « candidate » (confirmation manuelle). Symptôme
+rapporté : « déclarer un item **nouveau** ne le crée pas, un item **connu** oui » — car un connu a
+une puce cliquable (1 clic = validé), un nouveau doit être tapé (exposé à l'oubli de validation).
+**Correction :** au submit, **flusher** les brouillons via `useImperativeHandle` + `flush()` :
+`flush()` calcule SYNCHRONEMENT la valeur fusionnée (`value` + brouillon, via helpers purs testés
+`web/lib/upload-drafts.ts`), la commit dans l'état du picker pour l'UI, ET la **retourne** ;
+`submit()` bâtit le FormData sur la valeur RETOURNÉE, jamais sur l'état `links`/`themes` (pas encore
+re-rendu à ce tick). Écartés : `onBlur→commit` (course non déterministe, le `onClick` lit une
+closure périmée) et le lifting de `drafts` dans le parent (couplage + re-render à chaque frappe).
+**Règle :** tout champ à validation explicite doit **flusher son brouillon au submit** et le
+consommateur doit lire la valeur **retournée** par le flush, pas l'état React (asynchrone). Preuve
+sans clé IA ni serveur exclusif : piloter le VRAI handler `POST /api/upload` avec un `DATA_ROOT`
+isolé + verrou d'ingestion pré-posé (`ingest.lock` → `runIngestion()` no-op, 0 coût), FormData
+issue des vrais helpers de fusion → inspecter le sidecar écrit (`links:`/`themes:` présents).
+
+## 2026-07-22 — Supprimer une ressource ne supprime PAS un thème qu'elle a créé (thème fantôme)
+**Contexte :** purge d'une note de test qui avait créé le thème « harness-engineering ». La note
+liait ce thème en **chunk-only** (`topics: []` au frontmatter, mais arête `belongs_to_theme` +
+fichier thème + ligne d'index bien présents). Or `deleteResource` (a) ne nettoie que les thèmes du
+**frontmatter** `meta.topics`, et (b) commente explicitement « Registre = jamais delete » : il ne
+supprime JAMAIS un fichier thème. Résultat de la purge « littérale » : un thème fantôme vide
+(fichier + nœud `theme:` + ligne d'index) pointant vers une ressource supprimée. Piège : `wiki:verify`
+reste **vert** (il vérifie ressource→thème via frontmatter et les orphelins `resource:`, pas
+thème→ressource ni les nœuds `theme:` orphelins) → le vert ne prouve pas « zéro trace ».
+**Correction :** compléter la purge par un retrait manuel du thème : `delete` du fichier
+`wiki/themes/<slug>.md` + retrait du nœud/arêtes `theme:<slug>` (via `parseGraph`/`serializeGraph`
+pour un formatage byte-identique) + retrait de la ligne `[[themes/<slug>|…]]` d'`index.md`. Toujours
+**valider d'abord sur une COPIE scratch** (`DATA_ROOT` isolé) : rejouer la purge complète, vérifier
+`wiki:verify` vert ET **grep zéro trace résiduelle** (fichiers + index) avant d'appliquer au vrai wiki.
+**Règle :** `wiki:verify` vert ≠ « zéro trace ». Après une suppression, prouver la propreté par un
+**grep exhaustif des slugs supprimés** (fichiers + `graph.json`/`index.md`/`_ingested.json`/candidats),
+pas seulement par le linter. Un thème créé par déclaration chunk-only n'est pas nettoyé par
+`deleteResource` — le retirer explicitement, et valider sur copie avant le vrai dépôt.

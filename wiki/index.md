@@ -1,12 +1,12 @@
 ---
 type: index
-last_updated: "2026-07-03"
+last_updated: "2026-07-22"
 resource_count: 13
-theme_count: 6
+theme_count: 7
 author_count: 10
 ---
 
-## Thèmes (6)
+## Thèmes (7)
 
 - [[themes/agentic-coding|Agentic Coding]] — 7 ressources · agentic factories, 4 niveaux 1×→20×, Cursor, IBM, LATAM Airlines
 - [[themes/context-engineering|Context Engineering]] — 3 ressources · knowledge graphs, spec-driven dev, agent-ready tasks
@@ -53,13 +53,24 @@ author_count: 10
 - [[resources/ai-revolution-software-development|The AI revolution in software development]] — McKinsey · 2026-04 · 4 niveaux 1×→20× ; factory 2 postes ; IBM 8 000 devs ; LATAM +50%
 - [[resources/rewiring-software-delivery-agentic-era|Rewiring software delivery for the agentic era]] — McKinsey · 2026-05 · sprint 24h ; 3-5× prod, 60% réduction équipes ; knowledge graphs
 
+### Note perso (0)
+
+### Article (0)
+
+### Réunion (0)
+
+
+
+
 ---
 
 ## Index par date
 
 - [[by-date/2024/2024|2024]] — 1 ressource
 - [[by-date/2025/2025|2025]] — 1 ressource
-- [[by-date/2026/2026|2026]] — 11 ressources (dont 4 date exacte inconnue)
+- [[by-date/2027/2026|2026]] — 11 ressources (dont 4 date exacte inconnue)
+- [[by-date/2025/2026|2026]] — 1 ressource
+- [[by-date/2027/2026|2026]] — 1 ressource
 
 ## Index par type
 

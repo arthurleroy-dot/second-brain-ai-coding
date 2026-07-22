@@ -3,7 +3,7 @@ type: theme
 slug: agentic-coding
 label: Agentic Coding
 resource_count: 7
-last_updated: "2026-07-03"
+last_updated: "2026-07-21"
 ---
 
 ## [[../resources/top-engineers-anthropic-openai-ai-writes-100-pct-code|Top engineers at Anthropic, OpenAI say AI now writes 100% of their code]]
@@ -67,3 +67,5 @@ last_updated: "2026-07-03"
 `2026-01 · report-pdf · externe — Deloitte`
 
 - [[../resources/state-of-ai-2026-untapped-edge#ia-agentique-et-gouvernance|IA agentique et gouvernance]] — 23% usage modéré aujourd'hui → 74% dans 2 ans ; 21% gouvernance mature ; exemples sectoriels
+
+---
