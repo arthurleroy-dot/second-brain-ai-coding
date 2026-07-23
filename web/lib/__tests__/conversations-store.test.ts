@@ -89,6 +89,42 @@ test('listConversations trie par updated_at décroissant, messages vidés', asyn
   assert.ok(list.every((c) => c.messages.length === 0), 'liste = métadonnées seules');
 });
 
+test('deleteConversation supprime le fichier et getConversation renvoie null ; idempotent', async () => {
+  const { createConversation, getConversation, deleteConversation } = await load();
+  const conv = (await createConversation('À supprimer'))!;
+  const file = path.join(tmp, '.data', 'conversations', `${conv.id}.json`);
+  assert.ok(fs.existsSync(file), 'le fichier doit exister avant suppression');
+  await deleteConversation(conv.id);
+  assert.ok(!fs.existsSync(file), 'le fichier ne doit plus exister après suppression');
+  assert.equal(await getConversation(conv.id), null);
+  // Idempotent : re-supprimer un id absent ne lève pas.
+  await deleteConversation(conv.id);
+  await deleteConversation('id-jamais-cree');
+  assert.ok(true);
+});
+
+test('deleteAllConversations vide la liste et le dossier ; no-op sans conversation', async () => {
+  const { createConversation, saveMessage, listConversations, deleteAllConversations } = await load();
+  const a = (await createConversation('A'))!;
+  const b = (await createConversation('B'))!;
+  const c = (await createConversation('C'))!;
+  await saveMessage(a.id, 'user', 'coucou', []);
+  assert.ok((await listConversations()).length >= 3, 'au moins 3 conversations avant');
+  await deleteAllConversations();
+  assert.deepEqual(await listConversations(), [], 'liste vide après tout effacer');
+  const dir = path.join(tmp, '.data', 'conversations');
+  assert.ok(fs.existsSync(dir), 'le dossier lui-même reste');
+  assert.deepEqual(
+    fs.readdirSync(dir).filter((n) => n.endsWith('.json')),
+    [],
+    'plus aucun .json dans le dossier',
+  );
+  // No-op : rappeler sur un dossier déjà vide ne lève pas.
+  await deleteAllConversations();
+  assert.ok(true);
+  void b; void c;
+});
+
 test('helpers robustes : id inconnu → valeurs neutres, pas d’exception', async () => {
   const { getConversation, getConversationHistory, saveMessage, renameConversationIfDefault } = await load();
   assert.equal(await getConversation('inconnu'), null);

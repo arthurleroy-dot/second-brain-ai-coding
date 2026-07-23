@@ -16,6 +16,7 @@ export default function ConfirmDialog({
   cancelLabel = 'Annuler',
   onConfirm,
   onCancel,
+  danger = false,
 }: {
   title: string;
   message: string;
@@ -23,6 +24,8 @@ export default function ConfirmDialog({
   cancelLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Action destructive → bouton de confirmation rouge au lieu du vert par défaut. */
+  danger?: boolean;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -63,7 +66,11 @@ export default function ConfirmDialog({
           </button>
           <button
             onClick={onConfirm}
-            className="rounded-lg bg-[#0F6E56] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#0c5a47]"
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium text-white ${
+              danger
+                ? 'bg-red-600 hover:bg-red-700'
+                : 'bg-[#0F6E56] hover:bg-[#0c5a47]'
+            }`}
           >
             {confirmLabel}
           </button>

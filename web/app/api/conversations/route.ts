@@ -1,5 +1,9 @@
 import { NextRequest } from 'next/server';
-import { createConversation, listConversations } from '@/lib/conversations-store';
+import {
+  createConversation,
+  deleteAllConversations,
+  listConversations,
+} from '@/lib/conversations-store';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,4 +22,16 @@ export async function POST(req: NextRequest) {
   }
   const conversation = await createConversation(title);
   return Response.json({ conversation });
+}
+
+export async function DELETE() {
+  try {
+    await deleteAllConversations();
+    return Response.json({ ok: true });
+  } catch (e: any) {
+    return Response.json(
+      { error: `Suppression échouée : ${e?.message ?? 'inconnu'}` },
+      { status: 500 },
+    );
+  }
 }

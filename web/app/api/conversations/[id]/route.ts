@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { getConversation } from '@/lib/conversations-store';
+import { deleteConversation, getConversation } from '@/lib/conversations-store';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,4 +12,19 @@ export async function GET(
     return Response.json({ conversation: null }, { status: 404 });
   }
   return Response.json({ conversation });
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: { id: string } },
+) {
+  try {
+    await deleteConversation(params.id);
+    return Response.json({ ok: true });
+  } catch (e: any) {
+    return Response.json(
+      { error: `Suppression échouée : ${e?.message ?? 'inconnu'}` },
+      { status: 500 },
+    );
+  }
 }

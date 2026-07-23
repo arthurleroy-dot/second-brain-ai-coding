@@ -130,6 +130,30 @@ export async function saveMessage(
   await writeJsonAtomic(convPath(conversationId), conv);
 }
 
+/** Supprime la conversation `id`. Idempotent : absente = succès. */
+export async function deleteConversation(id: string): Promise<void> {
+  try {
+    await fs.unlink(convPath(id));
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e; // vraie erreur → remonte (500)
+  }
+}
+
+/** Supprime toutes les conversations (ne supprime pas le dossier lui-même). */
+export async function deleteAllConversations(): Promise<void> {
+  let names: string[];
+  try {
+    names = await fs.readdir(CONV_DIR);
+  } catch {
+    return; // dossier pas encore créé → rien à faire
+  }
+  await Promise.all(
+    names
+      .filter((n) => n.endsWith('.json'))
+      .map((n) => fs.unlink(path.join(CONV_DIR, n)).catch(() => {})),
+  );
+}
+
 export async function renameConversationIfDefault(
   conversationId: string | null,
   firstUserMessage: string,
