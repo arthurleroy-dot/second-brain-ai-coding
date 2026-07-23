@@ -647,7 +647,8 @@ export async function buildCandidateOps(
     const doc = parseCandidates(await readRepoFile('wiki/entities/_candidates.json'), today);
     doc.generated = today;
     for (const d of eDet) {
-      const types = d?.entity_type && reg.entityTypes.has(String(d.entity_type)) ? [String(d.entity_type)] : [];
+      const t = d?.entity_type ? slugify(String(d.entity_type)) : '';
+      const types = t ? [t] : [];
       mergeCandidate(doc, d, resourceSlug, today, types);
     }
     ops.push({ path: 'wiki/entities/_candidates.json', content: JSON.stringify(doc, null, 2) + '\n' });

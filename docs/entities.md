@@ -102,8 +102,9 @@ traitement dépend de ce qui a été déclaré :
    - écriture reconnue (match casse/accents sur `label`/`aliases` d'une entité
      existante) → **lien automatique** ;
    - écriture inconnue → **ne pas créer** : entrée dans
-     `wiki/entities/_candidates.json` (l'agent peut **proposer** un `entity_type`
-     — TOUJOURS parmi les types déjà présents dans le registre — l'humain confirme).
+     `wiki/entities/_candidates.json` (l'agent peut **proposer** un `entity_type`,
+     y compris un type inédit — il réutilise un type existant s'il convient ;
+     l'humain tranche sur `/entities`).
 3. **Rien déclaré** → l'IA ne lie que les entités **déjà connues** détectées
    dans le texte ; toute nouvelle entité va en candidate.
 
@@ -186,7 +187,6 @@ d'ingestion a pu rater. C'est à la fois le **filet de sécurité** du moteur LL
 - `unknown-entity` — ressource reliée à un slug d'entité absent du registre ;
 - `duplicate-entity` — deux entités partagent une forme (label/alias) ;
 - `candidate-collision` — une candidate correspond déjà à une entité existante ;
-- `invented-type` — type suggéré d'une candidate hors des types connus ;
 - `graph-missing-node` / `graph-missing-edge` — lien absent de `graph.json` (couvre
   désormais `mentions`, `has_origin`, `belongs_to_theme`, `written_by`, `has_type`,
   `published_on`) ;

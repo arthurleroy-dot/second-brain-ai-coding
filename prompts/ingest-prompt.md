@@ -95,17 +95,49 @@ leurs `label`/`aliases`) et **les entités/thèmes déclarés** pour cette sourc
   `chunk` = annotation sous la/les section(s) concernée(s) ; `auto` = à toi de juger).
 - Complétude : toute mention en prose d'une entité **connue** (match `label`/`aliases`)
   DOIT être reliée.
-- Tout thème/entité **réellement inédit** (ni connu ni déclaré) → **NE le relie pas** ;
-  reporte-le dans `<detected-new>`.
+- Tout thème/entité **réellement inédit** → **NE le relie pas** ; reporte-le dans
+  `<detected-new>`. « Inédit » est défini strictement à la section « Critères de
+  détection » ci-dessous (ni connu, ni déclaré, ni synonyme/reformulation d'une
+  entrée connue).
+
+## Critères de détection (entités / thèmes)
+
+Applique ces critères AVANT de reporter un inédit dans `<detected-new>`.
+
+**Entité** = toute chose NOMMÉE et identifiable (un nom propre récurrent). Le
+critère décisif est le TEST, pas l'appartenance à une catégorie :
+« voudrait-on une page *toutes les ressources qui parlent de X* ? » → oui = entité.
+Les types ne sont donnés qu'en illustration NON limitative — outil, modèle,
+entreprise, personne, protocole… *cette liste n'est pas exhaustive : détecte tout
+nom propre qui passe le test*. Ne reporte PAS les termes génériques du domaine
+(IA, LLM, agent, prompt, code, développeur, productivité…) : ce ne sont pas des
+entités.
+
+**Thème** = un SUJET / concept transversal (nom commun), pas une chose nommée.
+Test : « est-ce un angle qu'on voudrait suivre dans le temps, à travers plusieurs
+sources ? » → oui = thème. Ne reporte PAS l'anecdotique (vu une fois, sans portée)
+ni une simple reformulation d'un thème existant.
+
+**Frontière entité ↔ thème** : nom propre → entité ; concept ou catégorie → thème.
+- `Cursor`, `Anthropic`, `GPT-5`, `MCP` → entités.
+- « agentic coding », « revue de code par IA », « les assistants de code » (catégorie) → thèmes.
+
+**Anti-doublon (obligatoire).** Un thème/entité n'est « inédit » que s'il n'est NI
+un synonyme, NI une traduction, NI un sous-cas, NI une reformulation d'une entrée
+des registres connus (fournis dans le message système). S'il correspond — même
+sous d'autres mots — à une entrée existante : RELIE à l'existant, ne le reporte
+PAS dans `<detected-new>`. Exemple : « coût des tokens » relève de `finops-ia`
+(s'il figure aux registres) → relier, ne pas proposer.
 
 ## Bloc `<detected-new>` (JSON)
 
 Liste les inédits détectés (pour arbitrage humain ultérieur ; le code en fait des
 candidates). Objets :
 
-- entité : `{"name": "Cursor", "entity_type": "tool"|null, "section": "<slug-heading>"|null, "context": "extrait ≤1 ligne"}`
-  — `entity_type` proposé **uniquement** parmi les types du registre, sinon `null` ;
-  `section` = slug du heading où c'est vu (ou `null` si transverse).
+- entité : `{"name": "Cursor", "entity_type": "<type>"|null, "section": "<slug-heading>"|null, "context": "extrait ≤1 ligne"}`
+  — propose le `entity_type` le plus juste : **réutilise un type existant du
+  registre s'il convient, n'en propose un nouveau que s'il est vraiment différent** ;
+  `null` si incertain. `section` = slug du heading où c'est vu (ou `null` si transverse).
 - thème : `{"name": "Développeur augmenté", "section": "<slug-heading>"|null, "context": "extrait ≤1 ligne"}`.
 
 Si rien d'inédit : `{"entities": [], "themes": []}`.

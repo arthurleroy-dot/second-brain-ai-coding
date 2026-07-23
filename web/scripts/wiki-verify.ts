@@ -8,7 +8,6 @@
  *   - unknown-entity     : ressource reliée à un slug d'entité absent du registre
  *   - duplicate-entity   : deux entités partagent une même forme (label/alias)
  *   - candidate-collision: une candidate correspond déjà à une entité existante
- *   - invented-type      : type suggéré d'une candidate hors des types connus
  *   - graph-missing-node : node manquant (entity:/origin:/theme:/author:/type:/date:<slug>) dans graph.json
  *   - graph-missing-edge : lien manquant (mentions/has_origin/belongs_to_theme/written_by/has_type/published_on)
  *   - graph-orphan-node  : node resource:<slug> sans fichier ressource (suppression incomplète)
@@ -189,7 +188,6 @@ async function main() {
     });
   }
   const registrySlugs = new Set(entities.map((e) => e.slug));
-  const registryTypes = new Set(entities.map((e) => e.entity_type));
   const surfaceForms = (e: Entity) => [e.label, ...e.aliases].map(normalize).filter(Boolean);
 
   // duplicate-entity : une même forme normalisée pour deux slugs distincts.
@@ -330,13 +328,6 @@ async function main() {
           'error',
           `candidate « ${c?.name} » correspond déjà à une entité — à relier/fusionner, pas laisser en attente`,
         );
-      for (const t of arr(c?.suggested_types))
-        if (!registryTypes.has(t))
-          add(
-            'invented-type',
-            'warn',
-            `candidate « ${c?.name} » suggère un type inconnu du registre : ${t}`,
-          );
     }
   }
 

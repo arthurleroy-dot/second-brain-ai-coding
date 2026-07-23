@@ -412,6 +412,63 @@ test('chaîne complète : 3 branches §R11 + wiki:verify sans erreur', async () 
 });
 
 // ————————————————————————————————————————————————————————————————
+// Critères de détection : les TYPES d'entités sont OUVERTS. Un entity_type inédit
+// (hors registre) survit désormais en candidate (suggested_types), et wiki:verify
+// ne le signale plus (alerte invented-type retirée).
+
+test('buildCandidateOps : un entity_type inédit survit dans suggested_types (slugifié)', async () => {
+  const { buildCandidateOps } = await load();
+  const { applyFileOps } = await import('../wiki-fs');
+  // Repartir d'un fichier candidats VIDE : la candidate est alors créée de zéro.
+  await applyFileOps([
+    {
+      path: 'wiki/entities/_candidates.json',
+      content: JSON.stringify({ version: 1, generated: '2026-07-23', candidates: [] }, null, 2) + '\n',
+    },
+  ]);
+  // Registre SANS le type visé (« entreprise » absent ; seul « tool » connu).
+  const reg = { entities: [], themes: [], entityTypes: new Set(['tool']) };
+  const detected = {
+    entities: [{ name: 'Acme Corp', entity_type: 'entreprise', section: null, context: 'Acme Corp est citée.' }],
+    themes: [],
+  };
+  const ops = await buildCandidateOps(detected as any, 'demo', reg as any, [], [], '2026-07-23');
+  const op = ops.find((o) => o.path === 'wiki/entities/_candidates.json' && 'content' in o) as any;
+  assert.ok(op, 'op sur wiki/entities/_candidates.json présente');
+  const doc = JSON.parse(op.content);
+  // Avant l'ouverture des types : suggested_types aurait été []. Désormais : ['entreprise'].
+  assert.deepEqual(doc.candidates[0].suggested_types, ['entreprise'], 'le type inédit survit, slugifié');
+});
+
+test('wiki:verify : un type inédit en candidate ne déclenche plus invented-type', async () => {
+  const { applyFileOps } = await import('../wiki-fs');
+  const doc = {
+    version: 1,
+    generated: '2026-07-23',
+    candidates: [
+      {
+        name: 'Acme Corp',
+        normalized: 'acme corp',
+        variants: ['Acme Corp'],
+        note: null,
+        seen_in: [{ resource: 'demo', section: null, context: '…' }],
+        suggested_aliases: [],
+        suggested_types: ['entreprise'], // type INÉDIT (hors registre)
+        status: 'pending',
+        decision: { target_slug: null, entity_type: null, slug: null },
+        updated_at: '2026-07-23',
+      },
+    ],
+  };
+  await applyFileOps([{ path: 'wiki/entities/_candidates.json', content: JSON.stringify(doc, null, 2) + '\n' }]);
+  const report = await runVerify();
+  assert.ok(
+    report.issues.every((i: any) => i.category !== 'invented-type'),
+    'aucune issue invented-type pour un type inédit',
+  );
+});
+
+// ————————————————————————————————————————————————————————————————
 // Chantier 5 : les DÉCLARATIONS deviennent des fiches validées dans le run,
 // même si l'IA les OMET du frontmatter (forceDeclaredLinks + exclusion durcie).
 
