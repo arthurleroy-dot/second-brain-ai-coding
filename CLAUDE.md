@@ -9,7 +9,7 @@ gonfle pas — toute spécification longue va dans `docs/`.
 ```
 raw/     ← Couche 1 : sources brutes IMMUABLES (déposées, jamais modifiées)
 wiki/    ← Couches 2 & 3 : resources/ (canonique) + vues dérivées + graph.json
-           SEULE zone d'écriture de l'agent d'ingestion
+           SEULE zone d'écriture de l'ingestion (moteur déterministe)
 web/     ← Plateforme Next.js : lit le wiki, chat, upload, ingestion LOCALE
 docs/    ← Spécifications détaillées (lues à la demande)
 tasks/   ← todo.md + lessons.md + specs/ (plans validés → implémentation)
@@ -17,11 +17,13 @@ tasks/   ← todo.md + lessons.md + specs/ (plans validés → implémentation)
 
 > **Architecture LOCAL-FIRST (refonte 2026-07-20).** L'app est une application de
 > bureau (Electron) : chacun a sa propre instance et son propre wiki EN LOCAL. Toutes
-> les écritures (dépôt, arbitrages, suppression) et l'ingestion (agent IA embarqué)
-> se font sur le disque local — plus de GitHub Action, plus de Supabase, plus de Vercel,
-> plus d'auth mot de passe. GitHub ne sert qu'à distribuer les mises à jour. Accès IA :
-> gateway LiteLLM de l'entreprise (clé partagée). Détails : `docs/platform.md` +
-> `tasks/specs/2026-07-20-refonte-local-first-electron.md`.
+> les écritures (dépôt, arbitrages, suppression) et l'ingestion (un appel IA + un
+> moteur déterministe) se font sur le disque local — plus de GitHub Action, plus de
+> Supabase, plus de Vercel, plus d'auth mot de passe. GitHub ne sert qu'à distribuer
+> les binaires de l'app (téléchargement manuel du `.dmg`/`.exe` ; pas d'auto-updater
+> en v1). Accès IA : écran de réglages par utilisateur (`/reglages`) — Anthropic en
+> direct OU une passerelle compatible (gateway LiteLLM), chacun sa clé. Détails :
+> `docs/platform.md` + `tasks/specs/2026-07-20-refonte-local-first-electron.md`.
 
 ## Règles cardinales
 
@@ -37,12 +39,18 @@ tasks/   ← todo.md + lessons.md + specs/ (plans validés → implémentation)
 3. **`wiki/resources/*.md` est canonique.** Tout le reste sous `wiki/` (themes/,
    authors/, entities/, by-date/, types.md, origin/, index.md, graph.json) est
    une **vue dérivée** — jamais de contenu original dedans.
-4. **L'agent d'ingestion n'écrit QUE sous `wiki/`.** Garde-fou déterministe
-   (`canUseTool` scopé `wiki/`) dans `web/lib/ingest-local.ts` — toute écriture hors
-   `wiki/` est refusée.
+4. **L'IA d'ingestion n'écrit aucun fichier.** Elle ne produit que du texte (la page
+   ressource) ; un **moteur déterministe** (`web/lib/wiki-project.ts`) reconstruit
+   toutes les vues sous `wiki/`. L'unique voie d'écriture est `applyFileOps`
+   (`web/lib/wiki-fs.ts`), dont le garde-fou n'autorise QUE les chemins sous `wiki/`
+   ou `raw/` — tout autre préfixe fait échouer le lot entier.
 5. **Les slugs sont immuables** une fois assignés — les renommer casse les wikilinks.
-6. **Fidélité > brièveté** : une ressource reproduit toute l'information de la
-   source (chiffres, exemples, citations), paraphrasée mais non raccourcie.
+6. **Verbatim** : une ressource reproduit le texte de la source **mot pour mot**,
+   dans sa langue d'origine. L'IA met en markdown ; elle ne reformule, ne résume, ne
+   traduit ni n'ajoute jamais. Seuls ajouts autorisés = repères structurels
+   (blockquote de navigation, annotations `topics:`/`entities:` par section) ; seul
+   « nettoyage » = retirer les scories d'extraction (n° de page, en-têtes/pieds
+   répétés) et recoller les mots coupés en fin de ligne.
 
 ## Où lire quoi
 

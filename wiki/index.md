@@ -1,23 +1,24 @@
 ---
 type: index
-last_updated: "2026-07-22"
-resource_count: 13
-theme_count: 7
-author_count: 10
+last_updated: "2026-07-23"
+resource_count: 17
+theme_count: 8
+author_count: 11
 ---
 
-## Thèmes (7)
+## Thèmes (8)
 
-- [[themes/agentic-coding|Agentic Coding]] — 7 ressources · agentic factories, 4 niveaux 1×→20×, Cursor, IBM, LATAM Airlines
-- [[themes/context-engineering|Context Engineering]] — 3 ressources · knowledge graphs, spec-driven dev, agent-ready tasks
-- [[themes/finops-ia|FinOps IA]] — 8 ressources · paradoxe de Jevons, token attribution, FinOps parallèle pour LLMs
-- [[themes/outils-et-marche|Outils et Marché]] — 8 ressources · Claude Code vs Copilot vs Codex, marché $780B en 2030
-- [[themes/securite-et-risques|Sécurité et Risques]] — 5 ressources · IA souveraine, cybersécurité agentique, gouvernance agents
-- [[themes/transformation-organisationnelle|Transformation Organisationnelle]] — 8 ressources · 24h sprint, équipes 8-12→3-4, redesign emplois
+- [[themes/agentic-coding|Agentic Coding]] — 9 ressources
+- [[themes/context-engineering|Context Engineering]] — 6 ressources
+- [[themes/finops-ia|FinOps IA]] — 12 ressources
+- [[themes/outils-et-marche|Outils et Marché]] — 10 ressources
+- [[themes/securite-et-risques|Sécurité et Risques]] — 6 ressources
+- [[themes/transformation-organisationnelle|Transformation Organisationnelle]] — 11 ressources
+- [[themes/labor-market-evolution|Labor Market Evolution]] — 1 ressource
 
 ---
 
-## Auteurs (10)
+## Auteurs (11)
 
 - [[authors/accenture|Accenture]] — 1 ressource · 2024 · 9%→16% processus AI-led ; 2.5×/2.4×/3.3× vs pairs
 - [[authors/anthropic|Anthropic]] — 1 ressource · 2026 · 8 tendances agentic coding ; paradoxe 60/20%
@@ -29,10 +30,11 @@ author_count: 10
 - [[authors/leanops-tech|LeanOps Tech]] — 1 ressource · 2026 · 23 entreprises IA : FinOps parallèle pour LLMs
 - [[authors/mckinsey|McKinsey]] — 3 ressources · 2025-11 & 2026-04 & 2026-05 · factory agentique ; 2 shifts + 3 enablers
 - [[authors/rick-pollick|Rick Pollick]] — 1 ressource · 2026 · coût LLM = problème d'ingénierie, pas de finance
+- [[authors/maxim-massenkoff-and-peter-mccrory|Maxim Massenkoff and Peter McCrory]] — 1 ressource
 
 ---
 
-## Ressources (13)
+## Ressources (17)
 
 ### Articles (6)
 
@@ -53,11 +55,18 @@ author_count: 10
 - [[resources/ai-revolution-software-development|The AI revolution in software development]] — McKinsey · 2026-04 · 4 niveaux 1×→20× ; factory 2 postes ; IBM 8 000 devs ; LATAM +50%
 - [[resources/rewiring-software-delivery-agentic-era|Rewiring software delivery for the agentic era]] — McKinsey · 2026-05 · sprint 24h ; 3-5× prod, 60% réduction équipes ; knowledge graphs
 
-### Note perso (0)
+### Note perso (1)
+- [[resources/finops-c-est-le-financement-des-tokens|Finops c'est le financement des tokens]] — 
 
-### Article (0)
+### Article (1)
+- [[resources/le-finops-et-le-context-engineering|Le FinOps et le Context Engineering]] — 
 
-### Réunion (0)
+### Réunion (1)
+- [[resources/point-equipe-plateforme-etat-de-notre-pratique-du-coding-assiste-par-ia|Point d'équipe plateforme — état de notre pratique du coding assisté par IA]] — 
+
+### Rapport PDF (1)
+
+- [[resources/labor-market-impacts-ai-new-measure-early-evidence|Labor market impacts of AI: A new measure and early evidence]] — Maxim Massenkoff and Peter McCrory · 2026-03-05
 
 
 
@@ -71,6 +80,7 @@ author_count: 10
 - [[by-date/2027/2026|2026]] — 11 ressources (dont 4 date exacte inconnue)
 - [[by-date/2025/2026|2026]] — 1 ressource
 - [[by-date/2027/2026|2026]] — 1 ressource
+- [[by-date/2026/2026|2026]] — 1 ressource
 
 ## Index par type
 
@@ -78,5 +88,5 @@ author_count: 10
 
 ## Origine (2)
 
-- [[origin/externe|Externe]] — 13 ressources
-- [[origin/interne|Interne]] — 0 ressource
+- [[origin/externe|Externe]] — 14 ressources
+- [[origin/interne|Interne]] — 2 ressource

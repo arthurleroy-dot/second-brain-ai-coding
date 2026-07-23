@@ -1,0 +1,4 @@
+Le finops c'est l'étude du financement des produits IA
+
+
+Le contexte engineering c'est manager la fenêtre de contexte d'un agent

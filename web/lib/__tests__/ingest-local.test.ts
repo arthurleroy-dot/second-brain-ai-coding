@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import JSZip from 'jszip';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ingest-local-test-'));
 process.env.DATA_ROOT = tmp;
@@ -102,6 +103,61 @@ test('estimateCost applique le barème Sonnet §R8', async () => {
   // Cas réaliste : 15k in, 5k out, sans cache → 0,045 + 0,075 = 0,12 $
   const c2 = estimateCost({ input_tokens: 15_000, output_tokens: 5_000 });
   assert.ok(Math.abs(c2 - 0.12) < 1e-9, `attendu 0,12 $, obtenu ${c2}`);
+});
+
+test('consumeModelStream : re-capte usage + rawText + deltas (non-régression coût §4)', async () => {
+  const { consumeModelStream, estimateCost, parseGeneration } = await load();
+
+  // Faux flux d'événements bruts d'un appel streaming (mêmes formes que le SDK).
+  async function* fakeStream() {
+    yield {
+      type: 'message_start',
+      message: { usage: { input_tokens: 15_000, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 1 } },
+    };
+    yield { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: '<resource>\n---\nslug: x\n---\n' } };
+    yield { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: '# Titre\n</resource>' } };
+    // message_delta porte le compte de SORTIE final (cumulatif).
+    yield { type: 'message_delta', usage: { output_tokens: 5_000 } };
+    yield { type: 'message_stop' };
+  }
+
+  const deltas: string[] = [];
+  const { rawText, usage } = await consumeModelStream(fakeStream(), (d) => deltas.push(d));
+
+  // Texte reconstruit dans l'ordre + deltas relayés pour l'animation.
+  assert.equal(deltas.length, 2, 'un onDelta par fragment de texte');
+  assert.ok(rawText.includes('<resource>') && rawText.includes('</resource>'));
+  assert.ok(parseGeneration(rawText).markdown.startsWith('---\nslug: x'), 'parsing aval inchangé');
+
+  // Usage re-capté : input depuis message_start, output final depuis message_delta.
+  assert.equal(usage.input_tokens, 15_000, 'input re-capté (message_start)');
+  assert.equal(usage.output_tokens, 5_000, 'output final re-capté (message_delta)');
+  // Le calcul de coût de repli reste correct (~0,12 $) si l'en-tête gateway manque.
+  assert.ok(Math.abs(estimateCost(usage) - 0.12) < 1e-9, `estimateCost fallback ≈ 0,12 $, obtenu ${estimateCost(usage)}`);
+});
+
+test('consumeModelStream : tolère le « Premature close » APRÈS message_stop', async () => {
+  const { consumeModelStream } = await load();
+  async function* prematureClose() {
+    yield { type: 'message_start', message: { usage: { input_tokens: 10, output_tokens: 1 } } };
+    yield { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'ok' } };
+    yield { type: 'message_delta', usage: { output_tokens: 2 } };
+    yield { type: 'message_stop' };
+    throw new Error('Premature close'); // quirk LiteLLM APRÈS la fin du message
+  }
+  // Ne doit PAS relancer l'erreur (le message était complet).
+  const { rawText, usage } = await consumeModelStream(prematureClose());
+  assert.equal(rawText, 'ok');
+  assert.equal(usage.output_tokens, 2);
+});
+
+test('consumeModelStream : une erreur AVANT message_stop est bien remontée', async () => {
+  const { consumeModelStream } = await load();
+  async function* earlyError() {
+    yield { type: 'message_start', message: { usage: { input_tokens: 10, output_tokens: 1 } } };
+    throw new Error('coupure amont');
+  }
+  await assert.rejects(() => consumeModelStream(earlyError()), /coupure amont/);
 });
 
 test('parseGeneration extrait la ressource + les détections (JSON robuste)', async () => {
@@ -244,7 +300,6 @@ topics: [finops-ia]
 entities: [claude-code, n8n]
 url: "https://example.com/demo"
 source_file: "demo.pdf"
-needs_review: false
 ---
 
 > Par [[../authors/testco|TestCo]] · [[../by-date/2026/2026-05/2026-05|2026-05]] · Thèmes : [[../themes/finops-ia|FinOps IA]]
@@ -455,7 +510,6 @@ origin: interne
 topics: []
 entities: []
 source_file: "note-perso.txt"
-needs_review: false
 ---
 
 > Par [[../authors/arthur|Arthur]] · [[../by-date/2026/2026-07/2026-07|2026-07]]
@@ -540,4 +594,354 @@ test('chantier 5 : déclarations omises par l’IA → fiches créées directeme
 
   // CONFORME : un nom réellement DIFFÉRENT (« Julien Ye ») PEUT rester en file d'attente.
   assert.ok(eCand.candidates.some((c: any) => c.normalized === 'julien ye'), 'Julien Ye (nom différent) reste candidate');
+});
+
+// ————————————————————————————————————————————————————————————————
+// Fix « aucun thème » : remontée des topics de section vers le frontmatter.
+
+test('rollupSectionTopics : frontmatter vide + 2 sections → union, idempotent', async () => {
+  const { rollupSectionTopics } = await load();
+  const { splitFrontmatter } = await import('../wiki-mutate');
+  const md = `---
+slug: x
+topics: []
+---
+
+## A
+\`topics: [agentic-coding, outils-et-marche]\`
+
+Texte A.
+
+## B
+\`topics: [finops-ia]\`
+
+Texte B.
+`;
+  const out = rollupSectionTopics(md);
+  assert.match(splitFrontmatter(out).fm, /^topics: \[agentic-coding, outils-et-marche, finops-ia\]$/m);
+  // Idempotence : re-appliquer ne change rien.
+  assert.equal(rollupSectionTopics(out), out);
+});
+
+test('rebuildNav : auteur+date+topics / topics seuls / rien / idempotence', async () => {
+  const { rebuildNav } = await load();
+  const labels = { 'finops-ia': 'FinOps IA' };
+  const base = `---
+slug: x
+---
+
+> Thèmes : … ancienne nav à remplacer
+
+Corps.
+`;
+  // (1) auteur + date (mois) + topics → nav complète.
+  const v1 = rebuildNav(base, 'Arthur', '2026-05', ['finops-ia'], labels);
+  assert.ok(
+    v1.includes('> Par [[../authors/arthur|Arthur]] · [[../by-date/2026/2026-05/2026-05|2026-05]] · Thèmes : [[../themes/finops-ia|FinOps IA]]'),
+    'nav complète auteur+date+thèmes',
+  );
+  assert.ok(!v1.includes('ancienne nav'), 'ancienne nav retirée');
+  // Idempotence : ré-appliquer sur une nav déjà correcte est stable.
+  assert.equal(rebuildNav(v1, 'Arthur', '2026-05', ['finops-ia'], labels), v1);
+
+  // (2) topics SEULS (note sans auteur ni date) → nav dégénérée `> Thèmes : …`.
+  const v2 = rebuildNav(base, null, null, ['finops-ia'], labels);
+  assert.ok(v2.includes('> Thèmes : [[../themes/finops-ia|FinOps IA]]'), 'nav dégénérée thèmes');
+  assert.ok(!v2.includes('> Par '), 'pas de segment auteur');
+
+  // (3) rien (ni auteur, ni date, ni topics) → AUCUNE ligne de nav.
+  const v3 = rebuildNav(base, null, null, [], labels);
+  assert.ok(!/> (Par|Th[èe]mes)/.test(v3), 'aucune ligne de nav');
+
+  // (4) date à l'ANNÉE seule → lien année (pas mois).
+  const v4 = rebuildNav(base, null, '2025', ['finops-ia'], labels);
+  assert.ok(v4.includes('[[../by-date/2025/2025|2025]]'), 'lien by-date année seule');
+});
+
+test('parseResource : topics = union frontmatter ∪ annotations de section', async () => {
+  const { parseResource } = await import('../wiki-parser');
+  const content = `---
+slug: y
+title: "Y"
+topics: []
+entities: []
+---
+
+## Sec
+\`topics: [agentic-coding, finops-ia]\`
+
+Prose.
+`;
+  const { source } = parseResource(content, 'y');
+  assert.deepEqual([...source.topics].sort(), ['agentic-coding', 'finops-ia']);
+});
+
+// Test dédié du bug (§Tests) : frontmatter `topics: []` + 2 sections annotées, SANS
+// thème déclaré (sidecar sans themes:). Deux variantes : (1) avec auteur+date, (2) sans.
+
+const BUG_THEMES: [string, string][] = [
+  ['agentic-coding', 'Agentic Coding'],
+  ['outils-et-marche', 'Outils et Marché'],
+  ['finops-ia', 'FinOps IA'],
+  ['context-engineering', 'Context Engineering'],
+];
+
+function writeBugFixture(): void {
+  const files: Record<string, string> = {
+    'wiki/origin/interne.md': FIX5['wiki/origin/interne.md'],
+    'wiki/origin/externe.md': FIX5['wiki/origin/externe.md'],
+    'wiki/types.md': FIX5['wiki/types.md'],
+    'wiki/index.md': FIX5['wiki/index.md'],
+    'wiki/graph.json': JSON.stringify(
+      {
+        generated: '2026-01-01',
+        nodes: [
+          { id: 'origin:interne', type: 'origin', label: 'Interne' },
+          { id: 'origin:externe', type: 'origin', label: 'Externe' },
+        ],
+        edges: [],
+      },
+      null,
+      2,
+    ),
+    'wiki/_ingested.json': JSON.stringify({ version: 1, files: {} }, null, 2),
+    'wiki/entities/_candidates.json': JSON.stringify({ version: 1, generated: '2026-01-01', candidates: [] }, null, 2),
+    'wiki/themes/_candidates.json': JSON.stringify({ version: 1, generated: '2026-01-01', candidates: [] }, null, 2),
+  };
+  // Registre de thèmes RÉINITIALISÉ (resource_count 0) pour des assertions propres.
+  for (const [slug, label] of BUG_THEMES)
+    files[`wiki/themes/${slug}.md`] = `---\ntype: theme\nslug: ${slug}\nlabel: ${label}\nresource_count: 0\nlast_updated: "2026-01-01"\n---\n`;
+  for (const [rel, content] of Object.entries(files)) {
+    const abs = path.join(tmp, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, content);
+  }
+}
+
+function bugResource(slug: string, withMeta: boolean): string {
+  const author = withMeta ? 'Équipe Plateforme' : '';
+  const date = withMeta ? '2026-03' : '';
+  return `---
+slug: ${slug}
+title: "Point d'équipe plateforme"
+author: "${author}"
+date: "${date}"
+source_type: meeting-notes
+origin: interne
+topics: []
+entities: []
+url: ""
+source_file: "${slug}.txt"
+---
+
+> Thèmes : …
+
+Point d'équipe plateforme.
+
+## Outils en place
+\`topics: [agentic-coding, outils-et-marche]\`
+
+On a généralisé les agents de codage autonomes en terminal.
+
+## Ce qui coince
+\`topics: [finops-ia, context-engineering]\`
+
+Le coût des tokens explose ; la maîtrise du contexte devient déterminante.
+`;
+}
+
+async function runBugVariant(withMeta: boolean) {
+  writeBugFixture();
+  const { ingestOne, loadRegistries } = await load();
+  const { applyFileOps, readRepoFile } = await import('../wiki-fs');
+  const { splitFrontmatter } = await import('../wiki-mutate');
+  const { resourceBodyForDisplay } = await import('../wiki-md');
+
+  const slug = withMeta ? 'bug-avec-meta' : 'bug-sans-meta';
+  const registries = await loadRegistries();
+  const { ops } = await ingestOne({
+    file: `${slug}.txt`,
+    markdown: bugResource(slug, withMeta),
+    detectedNew: { entities: [], themes: [] },
+    declaredEntities: [], // sidecar SANS déclaration de thème (cœur du bug)
+    declaredThemes: [],
+    registries,
+    today: '2026-07-23',
+  });
+  await applyFileOps(ops);
+
+  const content = (await readRepoFile(`wiki/resources/${slug}.md`))!;
+  const body = splitFrontmatter(content).rest;
+
+  // Frontmatter `topics:` = UNION des slugs de section (le fix).
+  assert.match(
+    splitFrontmatter(content).fm,
+    /^topics: \[agentic-coding, outils-et-marche, finops-ia, context-engineering\]$/m,
+    'frontmatter topics = union',
+  );
+
+  // Chaque page thème porte le bloc de la ressource + resource_count 1.
+  for (const [t] of BUG_THEMES) {
+    const tp = (await readRepoFile(`wiki/themes/${t}.md`))!;
+    assert.ok(tp.includes(`## [[../resources/${slug}`), `${t} : bloc ressource`);
+    assert.ok(/resource_count: 1/.test(tp), `${t} : resource_count 1`);
+  }
+
+  // Graphe : un nœud theme:<t> + une arête belongs_to_theme par slug de l'union.
+  const graph = JSON.parse((await readRepoFile('wiki/graph.json'))!);
+  for (const [t] of BUG_THEMES) {
+    assert.ok(graph.nodes.some((n: any) => n.id === `theme:${t}`), `nœud theme:${t}`);
+    assert.ok(
+      graph.edges.some(
+        (e: any) => e.source === `resource:${slug}` && e.target === `theme:${t}` && e.relation === 'belongs_to_theme',
+      ),
+      `arête belongs_to_theme ${t}`,
+    );
+  }
+
+  // Affichage : plus AUCUN blockquote `> Thèmes :` après nettoyage.
+  assert.ok(!resourceBodyForDisplay(body).includes('> Thèmes'), 'affichage sans blockquote Thèmes');
+
+  return { body };
+}
+
+test('bug « aucun thème » — variante 1 (auteur+date) : union + vues + nav complète', async () => {
+  const { body } = await runBugVariant(true);
+  assert.ok(
+    body.includes(
+      '> Par [[../authors/equipe-plateforme|Équipe Plateforme]] · [[../by-date/2026/2026-03/2026-03|2026-03]] · Thèmes : [[../themes/agentic-coding|Agentic Coding]]',
+    ),
+    'nav variante 1 : auteur · date · thèmes',
+  );
+});
+
+test('bug « aucun thème » — variante 2 (sans auteur ni date) : union + nav dégénérée', async () => {
+  const { body } = await runBugVariant(false);
+  assert.ok(
+    body.trimStart().startsWith('> Thèmes : [[../themes/agentic-coding|Agentic Coding]]'),
+    'nav variante 2 : thèmes seuls',
+  );
+  assert.ok(!body.includes('> Par '), 'variante 2 : pas de segment auteur');
+});
+
+// ————————————————————————————————————————————————————————————————
+// Extraction texte .docx (mammoth) et .pptx (jszip + <a:t>). Fixtures générées
+// à la volée : on écrit un vrai zip OOXML dans RAW_ROOT puis extractSourceText.
+
+const RAW = path.join(tmp, 'raw');
+
+// Diapo minimale : un <p:sld> avec des <a:p>/<a:r>/<a:t>. `lines` = un <a:t> par
+// ligne (déjà encodés en entités XML si besoin par l'appelant).
+function slideXml(lines: string[]): string {
+  const paras = lines.map((t) => `<a:p><a:r><a:t>${t}</a:t></a:r></a:p>`).join('');
+  return (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+    '<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"' +
+    ' xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">' +
+    `<p:cSld><p:spTree><p:sp><p:txBody>${paras}</p:txBody></p:sp></p:spTree></p:cSld>` +
+    '</p:sld>'
+  );
+}
+
+async function writePptxFixture(name: string, files: Record<string, string>): Promise<void> {
+  const zip = new JSZip();
+  for (const [p, content] of Object.entries(files)) zip.file(p, content);
+  const buf = await zip.generateAsync({ type: 'nodebuffer' });
+  fs.writeFileSync(path.join(RAW, name), buf);
+}
+
+async function writeDocxFixture(name: string, bodyLines: string[]): Promise<void> {
+  const zip = new JSZip();
+  zip.file(
+    '[Content_Types].xml',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+      '</Types>',
+  );
+  zip.file(
+    '_rels/.rels',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>' +
+      '</Relationships>',
+  );
+  const paras = bodyLines.map((t) => `<w:p><w:r><w:t>${t}</w:t></w:r></w:p>`).join('');
+  zip.file(
+    'word/document.xml',
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+      '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+      `<w:body>${paras}</w:body></w:document>`,
+  );
+  const buf = await zip.generateAsync({ type: 'nodebuffer' });
+  fs.writeFileSync(path.join(RAW, name), buf);
+}
+
+test('extractSourceText(.pptx) : diapos dans l’ordre, notes incluses, entités décodées', async () => {
+  const { extractSourceText } = await load();
+  await writePptxFixture('deck.pptx', {
+    'ppt/slides/slide1.xml': slideXml(['MARQUEUR_DIAPO_1', 'DEUXIEME LIGNE']),
+    'ppt/slides/slide2.xml': slideXml(['MARQUEUR_DIAPO_2', 'Anthropic &amp; OpenAI &lt;2026&gt;']),
+    'ppt/notesSlides/notesSlide1.xml': slideXml(['NOTE_ORATEUR_DIAPO_1']),
+  });
+  const text = await extractSourceText('deck.pptx');
+  // Marqueurs présents.
+  assert.ok(text.includes('MARQUEUR_DIAPO_1'), 'diapo 1 présente');
+  assert.ok(text.includes('MARQUEUR_DIAPO_2'), 'diapo 2 présente');
+  assert.ok(text.includes('DEUXIEME LIGNE'), '2e paragraphe présent');
+  // Notes de l’orateur incluses.
+  assert.ok(text.includes('NOTE_ORATEUR_DIAPO_1'), 'notes incluses');
+  // Ordre : slide1 (et sa note) avant slide2.
+  assert.ok(
+    text.indexOf('MARQUEUR_DIAPO_1') < text.indexOf('MARQUEUR_DIAPO_2'),
+    'diapos dans l’ordre numérique',
+  );
+  assert.ok(
+    text.indexOf('NOTE_ORATEUR_DIAPO_1') < text.indexOf('MARQUEUR_DIAPO_2'),
+    'note de la diapo 1 avant la diapo 2',
+  );
+  // Entités XML correctement décodées (pas de &amp;/&lt; bruts).
+  assert.ok(text.includes('Anthropic & OpenAI <2026>'), 'entités XML décodées');
+  assert.ok(!text.includes('&amp;') && !text.includes('&lt;'), 'aucune entité résiduelle');
+});
+
+test('extractSourceText(.pptx) : ordre correct même si les diapos sont zippées en désordre', async () => {
+  const { extractSourceText } = await load();
+  // On écrit slide2 AVANT slide1 dans le zip : le tri numérique doit primer.
+  await writePptxFixture('desordre.pptx', {
+    'ppt/slides/slide2.xml': slideXml(['SECONDE']),
+    'ppt/slides/slide1.xml': slideXml(['PREMIERE']),
+  });
+  const text = await extractSourceText('desordre.pptx');
+  assert.ok(text.indexOf('PREMIERE') < text.indexOf('SECONDE'), 'tri numérique, pas ordre du zip');
+});
+
+test('extractSourceText(.docx) : paragraphes extraits par mammoth', async () => {
+  const { extractSourceText } = await load();
+  await writeDocxFixture('note.docx', ['MARQUEUR_DOCX_LIGNE_1', 'MARQUEUR_DOCX_LIGNE_2']);
+  const text = await extractSourceText('note.docx');
+  assert.ok(text.includes('MARQUEUR_DOCX_LIGNE_1'), 'ligne 1 docx');
+  assert.ok(text.includes('MARQUEUR_DOCX_LIGNE_2'), 'ligne 2 docx');
+});
+
+test('extractSourceText : garde-fou « texte vide » sur un .pptx sans <a:t>', async () => {
+  const { extractSourceText } = await load();
+  // Diapo présente mais dépourvue de texte (que des <a:pPr>, aucun <a:t>).
+  await writePptxFixture('vide.pptx', {
+    'ppt/slides/slide1.xml':
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+      '<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"' +
+      ' xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">' +
+      '<p:cSld><p:spTree><p:sp><p:txBody><a:p><a:pPr/></a:p></p:txBody></p:sp></p:spTree></p:cSld>' +
+      '</p:sld>',
+  });
+  await assert.rejects(() => extractSourceText('vide.pptx'), /Aucun texte extractible/);
+});
+
+test('extractSourceText : extension non gérée (.xlsx) rejette explicitement', async () => {
+  const { extractSourceText } = await load();
+  fs.writeFileSync(path.join(RAW, 'tableur.xlsx'), 'peu importe');
+  await assert.rejects(() => extractSourceText('tableur.xlsx'), /non prise en charge/);
 });

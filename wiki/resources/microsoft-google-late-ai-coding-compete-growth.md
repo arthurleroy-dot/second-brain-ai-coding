@@ -9,7 +9,6 @@ topics: [outils-et-marche]
 entities: [claude-code]
 url: "https://www.cnbc.com"
 source_file: "Microsoft and Google are late to AI coding, but 'absolutely critical' they compete for growth.md"
-needs_review: false
 ---
 
 > Par [[../authors/cnbc|CNBC]] · [[../by-date/2026/2026-06/2026-06|2026-06]] · Thèmes : [[../themes/outils-et-marche|Outils & Marché]]

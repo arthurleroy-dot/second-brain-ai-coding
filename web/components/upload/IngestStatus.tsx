@@ -2,12 +2,15 @@
 
 import Link from 'next/link';
 import { CheckCircle2, Clock, Loader2, XCircle } from 'lucide-react';
+import { IngestStep } from '@/types';
+import StepTrail from '@/components/chat/StepTrail';
 
 interface Props {
   state: 'pending' | 'processing' | 'ingested' | 'error';
   slug: string | null;
   cost: number | null; // USD
   error: string | null;
+  steps?: IngestStep[]; // checklist temps réel des phases (peuplée par le flux NDJSON)
 }
 
 /** Formate un coût USD : cents pour les petits montants (« ≈ 18 ¢ »), sinon « ≈ $0,42 ». */
@@ -24,7 +27,7 @@ function formatCost(usd: number): string {
  * `ingest-view-store` (source unique de vérité, survit à la navigation) ; ce
  * composant ne fait que rendre l'état que lui passe UploadForm.
  */
-export default function IngestStatus({ state, slug, cost, error }: Props) {
+export default function IngestStatus({ state, slug, cost, error, steps }: Props) {
   if (state === 'ingested') {
     return (
       <div className="space-y-2">
@@ -55,17 +58,26 @@ export default function IngestStatus({ state, slug, cost, error }: Props) {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-sm text-gray-700">
-        {state === 'processing' ? (
-          <>
-            <Loader2 size={18} className="animate-spin" /> Ingestion en cours…
-          </>
-        ) : (
-          <>
-            <Clock size={18} className="text-gray-400" /> Déposé, en attente d'ingestion.
-          </>
-        )}
-      </div>
+      {state === 'processing' && steps && steps.length > 0 ? (
+        // Checklist temps réel des phases — MÊME bulle grise arrondie que le chat
+        // (cf. ChatWindow.tsx:159-162) : rendu visuellement identique.
+        <div className="rounded-2xl bg-gray-100 px-4 py-2.5 text-sm text-gray-400">
+          <StepTrail steps={steps} />
+        </div>
+      ) : (
+        // Repli avant la 1re étape (ou fichier en attente) : spinner + phrase.
+        <div className="flex items-center gap-2 text-sm text-gray-700">
+          {state === 'processing' ? (
+            <>
+              <Loader2 size={18} className="animate-spin" /> Ingestion en cours…
+            </>
+          ) : (
+            <>
+              <Clock size={18} className="text-gray-400" /> Déposé, en attente d'ingestion.
+            </>
+          )}
+        </div>
+      )}
       <p className="text-xs text-gray-500">
         Le fichier a été déposé dans <code>/raw</code>. L'ingestion locale le traite
         automatiquement ; la fiche apparaîtra ici et dans le wiki dans un instant.

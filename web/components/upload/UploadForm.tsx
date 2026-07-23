@@ -246,6 +246,7 @@ export default function UploadForm() {
           slug={ingest.slug}
           cost={ingest.cost}
           error={ingest.error}
+          steps={ingest.steps}
         />
         <button
           type="button"

@@ -5,13 +5,12 @@ author: "McKinsey"
 date: "2026-05"
 source_type: report-pdf
 origin: externe
-topics: [agentic-coding, transformation-organisationnelle, context-engineering]
+topics: [agentic-coding, transformation-organisationnelle, context-engineering, finops-ia]
 url: "https://www.mckinsey.com"
 source_file: "rewiring-software-delivery-for-the-agentic-era.pdf"
-needs_review: false
 ---
 
-> Par [[../authors/mckinsey|McKinsey]] · [[../by-date/2026/2026-05/2026-05|2026-05]] · Thèmes : [[../themes/agentic-coding|Agentic Coding]] · [[../themes/transformation-organisationnelle|Transformation Organisationnelle]] · [[../themes/context-engineering|Context Engineering]]
+> Par [[../authors/mckinsey|McKinsey]] · [[../by-date/2026/2026-05/2026-05|2026-05]] · Thèmes : [[../themes/agentic-coding|Agentic Coding]], [[../themes/transformation-organisationnelle|Transformation Organisationnelle]], [[../themes/context-engineering|Context Engineering]], [[../themes/finops-ia|FinOps IA]]
 
 ## Introduction et scène d'ouverture
 `topics: [agentic-coding, transformation-organisationnelle]`

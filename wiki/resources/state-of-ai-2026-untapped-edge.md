@@ -5,13 +5,12 @@ author: "Deloitte"
 date: "2026-01"
 source_type: report-pdf
 origin: externe
-topics: [outils-et-marche, transformation-organisationnelle, securite-et-risques, finops-ia]
+topics: [outils-et-marche, transformation-organisationnelle, securite-et-risques, finops-ia, agentic-coding]
 url: "https://www.deloitte.com/us/state-of-ai"
 source_file: "state-of-ai-2026.pdf"
-needs_review: false
 ---
 
-> Par [[../authors/deloitte|Deloitte]] · [[../by-date/2026/2026-01/2026-01|2026-01]] · Thèmes : [[../themes/outils-et-marche|Outils & Marché]] · [[../themes/transformation-organisationnelle|Transformation Organisationnelle]] · [[../themes/securite-et-risques|Sécurité & Risques]] · [[../themes/finops-ia|FinOps IA]]
+> Par [[../authors/deloitte|Deloitte]] · [[../by-date/2026/2026-01/2026-01|2026-01]] · Thèmes : [[../themes/outils-et-marche|Outils et Marché]], [[../themes/transformation-organisationnelle|Transformation Organisationnelle]], [[../themes/securite-et-risques|Sécurité et Risques]], [[../themes/finops-ia|FinOps IA]], [[../themes/agentic-coding|Agentic Coding]]
 
 ## Introduction et overview
 `topics: [transformation-organisationnelle, outils-et-marche]`

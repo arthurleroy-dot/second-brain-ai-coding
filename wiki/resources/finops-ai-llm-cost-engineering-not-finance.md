@@ -8,7 +8,6 @@ origin: externe
 topics: [finops-ia]
 url: "https://rickpollick.com"
 source_file: "FinOps for AI: Why LLM Cost Is an Engineering Problem, Not a Finance One.md"
-needs_review: false
 ---
 
 > Par [[../authors/rick-pollick|Rick Pollick]] · [[../by-date/2026/2026|2026]] · Thèmes : [[../themes/finops-ia|FinOps IA]]

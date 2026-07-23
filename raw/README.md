@@ -26,10 +26,19 @@ des sources, on n'y modifie jamais rien ensuite.
 
 ## Cycle de vie d'un fichier
 
-1. Vous déposez un fichier ici (via la plateforme, qui le commit ; ou via git).
-2. Le commit sous `raw/**` déclenche la GitHub Action d'ingestion (ou un
-   `workflow_dispatch` manuel ; un cron nocturne rattrape les dépôts manuels).
-3. L'agent crée la ressource + les vues dérivées, et enregistre le fichier comme
-   traité dans `wiki/_ingested.json` (il **ne modifie pas** le fichier `/raw`).
+1. Vous déposez un fichier ici — via la plateforme (bouton d'upload, qui l'écrit
+   sur votre **disque local** avec un sidecar `.meta.md`), ou en copiant le fichier
+   à la main.
+2. L'ingestion **locale** se déclenche : automatiquement en fin d'upload (en
+   arrière-plan), ou via la relance manuelle (`POST /api/ingest`). Plus aucune
+   GitHub Action, plus aucun cron — tout tourne en local, dans l'app. Un fichier
+   copié à la main est rattrapé au prochain déclenchement (détection idempotente
+   via `wiki/_ingested.json`).
+3. Un appel IA transforme la source en ressource `wiki/resources/<slug>.md`, puis
+   un moteur déterministe reconstruit les vues dérivées et le graphe. Le fichier
+   est enregistré comme traité dans `wiki/_ingested.json` (l'ingestion **ne modifie
+   jamais** `/raw`).
 
-> Ne supprimez pas les fichiers déposés : ils servent de trace des sources.
+> Ne supprimez pas les fichiers à la main ici. La **seule** suppression sanctionnée
+> passe par la plateforme : elle retire la ressource **et** son fichier brut (+ le
+> sidecar + l'entrée manifeste) dans le même lot d'écritures.

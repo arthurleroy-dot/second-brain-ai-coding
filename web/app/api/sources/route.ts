@@ -9,11 +9,9 @@ export async function GET(req: NextRequest) {
   const author = searchParams.get('author');
   const origin = searchParams.get('origin'); // 'interne' | 'externe'
   const date = searchParams.get('date'); // préfixe YYYY ou YYYY-MM
-  const filter = searchParams.get('filter'); // 'needs_review'
 
   const all = await listSources();
   const total = all.length;
-  const needsReviewCount = all.filter((s) => s.needs_review).length;
 
   let sources = all;
 
@@ -34,14 +32,10 @@ export async function GET(req: NextRequest) {
   if (date) {
     sources = sources.filter((s) => (s.date ?? '').startsWith(date));
   }
-  if (filter === 'needs_review') {
-    sources = sources.filter((s) => s.needs_review);
-  }
 
   return Response.json({
     sources,
     total,
-    needs_review: needsReviewCount,
     count: sources.length,
   });
 }

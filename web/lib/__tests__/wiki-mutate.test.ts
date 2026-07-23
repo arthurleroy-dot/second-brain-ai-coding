@@ -260,7 +260,6 @@ origin: externe
 topics: [finops-ia]
 url: "u"
 source_file: "a.md"
-needs_review: false
 ---
 
 > Par [[../authors/a|A]]
@@ -386,7 +385,6 @@ topics: [finops-ia]
 entities: [claude-code]
 url: "u"
 source_file: "a.pdf"
-needs_review: false
 ---
 
 > Par [[../authors/a|A]]

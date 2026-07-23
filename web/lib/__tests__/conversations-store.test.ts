@@ -33,7 +33,7 @@ test('saveMessage ajoute le message et met à jour updated_at', async () => {
   await new Promise((r) => setTimeout(r, 5));
   await saveMessage(conv.id, 'user', 'Bonjour', []);
   await saveMessage(conv.id, 'assistant', 'Salut', [
-    { slug: 's', title: 'T', type: 'article', author: null, date: null, url: null, deposited_by: null, topics: [], needs_review: false },
+    { slug: 's', title: 'T', type: 'article', author: null, date: null, url: null, deposited_by: null, topics: [] },
   ]);
   const reloaded = (await getConversation(conv.id))!;
   assert.equal(reloaded.messages.length, 2);

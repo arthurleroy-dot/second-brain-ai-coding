@@ -5,14 +5,13 @@ author: "Fortune"
 date: "2026-01"
 source_type: article
 origin: externe
-topics: [agentic-coding, transformation-organisationnelle]
+topics: [agentic-coding, transformation-organisationnelle, outils-et-marche]
 entities: [claude-code]
 url: "https://fortune.com"
 source_file: "Top engineers at Anthropic, OpenAI say AI now writes 100% of their code—with big implications for the future of software development jobs.md"
-needs_review: false
 ---
 
-> Par [[../authors/fortune|Fortune]] · [[../by-date/2026/2026-01/2026-01|2026-01]] · Thèmes : [[../themes/agentic-coding|Agentic Coding]] · [[../themes/transformation-organisationnelle|Transformation Organisationnelle]]
+> Par [[../authors/fortune|Fortune]] · [[../by-date/2026/2026-01/2026-01|2026-01]] · Thèmes : [[../themes/agentic-coding|Agentic Coding]], [[../themes/transformation-organisationnelle|Transformation Organisationnelle]], [[../themes/outils-et-marche|Outils et Marché]]
 
 ## Anthropic : Boris Cherny et le code 100% IA
 `topics: [agentic-coding, transformation-organisationnelle]`

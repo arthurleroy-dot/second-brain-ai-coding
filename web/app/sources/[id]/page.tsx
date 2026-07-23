@@ -89,7 +89,7 @@ export default async function SourceDetailPage({
       </div>
 
       {isPdf ? (
-        // PDF : visualiseur à gauche, contenu paraphrasé + métadonnées à droite.
+        // PDF : visualiseur à gauche, contenu (verbatim) + métadonnées à droite.
         <div className="flex flex-1 overflow-hidden">
           <div className="relative w-[60%] overflow-hidden border-r border-gray-200 bg-gray-50">
             {downloadUrl && (

@@ -5,13 +5,12 @@ author: "Anthropic"
 date: "2026"
 source_type: report-pdf
 origin: externe
-topics: [agentic-coding, outils-et-marche, securite-et-risques]
+topics: [agentic-coding, outils-et-marche, securite-et-risques, transformation-organisationnelle]
 url: "https://www.anthropic.com"
 source_file: "2026 Agentic Coding Trends Report.pdf"
-needs_review: false
 ---
 
-> Par [[../authors/anthropic|Anthropic]] · [[../by-date/2026/2026|2026]] · Thèmes : [[../themes/agentic-coding|Agentic Coding]] · [[../themes/outils-et-marche|Outils & Marché]] · [[../themes/securite-et-risques|Sécurité & Risques]]
+> Par [[../authors/anthropic|Anthropic]] · [[../by-date/2026/2026|2026]] · Thèmes : [[../themes/agentic-coding|Agentic Coding]], [[../themes/outils-et-marche|Outils et Marché]], [[../themes/securite-et-risques|Sécurité et Risques]], [[../themes/transformation-organisationnelle|Transformation Organisationnelle]]
 
 ## Foreword — From assistance to collaboration
 `topics: [agentic-coding]`

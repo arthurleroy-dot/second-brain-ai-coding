@@ -22,17 +22,26 @@
 // Ce module est importé uniquement par des composants client ('use client') et
 // s'exécute dans le navigateur.
 
+import { IngestStep } from '@/types';
+
 export interface IngestView {
   file: string | null; // fichier suivi (nom dans /raw)
   state: 'pending' | 'processing' | 'ingested' | 'error';
   slug: string | null;
   cost: number | null; // USD
   error: string | null;
+  // Checklist temps réel des phases du pipeline d'ingestion (extract → analyze →
+  // project → write → verify), alimentée par le flux NDJSON /api/ingest-stream.
+  // ÉPHÉMÈRE : le polling reste l'autorité de l'état terminal (state/slug/cost).
+  steps: IngestStep[];
 }
 
 let view: IngestView | null = null; // null = rien à afficher (formulaire vierge)
 const listeners = new Set<() => void>();
 let timer: ReturnType<typeof setTimeout> | null = null;
+// Contrôleur du flux NDJSON en cours (garde anti-double-connexion). Module-level
+// comme `timer` : la boucle de lecture survit au démontage d'UploadForm.
+let streamCtl: AbortController | null = null;
 
 function emit() {
   for (const l of listeners) l();
@@ -70,19 +79,26 @@ function pollOnce() {
     .then((r) => r.json())
     .then((d) => {
       if (view?.file !== f) return; // course : le fichier suivi a changé entre-temps
+      // Préserve toujours la checklist déjà reçue : chaque poll ne fait autorité
+      // que sur state/slug/cost/error, jamais sur `steps` (alimentés par le flux).
+      const steps = view?.steps ?? [];
       if (d.state === 'ingested') {
         const c = typeof d.fileCostUsd === 'number' ? d.fileCostUsd : d.costUsd;
+        // Le polling est l'autorité qui ARRÊTE le fil une fois l'état terminal atteint.
+        disconnectStream();
         setView({
           file: f,
           state: 'ingested',
           slug: d.slug ?? null,
           cost: typeof c === 'number' ? c : null,
           error: null,
+          steps,
         });
         return; // arrêt (pas de re-arm du timer)
       }
       if (d.state === 'error') {
-        setView({ file: f, state: 'error', slug: null, cost: null, error: d.error ?? null });
+        disconnectStream();
+        setView({ file: f, state: 'error', slug: null, cost: null, error: d.error ?? null, steps });
         return;
       }
       setView({
@@ -91,6 +107,7 @@ function pollOnce() {
         slug: null,
         cost: null,
         error: null,
+        steps,
       });
       timer = setTimeout(pollOnce, 5000);
     })
@@ -105,8 +122,9 @@ export function startTracking(file: string) {
     clearTimeout(timer);
     timer = null;
   }
-  setView({ file, state: 'pending', slug: null, cost: null, error: null });
-  pollOnce();
+  setView({ file, state: 'pending', slug: null, cost: null, error: null, steps: [] });
+  pollOnce(); // autorité de l'état terminal (state/slug/cost)
+  connectStream(); // fil temps réel qui peuple `steps`
 }
 
 /** Réinitialise l'affichage (bouton « Déposer un autre document »). */
@@ -115,7 +133,106 @@ export function clear() {
     clearTimeout(timer);
     timer = null;
   }
+  disconnectStream();
   setView(null);
+}
+
+// ————————————————————————————————————————————————————————————————
+// Flux NDJSON temps réel (/api/ingest-stream) → peuple `view.steps`.
+//
+// Même lecture ligne-à-ligne que le chat (`chat-stream-store.ts`), MAIS sans le
+// lissage machine-à-écrire : on ne rend pas de markdown, juste une checklist +
+// un compteur de caractères en `detail`. Le `status` reading→done est dérivé ici
+// (comme le chat) : l'arrivée de l'étape N+1 coche la N.
+
+/** Compteur de caractères rédigés → texte d'animation muté de l'étape IA. */
+function formatGen(n: number): string {
+  const grouped = String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return `L'IA rédige… ${grouped} caractère${n > 1 ? 's' : ''}`;
+}
+
+async function connectStream() {
+  if (streamCtl) return; // déjà connecté (garde anti-double-connexion)
+  const ctl = new AbortController();
+  streamCtl = ctl;
+  let genChars = 0; // caractères cumulés de l'étape IA en cours (reset à chaque step)
+
+  try {
+    const res = await fetch('/api/ingest-stream', { signal: ctl.signal, cache: 'no-store' });
+    if (!res.ok || !res.body) return; // aucun run côté serveur : le polling suffit
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      let nl: number;
+      while ((nl = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
+        if (!line) continue;
+
+        let evt: any;
+        try {
+          evt = JSON.parse(line);
+        } catch {
+          continue; // ligne partielle/corrompue : on ignore
+        }
+
+        if (evt.type === 'step') {
+          genChars = 0;
+          const cur = view;
+          if (!cur) continue; // désabonné/purgé entre-temps
+          // Dérivation reading→done : l'arrivée de l'étape N+1 coche la N (comme le chat).
+          setView({
+            ...cur,
+            steps: [
+              ...cur.steps.map((s) => ({ ...s, status: 'done' as const })),
+              { label: evt.label, phase: evt.phase, file: evt.file, status: 'reading' as const },
+            ],
+          });
+        } else if (evt.type === 'delta') {
+          genChars += String(evt.text ?? '').length;
+          const cur = view;
+          if (!cur || cur.steps.length === 0) continue;
+          const last = cur.steps[cur.steps.length - 1];
+          if (last.status !== 'reading') continue; // le detail n'orne que l'étape active
+          const steps = cur.steps.slice();
+          steps[steps.length - 1] = { ...last, detail: formatGen(genChars) };
+          setView({ ...cur, steps });
+        } else if (evt.type === 'done' || evt.type === 'error') {
+          const cur = view;
+          if (cur) {
+            setView({
+              ...cur,
+              steps: cur.steps.map((s) => ({ ...s, status: 'done' as const, detail: undefined })),
+            });
+          }
+          try {
+            await reader.cancel();
+          } catch {
+            /* déjà fermé */
+          }
+          // Bascule l'état terminal (ingested/error) SANS attendre le tick 5 s ;
+          // pollOnce coupera aussi le fil (il est l'autorité terminale).
+          pollOnce();
+          return;
+        }
+      }
+    }
+  } catch {
+    /* abort volontaire ou réseau : le polling reste l'autorité de l'état terminal */
+  } finally {
+    if (streamCtl === ctl) streamCtl = null;
+  }
+}
+
+function disconnectStream() {
+  streamCtl?.abort();
+  streamCtl = null;
 }
 
 // Au premier montage, si le store est vide : demander l'état GLOBAL. N'ADOPTER

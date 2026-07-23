@@ -19,7 +19,6 @@ const src = (over: Partial<Source>): Source => ({
   deposited_by: null,
   topics: [],
   origin: null,
-  needs_review: false,
   ...over,
 });
 

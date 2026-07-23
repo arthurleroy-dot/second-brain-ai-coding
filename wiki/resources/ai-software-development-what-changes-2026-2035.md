@@ -5,13 +5,12 @@ author: "First Line Software"
 date: "2026-04"
 source_type: article
 origin: externe
-topics: [outils-et-marche, transformation-organisationnelle, finops-ia, securite-et-risques]
+topics: [outils-et-marche, transformation-organisationnelle, finops-ia, securite-et-risques, agentic-coding]
 url: "https://firstlinesoftware.com"
 source_file: "AI Software Development: What Changes from 2026 to 2035.md"
-needs_review: false
 ---
 
-> Par [[../authors/first-line-software|First Line Software]] · [[../by-date/2026/2026-04/2026-04|2026-04]] · Thèmes : [[../themes/outils-et-marche|Outils & Marché]] · [[../themes/transformation-organisationnelle|Transformation Organisationnelle]] · [[../themes/finops-ia|FinOps IA]] · [[../themes/securite-et-risques|Sécurité & Risques]]
+> Par [[../authors/first-line-software|First Line Software]] · [[../by-date/2026/2026-04/2026-04|2026-04]] · Thèmes : [[../themes/outils-et-marche|Outils et Marché]], [[../themes/transformation-organisationnelle|Transformation Organisationnelle]], [[../themes/finops-ia|FinOps IA]], [[../themes/securite-et-risques|Sécurité et Risques]], [[../themes/agentic-coding|Agentic Coding]]
 
 ## Introduction
 `topics: [outils-et-marche, finops-ia, transformation-organisationnelle]`

@@ -17,7 +17,7 @@ est décrit dans [ingestion.md](ingestion.md) ; le système d'entités dans
 
 /wiki/                         ← Couches 2 & 3 (SEULE zone d'écriture de l'agent)
   resources/                   ← Couche 2 : CANONIQUE — une page par source brute
-    <slug>.md                  ← contenu intégral, paraphrasé + annoté par chunk
+    <slug>.md                  ← contenu intégral, verbatim + annoté par chunk
   themes/                      ← Couche 3 : vue dérivée — liens vers chunks
     <slug-theme>.md
   authors/                     ← Couche 3 : vue dérivée — table
@@ -43,9 +43,10 @@ Toutes les autres pages sous `wiki/` sont des **vues dérivées** générées de
 les ressources. Ne jamais écrire de contenu original dans themes/, authors/,
 entities/, by-date/, types.md, origin/.
 
-**Frontières d'écriture :** l'agent d'ingestion n'écrit **que** dans `wiki/`.
-Jamais dans `raw/` (immuable), jamais dans `web/`. Le marqueur « déjà traité »
-vit dans `wiki/_ingested.json`, pas dans un frontmatter de `raw/`.
+**Frontières d'écriture :** l'ingestion n'écrit **que** dans `wiki/` (l'IA ne produit
+que la page ressource ; c'est le moteur déterministe qui écrit les vues). Jamais dans
+`raw/` (immuable), jamais dans `web/`. Le marqueur « déjà traité » vit dans
+`wiki/_ingested.json`, pas dans un frontmatter de `raw/`.
 
 ---
 
@@ -65,7 +66,6 @@ topics: [finops-ia, agentic-coding]   # union de tous les topics de sections
 entities: [n8n]               # entités liées au niveau ressource (optionnel — voir entities.md)
 url: "https://..."
 source_file: "<nom exact dans /raw>"   # nom du fichier de CONTENU (pas le .meta.md)
-needs_review: false           # true uniquement si origin non déductible (voir §5)
 ---
 ```
 
@@ -97,7 +97,9 @@ mentionnent effectivement une entité du registre (voir [entities.md](entities.m
 ### 2.4 Contenu
 
 - **Intégral et fidèle** : reproduire toute l'information, chaque chiffre, chaque
-  exemple, chaque citation nommée. Paraphrase acceptable, raccourcissement non.
+  exemple, chaque citation nommée. **Verbatim : recopie mot pour mot, même langue.**
+  Reformulation/résumé/traduction/ajout interdits ; seuls le nettoyage des scories
+  d'extraction et la mise en markdown sont permis.
 - Pas de résumé court : une source longue → une page longue.
 
 ---
@@ -220,26 +222,13 @@ Mettre à jour (ajouter nodes+edges) à chaque ingestion — ne pas régénérer
 |-----------------------|----------|
 | meeting-notes, personal-notes, transcript interne | `interne` |
 | article signé d'un tiers, rapport PDF d'un cabinet, tweet public, interview | `externe` |
-| ambiguïté impossible à lever sans l'humain | `""` + `needs_review: true` |
+| ambiguïté impossible à lever sans l'humain | `""` (laisser vide) |
 
 **Ne jamais déduire origin depuis le nom de l'auteur ou le contenu.**
-Si incertain : laisser vide, `needs_review: true`, noter dans le résumé de run.
+Si incertain : laisser `origin` vide.
 
 Une `origin` fournie par l'humain (clé `origin:` du sidecar d'upload) **fait
 autorité** et court-circuite l'heuristique.
-
-**Règle `needs_review` (déclencheur unique) :** le seul déclencheur est
-« origin non déductible » (l'heuristique ci-dessus ne permet pas de trancher
-entre interne et externe).
-
-Ce qui ne déclenche **PAS** `needs_review` :
-- Date année-seule (ex : "2026")
-- URL manquante
-- source_file manquant
-- Topics absents (l'agent les déduit toujours depuis le contenu)
-- Entité inconnue → va dans `entities/_candidates.json`, canal **distinct** (voir entities.md)
-
-Le flag tombe à `false` dès que l'humain a tranché sur l'origin.
 
 ---
 
@@ -260,7 +249,7 @@ gardée**, exactement comme celle d'une entité (cf. [entities.md](entities.md) 
 - Avant toute création : dédoublonnage sur `label`+`aliases` normalisés.
 
 `themes_granularity` (sidecar, sinon `auto`) est un indice grossier resource/chunk
-— l'agent choisit les sections exactes à l'ingestion.
+— l'IA choisit les sections exactes à l'ingestion.
 
 ---
 
@@ -280,7 +269,6 @@ Citer en référençant les pages du wiki, pas le fichier brut.
 Vérifier et rapporter :
 - Ressources sans lien vers un thème/auteur (orphelines).
 - Thèmes avec une seule source ou aucune depuis > 6 mois.
-- Ressources avec `needs_review: true` non résolu.
 - Entités en attente dans `entities/_candidates.json` ou thèmes en attente dans
   `themes/_candidates.json` (ou `wiki:verify` en erreur).
 - `graph.json` désynchronisé avec les pages `.md`.

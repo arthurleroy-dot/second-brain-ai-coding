@@ -5,13 +5,12 @@ author: "McKinsey"
 date: "2025-11"
 source_type: report-pdf
 origin: externe
-topics: [outils-et-marche, transformation-organisationnelle, context-engineering, finops-ia]
+topics: [outils-et-marche, transformation-organisationnelle, context-engineering, finops-ia, agentic-coding]
 url: "https://www.mckinsey.com"
 source_file: "unlocking-the-value-of-ai-in-software-development.pdf"
-needs_review: false
 ---
 
-> Par [[../authors/mckinsey|McKinsey]] · [[../by-date/2025/2025-11/2025-11|2025-11]] · Thèmes : [[../themes/outils-et-marche|Outils & Marché]] · [[../themes/transformation-organisationnelle|Transformation Organisationnelle]] · [[../themes/context-engineering|Context Engineering]] · [[../themes/finops-ia|FinOps IA]]
+> Par [[../authors/mckinsey|McKinsey]] · [[../by-date/2025/2025-11/2025-11|2025-11]] · Thèmes : [[../themes/outils-et-marche|Outils et Marché]], [[../themes/transformation-organisationnelle|Transformation Organisationnelle]], [[../themes/context-engineering|Context Engineering]], [[../themes/finops-ia|FinOps IA]], [[../themes/agentic-coding|Agentic Coding]]
 
 ## Introduction
 `topics: [agentic-coding, transformation-organisationnelle]`

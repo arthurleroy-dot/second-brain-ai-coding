@@ -37,7 +37,6 @@ export default function SourceList() {
   const author = params.get('author');
   const origin = params.get('origin');
   const date = params.get('date');
-  const filter = params.get('filter');
   const topic = params.get('topic');
   const entityParam = params.get('entity') ?? '';
 
@@ -51,10 +50,9 @@ export default function SourceList() {
       if (date && !(s.date ?? '').startsWith(date)) return false;
       if (topic && !s.topics.includes(topic)) return false;
       if (entities.length && !entities.every((e) => s.entities?.includes(e))) return false;
-      if (filter === 'needs_review' && !s.needs_review) return false;
       return true;
     });
-  }, [all, type, author, origin, date, topic, entityParam, filter]);
+  }, [all, type, author, origin, date, topic, entityParam]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">

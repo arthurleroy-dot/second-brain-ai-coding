@@ -1,7 +1,7 @@
 # Règles de workflow de code
 
 Ces règles s'appliquent à **tout travail de code** sur ce projet (le dossier
-`web/`, les scripts, les workflows GitHub). Elles complètent la spécification du
+`web/`, la coquille Electron `electron/`, les scripts). Elles complètent la spécification du
 wiki — pour l'ingestion et la maintenance du contenu, voir [wiki-spec.md](wiki-spec.md)
 et [ingestion.md](ingestion.md).
 

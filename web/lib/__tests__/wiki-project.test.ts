@@ -35,7 +35,6 @@ topics: [finops-ia]
 entities: [claude-code]
 url: "https://example.com"
 source_file: "demo.pdf"
-needs_review: false
 ---
 
 > Par [[../authors/testco|TestCo]] · [[../by-date/2026/2026-05/2026-05|2026-05]] · Thèmes : [[../themes/finops-ia|FinOps IA]]
@@ -502,4 +501,105 @@ test('idempotence : une seconde projection ne duplique rien', () => {
 test('addManifestKey ajoute/écrase la clé source_file', () => {
   const out = JSON.parse(addManifestKey('{"version":1,"files":{}}', 'x.pdf', { slug: 's', ingested_at: TODAY, run: 'local' }));
   assert.deepEqual(out.files['x.pdf'], { slug: 's', ingested_at: TODAY, run: 'local' });
+});
+
+// ————————————————————————————————————————————————————————————————
+// 5. Multi-thèmes / multi-sections : chaque page thème ne reçoit QUE le bullet de sa
+//    section ; resource_count exact ; une arête belongs_to_theme par topic.
+//    (frontmatter déjà = union — c'est l'état produit en amont par `rollupSectionTopics`.)
+
+const THEME_AGENTIC = `---
+type: theme
+slug: agentic-coding
+label: Agentic Coding
+resource_count: 0
+last_updated: "2026-01-01"
+---
+`;
+
+const RESOURCE_MULTI = `---
+slug: multi
+title: "Multi Thèmes"
+author: "TestCo"
+date: "2026-05"
+source_type: report-pdf
+origin: externe
+topics: [finops-ia, agentic-coding]
+entities: []
+url: ""
+source_file: "multi.pdf"
+---
+
+> Par [[../authors/testco|TestCo]] · [[../by-date/2026/2026-05/2026-05|2026-05]] · Thèmes : [[../themes/finops-ia|FinOps IA]], [[../themes/agentic-coding|Agentic Coding]]
+
+## Coûts
+\`topics: [finops-ia]\`
+
+Le poste tokens explose et impose un suivi FinOps.
+
+## Agents
+\`topics: [agentic-coding]\`
+
+Les agents autonomes écrivent le code de bout en bout.
+`;
+
+const GRAPH_MULTI = JSON.stringify({
+  generated: '2026-01-01',
+  nodes: [
+    { id: 'theme:finops-ia', type: 'theme', label: 'FinOps IA' },
+    { id: 'theme:agentic-coding', type: 'theme', label: 'Agentic Coding' },
+    { id: 'origin:externe', type: 'origin', label: 'Externe' },
+    { id: 'origin:interne', type: 'origin', label: 'Interne' },
+  ],
+  edges: [],
+});
+
+function multiState(): State {
+  return {
+    'wiki/themes/finops-ia.md': THEME,
+    'wiki/themes/agentic-coding.md': THEME_AGENTIC,
+    'wiki/origin/externe.md': ORIGIN_EXT,
+    'wiki/origin/interne.md': ORIGIN_INT,
+    'wiki/types.md': TYPES,
+    'wiki/index.md': INDEX,
+    'wiki/graph.json': GRAPH_MULTI,
+    'wiki/_ingested.json': MANIFEST,
+  };
+}
+
+const CFG_MULTI = { themeLabels: { 'finops-ia': 'FinOps IA', 'agentic-coding': 'Agentic Coding' } };
+
+test('projectResource : multi-thèmes — chaque page thème n’a que le bullet de SA section', () => {
+  const ops = projectResource({
+    slug: 'multi',
+    resourceContent: RESOURCE_MULTI,
+    views: projectViews(multiState(), RESOURCE_MULTI, 'multi', CFG_MULTI),
+    slugifyAuthor: slugify,
+    typeLabel,
+    today: TODAY,
+  });
+
+  const finops = byPath(ops, 'wiki/themes/finops-ia.md')!.content;
+  const agentic = byPath(ops, 'wiki/themes/agentic-coding.md')!.content;
+
+  // finops-ia : bloc ressource + bullet de la section « Coûts » SEULEMENT.
+  // (l'ancre GitHub conserve les accents : headingSlug('Coûts') = 'coûts'.)
+  assert.ok(finops.includes('## [[../resources/multi|Multi Thèmes]]'), 'finops : bloc ressource');
+  assert.ok(finops.includes('#coûts|Coûts]] — Le poste tokens explose'), 'finops : bullet section Coûts');
+  assert.ok(!finops.includes('#agents|Agents'), 'finops : PAS le bullet de la section Agents');
+  assert.ok(finops.includes('resource_count: 1'), 'finops : resource_count 1');
+
+  // agentic-coding : bloc ressource + bullet de la section « Agents » SEULEMENT.
+  assert.ok(agentic.includes('## [[../resources/multi|Multi Thèmes]]'), 'agentic : bloc ressource');
+  assert.ok(agentic.includes('#agents|Agents]] — Les agents autonomes'), 'agentic : bullet section Agents');
+  assert.ok(!agentic.includes('#coûts|Coûts'), 'agentic : PAS le bullet de la section Coûts');
+  assert.ok(agentic.includes('resource_count: 1'), 'agentic : resource_count 1');
+
+  // Graphe : une arête belongs_to_theme + un nœud theme:<slug> par topic.
+  const { nodes, edges } = graphSig(byPath(ops, 'wiki/graph.json')!.content);
+  const R = 'resource:multi';
+  for (const t of ['finops-ia', 'agentic-coding']) {
+    assert.ok(nodes.includes(`theme:${t}`), `nœud theme:${t}`);
+    assert.ok(edges.includes(`${R}|theme:${t}|belongs_to_theme|`), `arête belongs_to_theme ${t}`);
+  }
 });

@@ -6,6 +6,12 @@ déterministe reconstruit ensuite toutes les vues dérivées et le graphe à par
 ta page. Ne décris pas ton processus, ne demande aucune validation — réponds
 directement au format ci-dessous.
 
+**RÈGLE ABSOLUE — VERBATIM : tu transcris, tu ne rédiges pas.** Le corps de la page
+recopie le texte de la source **mot pour mot**, dans **sa langue d'origine** ; tu te
+contentes de le mettre en forme (markdown). Interdits stricts : reformuler, résumer,
+compléter, traduire, corriger ou inventer une phrase absente de la source. Cette
+contrainte prime sur toute autre consigne de ce prompt.
+
 ## Format de sortie (EXACT)
 
 Deux blocs délimités, dans cet ordre, et RIEN d'autre :
@@ -38,7 +44,6 @@ Champs, dans cet ordre (une clé par ligne) :
 - `entities` : liste plate de **slugs d'entités** (optionnel) `[claude-code]`.
 - `url` : **entre guillemets** (JAMAIS déduite du contenu ; du sidecar seulement).
 - `source_file` : nom EXACT du fichier de contenu dans `/raw` (fourni), **entre guillemets**.
-- `needs_review` : booléen, `true` **uniquement** si l'origin est indéductible.
 
 Le sidecar de métadonnées (s'il est fourni) **fait autorité** : reprends-en
 `title`/`author`/`date`/`url`/`origin`/`source_type` sans les réinventer.
@@ -49,21 +54,34 @@ Le sidecar de métadonnées (s'il est fourni) **fait autorité** : reprends-en
    `> Par [[../authors/<slug-auteur>|<Auteur>]] · [[../by-date/<AAAA>/<AAAA-MM>/<AAAA-MM>|<AAAA-MM>]] · Thèmes : [[../themes/<slug>|<Label>]] · …`
    (le lien by-date pointe le **mois** si connu, sinon `[[../by-date/<AAAA>/<AAAA>|<AAAA>]]` ;
    un lien thème par topic du frontmatter.)
-2. Le contenu **intégral paraphrasé**, découpé en sections `##`/`###`. Sous CHAQUE
-   heading, une annotation inline-code des thèmes de la section, et si besoin des
-   entités : `` `topics: [finops-ia, outils-et-marche]` `` puis éventuellement
+2. Le contenu **intégral, recopié mot pour mot (verbatim), dans la langue
+   d'origine**, découpé en sections `##`/`###`. Sous CHAQUE heading, une annotation
+   inline-code des thèmes de la section, et si besoin des entités :
+   `` `topics: [finops-ia, outils-et-marche]` `` puis éventuellement
    `` `entities: [claude-code, n8n]` `` (formes exactes, une par ligne).
-3. **Texte brut → markdown propre** : structure une source non formatée (titres,
-   paragraphes, listes) en préservant TOUTE l'information.
+3. **Mise en forme du texte source EXACT** : mets en forme (titres, paragraphes,
+   listes, tableaux) le texte de la source **tel quel** ; recolle les mots coupés en
+   fin de ligne ; retire uniquement les scories d'extraction (numéros de page,
+   en-têtes/pieds de page répétés). **N'ajoute, ne reformule, ne résume, ne traduis,
+   ne corrige RIEN d'autre.**
+
+Le blockquote de navigation (point 1) et les annotations `topics:`/`entities:` par
+section (point 2) sont les **SEULS** ajouts structurels autorisés. Tout le reste du
+corps est le texte de la source, mot pour mot.
+
+**Ligne rouge — nettoyage ≠ reformulation.** Le « nettoyage » se limite à (a) retirer
+les scories non-contenu (numéros de page, en-têtes/pieds répétés) et (b) recoller les
+mots coupés en fin de ligne. Il ne doit JAMAIS servir de prétexte à réordonner,
+corriger, « améliorer » ou reformuler un mot de contenu. En cas de doute sur un mot,
+recopie-le tel quel.
 
 ## Heuristique origin
 
 - `interne` : meeting-notes / personal-notes / transcript manifestement internes.
 - `externe` : article tiers, rapport PDF de cabinet, tweet public, interview.
-- ambiguïté impossible → `origin: ""` + `needs_review: true`.
+- ambiguïté impossible → `origin: ""` (laisser vide).
 Ne JAMAIS déduire l'origin du nom de l'auteur ou du contenu. Une `origin` fournie
-au sidecar fait autorité. `needs_review` n'a **qu'un** déclencheur : origin
-indéductible (jamais pour date/url/topic/entité manquants).
+au sidecar fait autorité.
 
 ## Liens — règle stricte
 
@@ -92,7 +110,10 @@ candidates). Objets :
 
 Si rien d'inédit : `{"entities": [], "themes": []}`.
 
-## Fidélité
+## Fidélité — verbatim absolu
 
-Fidélité > brièveté : reproduis TOUS les chiffres, exemples, citations de la source,
-paraphrasés mais non raccourcis. Une section = un `##`/`###`.
+Recopie le texte de la source **mot pour mot**, dans **sa langue d'origine** : tous
+les chiffres, toutes les phrases, toutes les citations à l'identique. Tu mets en
+markdown, tu **ne réécris pas**. Interdits explicites : reformuler, résumer,
+compléter, traduire, corriger, inventer une phrase absente de la source. Une source
+longue → une page longue (jamais de résumé). Une section = un `##`/`###`.

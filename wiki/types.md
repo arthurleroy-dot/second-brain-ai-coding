@@ -4,7 +4,7 @@ label: Types de ressources
 last_updated: "2026-07-03"
 ---
 
-## article (6 ressources)
+## article (7 ressources)
 
 | Ressource | Auteur | Date | Origin |
 |-----------|--------|------|--------|
@@ -14,8 +14,9 @@ last_updated: "2026-07-03"
 | [[resources/microsoft-google-late-ai-coding-compete-growth\|Microsoft and Google are late to AI coding]] | CNBC | 2026-06 | externe |
 | [[resources/top-engineers-anthropic-openai-ai-writes-100-pct-code\|Top engineers at Anthropic, OpenAI say AI now writes 100% of their code]] | Fortune | 2026-01 | externe |
 | [[resources/ai-software-development-what-changes-2026-2035\|AI Software Development: What Changes from 2026 to 2035]] | First Line Software | 2026-04 | externe |
+| [[resources/le-finops-et-le-context-engineering\|Le FinOps et le Context Engineering]] |  |  |  |
 
-## report-pdf (7 ressources)
+## report-pdf (8 ressources)
 
 | Ressource | Auteur | Date | Origin |
 |-----------|--------|------|--------|
@@ -26,13 +27,16 @@ last_updated: "2026-07-03"
 | [[resources/ai-revolution-software-development\|The AI revolution in software development]] | McKinsey | 2026-04 | externe |
 | [[resources/unlocking-value-ai-software-development\|Unlocking the value of AI in software development]] | McKinsey | 2025-11 | externe |
 | [[resources/accenture-research-ai-led-processes-outperform-peers\|New Accenture Research Finds that Companies with AI-Led Processes Outperform Peers]] | Accenture | 2024-10-10 | externe |
+| [[resources/labor-market-impacts-ai-new-measure-early-evidence\|Labor market impacts of AI: A new measure and early evidence]] | Maxim Massenkoff and Peter McCrory | 2026-03-05 | externe |
 
-## personal-notes (0 ressource)
-
-| Ressource | Auteur | Date | Origin |
-|-----------|--------|------|--------|
-
-## meeting-notes (0 ressource)
+## personal-notes (1 ressource)
 
 | Ressource | Auteur | Date | Origin |
 |-----------|--------|------|--------|
+| [[resources/finops-c-est-le-financement-des-tokens\|Finops c'est le financement des tokens]] |  |  | interne |
+
+## meeting-notes (1 ressource)
+
+| Ressource | Auteur | Date | Origin |
+|-----------|--------|------|--------|
+| [[resources/point-equipe-plateforme-etat-de-notre-pratique-du-coding-assiste-par-ia\|Point d'équipe plateforme — état de notre pratique du coding assisté par IA]] |  |  | interne |

@@ -8,7 +8,6 @@ origin: externe
 topics: [finops-ia]
 url: "https://leanopstech.com"
 source_file: "Traditional FinOps Breaks On AI Workloads.md"
-needs_review: false
 ---
 
 > Par [[../authors/leanops-tech|LeanOps Tech]] · [[../by-date/2026/2026|2026]] · Thèmes : [[../themes/finops-ia|FinOps IA]]

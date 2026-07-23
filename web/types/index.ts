@@ -26,7 +26,6 @@ export interface Source {
   topics: string[];
   entities?: string[]; // slugs d'entités liées (registre wiki/entities)
   origin?: OriginValue | null; // interne | externe (null si inconnu)
-  needs_review: boolean;
   status?: ResourceStatus;
   created_at?: string;
   source_file?: string | null; // nom du fichier de contenu dans /raw
@@ -78,17 +77,31 @@ export interface Conversation {
   updated_at: string;
 }
 
-// Étape de navigation de l'agent de chat dans le wiki (événement NDJSON `step`).
-// Affichée en direct (spinner → coche) puis conservée repliée sous la réponse
-// via Message.steps — pas persistée.
-export interface ChatStep {
+// Base commune d'une étape affichée en checklist (spinner → coche), partagée
+// par le chat et le suivi d'ingestion pour que `StepTrail` accepte les deux.
+// `status` est DÉRIVÉ côté client (absent de l'événement serveur) : les étapes
+// se déroulent séquentiellement, donc l'étape N est 'done' dès que la N+1 arrive.
+// `detail` (optionnel) porte un texte d'animation « en cours » (ex. compteur de
+// caractères rédigés) affiché en style muté sous le label de l'étape active.
+export interface TrailStep {
   label: string;
+  status?: 'reading' | 'done';
+  detail?: string;
+}
+
+// Étape de navigation de l'agent de chat dans le wiki (événement NDJSON `step`).
+// Affichée en direct puis conservée repliée sous la réponse via Message.steps.
+export interface ChatStep extends TrailStep {
   tool: string;
   path: string;
-  // Dérivé côté client (absent de l'événement serveur) : l'agent exécute ses
-  // outils séquentiellement, donc l'étape N est 'done' dès que la N+1 arrive,
-  // et toutes le sont au premier delta de texte.
-  status?: 'reading' | 'done';
+}
+
+// Étape du pipeline d'ingestion (événement NDJSON `step` de /api/ingest-stream).
+// `phase` = clé déterministe de l'étape (extract|analyze|project|write|verify) ;
+// `file` = basename de la source en cours (utile en lot multi-fichiers).
+export interface IngestStep extends TrailStep {
+  phase?: string;
+  file?: string;
 }
 
 // Filtre date structuré : intervalle, avant une borne, ou après une borne.

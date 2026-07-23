@@ -84,15 +84,19 @@ Comment la granularité est décidée :
 
 ## 4. Confiance graduée (création vs candidate)
 
-À l'ingestion, le traitement dépend de ce qui a été déclaré :
+À l'ingestion, l'**IA détecte/propose**, mais toute la **création et la liaison** sont
+faites **déterministiquement** (moteur de projection `web/lib/wiki-project.ts`) ; le
+traitement dépend de ce qui a été déclaré :
 
-1. **Entité + type déclarés explicitement** (bloc `links:` du sidecar) → l'agent
-   **crée et lie directement** l'entité avec ce `entity_type`, même nouvelle
-   (on fait confiance au choix humain). **Jamais de candidate pour une entité
-   déclarée.** Si le nom correspond à une entité existante du **même** type → il s'y
-   relie (dédoublonnage). S'il correspond à une entité existante d'un **autre** type,
-   l'agent crée quand même l'entité déclarée sous un **slug distinct déterministe**
-   (suffixe du type, ex. `databricks-tool`) — pas de candidate.
+1. **Entité + type déclarés explicitement** (bloc `links:` du sidecar) → l'ingestion
+   **crée et lie directement** l'entité avec ce `entity_type`, même nouvelle (on fait
+   confiance au choix humain). La déclaration est **réinjectée de façon déterministe**
+   dans le frontmatter de la ressource (`forceDeclaredLinks`), puis la fiche est créée
+   par le moteur de projection — indépendamment de ce que l'IA recopie. **Jamais de
+   candidate pour une entité déclarée.** Si le nom correspond à une entité existante du
+   **même** type → liaison (dédoublonnage). Autre type → l'entité déclarée est créée sous
+   un **slug distinct déterministe** (suffixe du type, ex. `databricks-tool`) — pas de
+   candidate.
 2. **Nom déclaré sans type** (ancien `entities:` plat) ou **détecté dans le
    contenu** :
    - écriture reconnue (match casse/accents sur `label`/`aliases` d'une entité
@@ -100,14 +104,13 @@ Comment la granularité est décidée :
    - écriture inconnue → **ne pas créer** : entrée dans
      `wiki/entities/_candidates.json` (l'agent peut **proposer** un `entity_type`
      — TOUJOURS parmi les types déjà présents dans le registre — l'humain confirme).
-3. **Rien déclaré** → l'agent ne lie que les entités **déjà connues** détectées
+3. **Rien déclaré** → l'IA ne lie que les entités **déjà connues** détectées
    dans le texte ; toute nouvelle entité va en candidate.
 
 **Mandat de complétude :** toute mention (label/alias) d'une entité connue dans le
 texte DOIT être reliée — c'est ce que `wiki:verify` recontrôle (§6). Avant toute
 création, vérifier qu'aucune entité existante ne correspond (dédoublonnage `n8n`
-vs `n8n.io`). Ce canal candidate est **distinct** de `needs_review` (réservé à
-l'ambiguïté d'origin, wiki-spec.md §5).
+vs `n8n.io`).
 
 ### Contrat `wiki/entities/_candidates.json`
 

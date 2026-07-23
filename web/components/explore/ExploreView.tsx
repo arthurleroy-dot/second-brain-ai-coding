@@ -106,7 +106,9 @@ export default function ExploreView() {
                         onClick={() =>
                           d.month
                             ? router.push(`/sources?date=${d.month}`)
-                            : router.push('/sources?filter=needs_review')
+                            : d.year !== 'unknown'
+                              ? router.push(`/sources?date=${d.year}`)
+                              : router.push('/sources')
                         }
                         className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-sm hover:border-gray-300"
                       >

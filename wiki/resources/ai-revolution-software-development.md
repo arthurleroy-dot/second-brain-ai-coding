@@ -8,7 +8,6 @@ origin: externe
 topics: [agentic-coding, transformation-organisationnelle, context-engineering, finops-ia, outils-et-marche]
 url: "https://www.mckinsey.com"
 source_file: "the-ai-revolution-in-software-development_final.pdf"
-needs_review: false
 ---
 
 > Par [[../authors/mckinsey|McKinsey]] · [[../by-date/2026/2026-04/2026-04|2026-04]] · Thèmes : [[../themes/agentic-coding|Agentic Coding]] · [[../themes/transformation-organisationnelle|Transformation Organisationnelle]] · [[../themes/context-engineering|Context Engineering]] · [[../themes/finops-ia|FinOps IA]] · [[../themes/outils-et-marche|Outils & Marché]]

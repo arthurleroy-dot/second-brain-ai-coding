@@ -4,6 +4,8 @@ import path from 'path';
 import { spawn } from 'child_process';
 import matter from 'gray-matter';
 import { extractText, getDocumentProxy } from 'unpdf';
+import mammoth from 'mammoth';
+import JSZip from 'jszip';
 import { DATA_ROOT, RAW_ROOT, readRepoFile, applyFileOps, listWikiDir } from '@/lib/wiki-fs';
 import { getAnthropic, getModel } from '@/lib/claude';
 import { slugify } from '@/lib/wiki-parser';
@@ -18,6 +20,7 @@ import {
   type FileOp,
 } from '@/lib/wiki-mutate';
 import { projectResource, type ProjectViews, type NewEntityDecl } from '@/lib/wiki-project';
+import * as events from '@/lib/ingest-events';
 
 /**
  * Moteur d'ingestion LOCAL — « IA + déterministe » (refonte 2026-07-21).
@@ -257,7 +260,7 @@ export interface ResolvedTheme {
   isNew: boolean;
 }
 
-function humanize(slug: string): string {
+export function humanize(slug: string): string {
   return slug
     .split('-')
     .filter(Boolean)
@@ -317,19 +320,86 @@ export function resolveDeclarations(sidecar: Sidecar, reg: Registries): { declar
 }
 
 // ————————————————————————————————————————————————————————————————
-// Extraction texte (md/txt directs ; PDF via unpdf, en local, gratuit)
+// Extraction texte : md/txt directs ; PDF (unpdf), Word .docx (mammoth) et
+// PowerPoint .pptx (jszip + <a:t>) extraits en local, gratuitement. Aucun OCR.
 
 export async function extractSourceText(file: string): Promise<string> {
   const ext = path.extname(file).toLowerCase();
   const abs = path.join(RAW_ROOT, file);
+
+  // md/txt : lecture directe, aucune garde (un fichier texte vide reste valide).
   if (ext === '.md' || ext === '.txt') return fs.readFile(abs, 'utf-8');
+
+  let text: string;
   if (ext === '.pdf') {
     const buf = await fs.readFile(abs);
     const pdf = await getDocumentProxy(new Uint8Array(buf));
-    const { text } = await extractText(pdf, { mergePages: true });
-    return text;
+    ({ text } = await extractText(pdf, { mergePages: true }));
+  } else if (ext === '.docx') {
+    const buf = await fs.readFile(abs);
+    const { value } = await mammoth.extractRawText({ buffer: buf });
+    text = value;
+  } else if (ext === '.pptx') {
+    const buf = await fs.readFile(abs);
+    text = await extractPptxText(buf);
+  } else {
+    throw new Error(
+      `Extension non prise en charge pour l'extraction texte : ${ext} (md/txt/pdf/docx/pptx seulement).`,
+    );
   }
-  throw new Error(`Extension non prise en charge pour l'extraction texte : ${ext} (md/txt/pdf seulement).`);
+
+  // Garde-fou : extraction binaire qui ne rend rien = scan/images → OCR requis.
+  if (!text.trim()) {
+    throw new Error(
+      `Aucun texte extractible de « ${file} » (document scanné ou composé d'images ? l'OCR n'est pas géré).`,
+    );
+  }
+  return text;
+}
+
+// PowerPoint (.pptx) = archive OOXML. Le texte visible est dans les <a:t> des
+// diapos (ppt/slides/slideN.xml), regroupés par paragraphe <a:p> ; les notes de
+// l'orateur dans ppt/notesSlides/notesSlideN.xml. On concatène diapo par diapo,
+// dans l'ordre numérique, notes de chaque diapo à la suite de son corps.
+async function extractPptxText(buf: Buffer): Promise<string> {
+  const zip = await JSZip.loadAsync(buf);
+  const slideNums = Object.keys(zip.files)
+    .map((p) => /^ppt\/slides\/slide(\d+)\.xml$/.exec(p))
+    .filter((m): m is RegExpExecArray => m !== null)
+    .map((m) => Number(m[1]))
+    .sort((a, b) => a - b);
+
+  const chunks: string[] = [];
+  for (const n of slideNums) {
+    const body = pullDrawingmlText(await zip.file(`ppt/slides/slide${n}.xml`)!.async('string'));
+    const notesFile = zip.file(`ppt/notesSlides/notesSlide${n}.xml`);
+    const notes = notesFile ? pullDrawingmlText(await notesFile.async('string')) : '';
+    const parts = [body, notes].filter((s) => s.trim().length > 0);
+    if (parts.length) chunks.push(parts.join('\n'));
+  }
+  return chunks.join('\n\n');
+}
+
+// Texte DrawingML : on concatène les <a:t> À L'INTÉRIEUR de chaque paragraphe
+// <a:p> SANS séparateur (un mot peut être coupé en plusieurs runs par le
+// formatage), et on sépare les paragraphes par un saut de ligne.
+function pullDrawingmlText(xml: string): string {
+  const paras = [...xml.matchAll(/<a:p\b[\s\S]*?<\/a:p>/g)].map((m) => m[0]);
+  return paras
+    .map((p) => [...p.matchAll(/<a:t>([\s\S]*?)<\/a:t>/g)].map((m) => decodeXmlEntities(m[1])).join(''))
+    .filter((line) => line.trim().length > 0)
+    .join('\n');
+}
+
+function decodeXmlEntities(s: string): string {
+  return s
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&amp;/g, '&'); // &amp; en DERNIER pour ne pas re-décoder les autres entités
 }
 
 async function readRawSidecar(file: string): Promise<string> {
@@ -389,24 +459,93 @@ export function parseGeneration(text: string): { markdown: string; detectedNew: 
   return { markdown, detectedNew };
 }
 
-/** L'UNIQUE appel payant — isolé pour être injectable/mockable (cf. tests). */
-async function callModel(system: string, user: string): Promise<GenResult> {
+/**
+ * L'UNIQUE appel payant — en STREAMING, pour animer « l'IA rédige… » en direct.
+ *
+ * Non-régression coût (garde-fou n°1) : mêmes paramètres (modèle, max_tokens,
+ * système avec `cache_control` éphémère) → mêmes tokens. On re-capte `usage`
+ * depuis les événements du flux (`message_start` : input + cache ; `message_delta` :
+ * output final) ET l'en-tête `x-litellm-response-cost` depuis `response.headers`
+ * (⚠ l'en-tête HTTP est envoyé AVANT le corps : selon la gateway il peut ne PAS
+ * être renseigné en streaming — dans ce cas `gatewayCost` reste `null` et
+ * l'appelant retombe sur `estimateCost(usage)`, mêmes tokens, coût identique).
+ *
+ * AUCUN `thinking` (tokens facturés en plus — garde-fou n°2).
+ *
+ * `onDelta` (optionnel) reçoit chaque fragment de texte pour l'animation UI ;
+ * le laisser injectable garde la fonction testable sans dépendre de l'émetteur.
+ */
+async function callModel(
+  system: string,
+  user: string,
+  onDelta?: (text: string) => void,
+): Promise<GenResult> {
   const { data, response } = await getAnthropic()
     .messages.create({
       model: getModel(),
-      max_tokens: 16000,
+      max_tokens: 32000,
       system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: user }],
+      stream: true,
     })
     .withResponse();
-  const rawText = (data.content ?? [])
-    .filter((b: any) => b.type === 'text')
-    .map((b: any) => b.text)
-    .join('');
+
+  const { rawText, usage } = await consumeModelStream(data as AsyncIterable<any>, onDelta);
   const { markdown, detectedNew } = parseGeneration(rawText);
+  // ⚠ Non-régression coût : l'en-tête HTTP est envoyé AVANT le corps → en
+  // streaming, la gateway peut ne PAS le renseigner. Le cas échéant `gatewayCost`
+  // reste `null` et l'appelant retombe sur `estimateCost(usage)` (mêmes tokens).
   const gwRaw = response.headers.get('x-litellm-response-cost');
   const gatewayCost = gwRaw && Number.isFinite(parseFloat(gwRaw)) ? parseFloat(gwRaw) : null;
-  return { markdown, detectedNew, usage: data.usage as Usage, gatewayCost, rawText };
+  return { markdown, detectedNew, usage, gatewayCost, rawText };
+}
+
+/**
+ * Consomme le flux d'événements bruts d'un appel `messages.create({stream:true})`
+ * et reconstruit `rawText` + `usage`. Extrait de `callModel` pour être testable
+ * SANS appel payant. Même logique que `chat-agent.ts:consumeTurn`, sans les
+ * tool_use (l'ingestion n'a ni outils ni thinking). `usage` re-capté depuis les
+ * événements : `message_start` (input + cache + output initial), `message_delta`
+ * (output final cumulatif). Tolère le « Premature close » de LiteLLM survenant
+ * APRÈS `message_stop`. `onDelta` reçoit chaque fragment de texte (animation UI).
+ */
+export async function consumeModelStream(
+  events: AsyncIterable<any>,
+  onDelta?: (text: string) => void,
+): Promise<{ rawText: string; usage: Usage }> {
+  let rawText = '';
+  const usage: Usage = {
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_creation_input_tokens: null,
+    cache_read_input_tokens: null,
+  };
+  let completed = false;
+
+  try {
+    for await (const event of events) {
+      if (event.type === 'message_start') {
+        const u = event.message?.usage ?? {};
+        usage.input_tokens = u.input_tokens ?? 0;
+        usage.output_tokens = u.output_tokens ?? 0;
+        usage.cache_creation_input_tokens = u.cache_creation_input_tokens ?? null;
+        usage.cache_read_input_tokens = u.cache_read_input_tokens ?? null;
+      } else if (event.type === 'content_block_delta') {
+        if (event.delta?.type === 'text_delta' && event.delta.text) {
+          rawText += event.delta.text;
+          onDelta?.(event.delta.text);
+        }
+      } else if (event.type === 'message_delta') {
+        if (event.usage?.output_tokens != null) usage.output_tokens = event.usage.output_tokens;
+      } else if (event.type === 'message_stop') {
+        completed = true;
+      }
+    }
+  } catch (err) {
+    if (!completed) throw err; // vraie erreur amont (le message n'était pas fini)
+  }
+
+  return { rawText, usage };
 }
 
 // ————————————————————————————————————————————————————————————————
@@ -422,7 +561,7 @@ const WIKI_TYPE_TO_RT: Record<string, ResourceType> = {
   transcript: 'transcript',
   'personal-notes': 'personal_note',
 };
-const wikiTypeLabel = (t: string) => typeLabel(WIKI_TYPE_TO_RT[t] ?? 'unknown');
+export const wikiTypeLabel = (t: string) => typeLabel(WIKI_TYPE_TO_RT[t] ?? 'unknown');
 
 function normalizeForm(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[^a-z0-9]+/g, ' ').trim();
@@ -537,7 +676,7 @@ export async function buildCandidateOps(
 // ————————————————————————————————————————————————————————————————
 // Tuyauterie déterministe : sortie IA → FileOps (testable sans appel payant)
 
-function fmArray(fm: string, key: string): string[] {
+export function fmArray(fm: string, key: string): string[] {
   const m = fm.match(new RegExp(`^${key}:\\s*\\[([^\\]]*)\\]\\s*$`, 'm'));
   if (!m) return [];
   return m[1].split(',').map((s) => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
@@ -571,6 +710,60 @@ function forceDeclaredLinks(
   return withFrontmatter(nf, rest);
 }
 
+/**
+ * Remonte l'UNION des topics de section dans le frontmatter `topics:` (miroir
+ * thèmes de `forceDeclaredLinks`). Corrige à la source le bug « aucun thème » :
+ * l'IA annote les sections (`` `topics: [...]` ``) mais laisse parfois `topics: []`
+ * au frontmatter, alors que TOUTES les vues + le graphe dérivent du frontmatter.
+ * Après ce rollup, le frontmatter est TOUJOURS complet (= union frontmatter+sections),
+ * ce qui rend `projectResource` correct sans le modifier. Idempotent.
+ */
+export function rollupSectionTopics(markdown: string): string {
+  const meta = parseResourceMeta(markdown, '');          // meta.topics = union(frontmatter, chunk)
+  const { fm, rest } = splitFrontmatter(markdown);
+  let nf = fm;
+  for (const t of meta.topics) nf = patchInlineArray(nf, 'topics', t);  // idempotent ; crée la clé si absente
+  return withFrontmatter(nf, rest);
+}
+
+/**
+ * Régénère DÉTERMINISTIQUEMENT la ligne de nav `> Par … · … · Thèmes : …` depuis le
+ * frontmatter (remplace la nav écrite par l'IA, à la fidélité incertaine). Gère le cas
+ * de la note sans auteur ni date : seul le segment thèmes existe → nav `> Thèmes : …`
+ * (masquée à l'affichage par le strip élargi de `wiki-md.ts`). Idempotent : ré-appliquer
+ * sur une nav déjà correcte ne change rien de significatif.
+ */
+export function rebuildNav(
+  markdown: string,
+  author: string | null,
+  date: string | null,
+  topics: string[],
+  themeLabels: Record<string, string>,
+): string {
+  const { fm, rest } = splitFrontmatter(markdown);
+  // Retire toute ligne de nav existante (auteur/date OU thèmes dégénérée).
+  const navRe = /^>\s*(Par\s+|Th[èe]mes\s*:)/i;
+  const bodyNoNav = rest
+    .split('\n')
+    .filter((line) => !navRe.test(line.trim()))
+    .join('\n');
+
+  const segments: string[] = [];
+  if (author) segments.push(`Par [[../authors/${slugify(author)}|${author}]]`);
+  if (date) {
+    const y = date.slice(0, 4);
+    const ym = date.slice(0, 7);
+    segments.push(date.length >= 7 ? `[[../by-date/${y}/${ym}/${ym}|${ym}]]` : `[[../by-date/${y}/${y}|${y}]]`);
+  }
+  if (topics.length) {
+    segments.push(`Thèmes : ${topics.map((t) => `[[../themes/${t}|${themeLabels[t] ?? t}]]`).join(', ')}`);
+  }
+
+  if (segments.length === 0) return withFrontmatter(fm, bodyNoNav);
+  const nav = `> ${segments.join(' · ')}`;
+  return withFrontmatter(fm, `\n${nav}\n\n${bodyNoNav.replace(/^\n+/, '')}`);
+}
+
 export interface IngestOneInput {
   file: string;
   markdown: string;
@@ -582,29 +775,28 @@ export interface IngestOneInput {
 }
 
 /**
- * Cœur déterministe : à partir de la page ressource produite par l'IA, lit les vues
- * fraîches sur disque, applique la confiance graduée (§R11), et renvoie la liste des
- * `FileOp` (projection + candidates). N'écrit rien (l'appelant applique).
+ * Charge les vues wiki FRAÎCHES nécessaires à `projectResource` à partir de la page
+ * ressource (frontmatter déjà complété par le rollup/les déclarations). Extrait de
+ * `ingestOne` pour être réutilisé À L'IDENTIQUE par le backfill (une seule source de
+ * vérité). Détermine aussi les créations d'entités (confiance graduée §R11) et les
+ * labels de thème. Les déclarations sont optionnelles : absentes (backfill), les
+ * entités déjà présentes sont reliées, les inconnues tombent en 'concept' par défaut.
  */
-export async function ingestOne(input: IngestOneInput): Promise<{ ops: FileOp[]; slug: string; warnings: string[] }> {
-  const { file, today, registries: reg } = input;
-  // 1) source_file robuste, puis 2) ré-injection des déclarations sidecar dans le
-  // frontmatter → tout le downstream (fiche + graphe + exclusion des candidats) devient
-  // déterministe, quelle que soit la fidélité de recopie de l'IA (chantier 5).
-  const withSource = forceSourceFile(input.markdown, file);
-  const markdown = forceDeclaredLinks(withSource, input.declaredEntities, input.declaredThemes);
-  const { fm } = splitFrontmatter(markdown);
+export async function loadProjectViews(
+  markdown: string,
+  registries: Registries,
+  today: string,
+  declaredEntities: ResolvedEntity[] = [],
+  declaredThemes: ResolvedTheme[] = [],
+): Promise<{ views: ProjectViews; themeLabels: Record<string, string>; slug: string; warnings: string[] }> {
+  const reg = registries;
   const meta = parseResourceMeta(markdown, '');
   const slug = meta.slug;
   const warnings: string[] = [];
 
-  const feTopics = fmArray(fm, 'topics');
-  const feEntities = fmArray(fm, 'entities');
-
   const knownEntSlugs = new Set(reg.entities.map((e) => e.slug));
-  const knownThemeSlugs = new Set(reg.themes.map((t) => t.slug));
-  const declEntMap = new Map(input.declaredEntities.map((d) => [d.slug, d]));
-  const declThemeMap = new Map(input.declaredThemes.map((d) => [d.slug, d]));
+  const declEntMap = new Map(declaredEntities.map((d) => [d.slug, d]));
+  const declThemeMap = new Map(declaredThemes.map((d) => [d.slug, d]));
 
   // Entités (frontmatter ∪ chunk) : lecture fraîche + détermination des créations.
   const entities: Record<string, string | null> = {};
@@ -672,9 +864,38 @@ export async function ingestOne(input: IngestOneInput): Promise<{ ops: FileOp[];
     types,
   };
 
+  return { views, themeLabels, slug, warnings };
+}
+
+/**
+ * Cœur déterministe : à partir de la page ressource produite par l'IA, lit les vues
+ * fraîches sur disque, applique la confiance graduée (§R11), et renvoie la liste des
+ * `FileOp` (projection + candidates). N'écrit rien (l'appelant applique).
+ */
+export async function ingestOne(input: IngestOneInput): Promise<{ ops: FileOp[]; slug: string; warnings: string[] }> {
+  const { file, today, registries: reg } = input;
+  // 1) source_file robuste, 2) ré-injection des déclarations sidecar, 3) remontée des
+  // topics de section vers le frontmatter → tout le downstream (fiche + graphe + vues +
+  // exclusion des candidats) devient déterministe, quelle que soit la fidélité de recopie
+  // de l'IA (chantier 5 + fix « aucun thème »).
+  const withSource = forceSourceFile(input.markdown, file);
+  const withDeclared = forceDeclaredLinks(withSource, input.declaredEntities, input.declaredThemes);
+  let markdown = rollupSectionTopics(withDeclared);      // section topics → frontmatter (union)
+  const meta = parseResourceMeta(markdown, '');           // meta.topics = frontmatter (déjà union)
+
+  const { views, themeLabels, slug, warnings } = await loadProjectViews(
+    markdown,
+    reg,
+    today,
+    input.declaredEntities,
+    input.declaredThemes,
+  );
+
+  // Nav régénérée depuis le frontmatter complété (gère la note sans auteur ni date).
+  markdown = rebuildNav(markdown, meta.author, meta.date, meta.topics, themeLabels);
+
   const projOps = projectResource({ slug, resourceContent: markdown, views, slugifyAuthor: slugify, typeLabel: wikiTypeLabel, today });
   const candOps = await buildCandidateOps(input.detectedNew, slug, reg, input.declaredEntities, input.declaredThemes, today);
-  void knownThemeSlugs; // (réservé — la complétude des thèmes est jugée par wiki:verify)
   return { ops: [...projOps, ...candOps], slug, warnings };
 }
 
@@ -714,10 +935,16 @@ function buildUserMessage(
 export async function runIngestion(): Promise<void> {
   if (!acquireLock()) return; // déjà en cours
 
+  // Ouvre le fil temps réel du run (émetteur mémoire, éphémère). Placé en tête du
+  // `try` — donc APRÈS le lock — pour que TOUTE branche terminale (y compris le cas
+  // « rien à ingérer » et le catch global) puisse émettre son événement de fin.
+  events.startRun();
+
   try {
     const pending = await detectPending();
     if (pending.length === 0) {
       await writeIngestState({ status: 'done', finishedAt: nowIso(), pending: [] });
+      events.emitDone();
       return;
     }
     await writeIngestState({ status: 'running', startedAt: nowIso(), pending });
@@ -731,6 +958,14 @@ export async function runIngestion(): Promise<void> {
         /* best-effort */
       }
     };
+    // Double `log()` (trace debug fichier) et `emitStep()` (fil temps réel UI) : une
+    // seule source de vérité pour « annoncer une phase ». Les `log()` techniques
+    // (tokens/coût) restent fichier-only.
+    const phase = (phaseKey: string, label: string, forFile?: string) => {
+      log(`[phase] ${forFile ?? ''} ${phaseKey}: ${label}`);
+      events.emitStep(phaseKey, label, forFile);
+    };
+    const multi = pending.length > 1;
 
     const today = nowIso().slice(0, 10);
     const registries = await loadRegistries();
@@ -744,7 +979,10 @@ export async function runIngestion(): Promise<void> {
     const errors: string[] = [];
 
     for (const file of pending) {
+      // Label préfixé du nom de fichier en lot multi-fichiers (nu sinon).
+      const lbl = (base: string) => (multi ? `${file} — ${base}` : base);
       try {
+        phase('extract', lbl('Extraction du texte'), file);
         const raw = await extractSourceText(file);
         if (!raw.trim()) throw new Error(`Extraction vide pour ${file}`);
         const sidecarText = await readRawSidecar(file);
@@ -752,7 +990,8 @@ export async function runIngestion(): Promise<void> {
         const { declaredEntities, declaredThemes } = resolveDeclarations(sidecar, registries);
         const user = buildUserMessage(raw, sidecarText, file, declaredEntities, declaredThemes, today);
 
-        const gen = await callModel(system, user);
+        phase('analyze', lbl("Analyse et rédaction par l'IA"), file);
+        const gen = await callModel(system, user, (d) => events.emitDelta(d));
         const cost = gen.gatewayCost ?? estimateCost(gen.usage);
         totalCost += cost;
         perFile.push({ file, costUsd: Number(cost.toFixed(6)) });
@@ -762,6 +1001,7 @@ export async function runIngestion(): Promise<void> {
             `→ coût ${gen.gatewayCost != null ? 'gateway' : 'estimé'} $${cost.toFixed(4)}`,
         );
 
+        phase('project', lbl('Structuration de la fiche'), file);
         const { ops, slug, warnings } = await ingestOne({
           file,
           markdown: gen.markdown,
@@ -771,6 +1011,7 @@ export async function runIngestion(): Promise<void> {
           registries,
           today,
         });
+        phase('write', lbl('Écriture dans le wiki'), file);
         await applyFileOps(ops);
         lastSlug = slug;
         for (const w of warnings) log(`[${file}] ⚠ ${w}`);
@@ -782,6 +1023,7 @@ export async function runIngestion(): Promise<void> {
       }
     }
 
+    phase('verify', 'Mise à jour des index et vérification');
     const verifyTail = await runWikiVerify();
     const costUsd = Number(totalCost.toFixed(6));
 
@@ -793,6 +1035,7 @@ export async function runIngestion(): Promise<void> {
         error: errors.join(' | ') || 'Aucune ressource ingérée',
         logTail: verifyTail,
       });
+      events.emitError(errors.join(' | ') || 'Aucune ressource ingérée');
     } else {
       await writeIngestState({
         status: 'done',
@@ -804,6 +1047,7 @@ export async function runIngestion(): Promise<void> {
         logTail: verifyTail,
         ...(errors.length ? { error: errors.join(' | ') } : {}),
       });
+      events.emitDone();
     }
   } catch (e: any) {
     await writeIngestState({
@@ -812,6 +1056,7 @@ export async function runIngestion(): Promise<void> {
       error: e?.message ?? 'erreur inconnue',
       logTail: logTailSafe(),
     });
+    events.emitError(e?.message ?? 'erreur inconnue');
   } finally {
     releaseLock();
   }

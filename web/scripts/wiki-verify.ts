@@ -97,6 +97,7 @@ function proseOnly(body: string): string {
       const t = line.trim();
       if (/^`(topics|entities):\s*\[[^\]]*\]`$/.test(t)) return false;
       if (/^>\s*Par\s+/i.test(t)) return false;
+      if (/^>\s*Th[èe]mes\s*:/i.test(t)) return false; // nav dégénérée (note sans auteur/date)
       return true;
     })
     .join('\n');

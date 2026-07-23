@@ -8,7 +8,6 @@ origin: externe
 topics: [transformation-organisationnelle]
 url: "https://www.accenture.com/foresight"
 source_file: "new-accenture-research-finds-that-companies-with-ai-led-processes-outperform-peers.pdf"
-needs_review: false
 ---
 
 > Par [[../authors/accenture|Accenture]] · [[../by-date/2024/2024-10/2024-10|2024-10]] · Thèmes : [[../themes/transformation-organisationnelle|Transformation Organisationnelle]]

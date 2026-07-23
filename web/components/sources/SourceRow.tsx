@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, ExternalLink, Trash2 } from 'lucide-react';
+import { ExternalLink, Trash2 } from 'lucide-react';
 import { Source } from '@/types';
 import { typeBadgeClass, typeLabel, formatDate } from '@/lib/ui';
 import DeleteSourceModal from '@/components/sources/DeleteSourceModal';
@@ -34,14 +34,6 @@ export default function SourceRow({
               {source.topics.length > 0 && <> · {source.topics.join(', ')}</>}
             </div>
           </div>
-          {source.needs_review && (
-            <span
-              title="À vérifier"
-              className="flex shrink-0 items-center gap-1 rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-orange-700"
-            >
-              <AlertTriangle size={11} /> à vérifier
-            </span>
-          )}
           {source.url && (
             <ExternalLink
               size={14}

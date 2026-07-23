@@ -2,8 +2,8 @@
 type: theme
 slug: outils-et-marche
 label: Outils et Marché
-resource_count: 8
-last_updated: "2026-07-03"
+resource_count: 10
+last_updated: "2026-07-23"
 ---
 
 ## [[../resources/microsoft-google-late-ai-coding-compete-growth|Microsoft and Google are late to AI coding, but 'absolutely critical' they compete for growth]]
@@ -15,39 +15,6 @@ last_updated: "2026-07-03"
 
 ---
 
-## [[../resources/ai-software-development-what-changes-2026-2035|AI Software Development: What Changes from 2026 to 2035]]
-`2026-04 · article · externe — First Line Software`
-
-- [[../resources/ai-software-development-what-changes-2026-2035#introduction|Introduction]] — $6.15T IT spending 2026 ; agentic AI 119% CAGR ; $562B capex 5 tech majors ; NVIDIA $51.2B/trimestre data center
-- [[../resources/ai-software-development-what-changes-2026-2035#the-numbers-that-define-the-decade|The Numbers That Define the Decade]] — projections 2026-2035 par marché vertical
-
----
-
-## [[../resources/2026-agentic-coding-trends-report|Anthropic Agentic Coding Trends Report 2026]]
-`2026 · report-pdf · externe — Anthropic` · ⚠ needs_review (date)
-
-- [[../resources/2026-agentic-coding-trends-report#tendances-fondation|Tendances fondation]] — paysage outils : Claude Code, Cursor, Windsurf, Copilot, Devin ; CI/CD as AI scaffolding
-- [[../resources/2026-agentic-coding-trends-report#tendances-impact|Tendances impact]] — ROI d'entreprise : Augment Code 4-8 mois → 2 semaines ; Rakuten 12.5M LOC ; TELUS 13 000 solutions custom ; Zapier 89% adoption
-
----
-
-## [[../resources/2026-software-industry-outlook|2026 Software Industry Outlook]]
-`2026-02-12 · report-pdf · externe — Deloitte`
-
-- [[../resources/2026-software-industry-outlook#compétition-ai-native-vs-incumbents|Compétition AI-native vs incumbents]] — disruption du marché logiciel traditionnel par les startups AI-native
-- [[../resources/2026-software-industry-outlook#projections-marché-et-économie-de-lia|Projections marché et économie de l'IA]] — marché logiciel → $780B en 2030 (13% CAGR) ; Gartner 40% apps enterprise avec agents IA fin 2026 ; 60% software TAM via agents d'ici 2030
-
----
-
-## [[../resources/state-of-ai-2026-untapped-edge|State of AI in the Enterprise — The untapped edge]]
-`2026-01 · report-pdf · externe — Deloitte`
-
-- [[../resources/state-of-ai-2026-untapped-edge#introduction-et-overview|Introduction et overview]] — accès workforce +50% en 1 an (40%→60%) ; 25% ont déployé ≥40% expériences en prod
-- [[../resources/state-of-ai-2026-untapped-edge#ia-agentique-et-gouvernance|IA agentique et gouvernance]] — 23%→74% adoption agentique d'ici 2 ans ; use cases par secteur
-- [[../resources/state-of-ai-2026-untapped-edge#ia-physique|IA physique]] — 58%→80% adoption IA physique ; types d'impact (robotique, digital twins, IoT)
-
----
-
 ## [[../resources/ai-revolution-software-development|The AI revolution in software development]]
 `2026-04 · report-pdf · externe — McKinsey`
 
@@ -56,15 +23,70 @@ last_updated: "2026-07-03"
 
 ---
 
-## [[../resources/unlocking-value-ai-software-development|Unlocking the value of AI in software development]]
-`2025-11 · report-pdf · externe — McKinsey`
+## [[../resources/2026-agentic-coding-trends-report|2026 Agentic Coding Trends Report]]
+`2026 · report-pdf · externe — Anthropic`
 
-- [[../resources/unlocking-value-ai-software-development#introduction|Introduction]] — outils GitHub Copilot, Claude Code, Jules Google ; benchmark AI coding 30→55 pts
-- [[../resources/unlocking-value-ai-software-development#moving-toward-true-ai-driven-value|Moving toward true AI-driven value]] — evolution autocompletion → reasoning-driven agents ; in-browser computer use
+- [[../resources/2026-agentic-coding-trends-report#capability-trends-what-agents-can-do|Capability trends: What agents can do]] — 
+- [[../resources/2026-agentic-coding-trends-report#impact-trends-what-agents-may-change-in-2026|Impact trends: What agents may change in 2026]] — 
+
+---
+
+## [[../resources/2026-software-industry-outlook|2026 Global Software Industry Outlook]]
+`2026-02-12 · report-pdf · externe — Deloitte`
+
+- [[../resources/2026-software-industry-outlook#introduction|Introduction]] — Article du Deloitte Center for Technology, Media & Telecommunications (publié le 12 février 2026, lecture de 9 minutes, auteurs : Ayo Odusote, Steve Fineberg, Girija Krishnamurthy, David Jarvis, Sayantani Mazumder).
+- [[../resources/2026-software-industry-outlook#state-of-the-market|State of the market]] — Bien que les inquiétudes des investisseurs persistent, le marché du logiciel d'entreprise continue de croître, génère de forts flux de trésorerie et bénéficie d'importantes bases installées.
+- [[../resources/2026-software-industry-outlook#intensifying-competition-between-ai-natives-and-incumbents|Intensifying competition between AI-natives and incumbents]] — D'ici 2030, on estime que les solutions propulsées par des agents IA pourraient représenter **60 % du marché total adressable du logiciel** — installant une course entre les entreprises AI-native et les acteurs établis.
+- [[../resources/2026-software-industry-outlook#additional-ai-cost-and-market-uncertainties-for-2026|Additional AI, cost, and market uncertainties for 2026]] — En plus de la croissance des concurrents AI-native, de la transformation continue des équipes de développement logiciel et des menaces cyber émergentes, voici des tendances et incertitudes additionnelles à considérer : 1.
 
 ---
 
 ## [[../resources/ai-finops-2026-runtime-cost-governance-cant-wait|AI FinOps in 2026: Why Runtime Cost Governance Can't Wait]]
-`2026 · article · externe — ECI Research` · ⚠ needs_review (date)
+`2026 · article · externe — ECI Research`
 
-- [[../resources/ai-finops-2026-runtime-cost-governance-cant-wait#the-opportunity|The Opportunity]] — émergence des vendors "AI economic control systems" (ex: Revenium) ; positionnement du marché FinOps IA
+- [[../resources/ai-finops-2026-runtime-cost-governance-cant-wait#competitive-positioning|Competitive Positioning]] — The FinOps vendor landscape Cumberland described at this year's event breaks into two camps.
+
+---
+
+## [[../resources/ai-software-development-what-changes-2026-2035|AI Software Development: What Changes from 2026 to 2035]]
+`2026-04 · article · externe — First Line Software`
+
+- [[../resources/ai-software-development-what-changes-2026-2035#introduction|Introduction]] — Global IT spending will exceed $6.15 trillion in 2026 (Gartner, 2026).
+- [[../resources/ai-software-development-what-changes-2026-2035#the-numbers-that-define-the-decade|The Numbers That Define the Decade]] — The scale of what is happening in the global technology industry is not incremental.
+- [[../resources/ai-software-development-what-changes-2026-2035#the-death-of-per-seat-saas|The Death of Per-Seat SaaS]] — The most consequential structural shift in software is the collapse of per-seat pricing.
+- [[../resources/ai-software-development-what-changes-2026-2035#the-consulting-and-it-services-reckoning|The Consulting and IT Services Reckoning]] — McKinsey estimates that 57% of US working hours can be automated with existing technology (Outsource Accelerator / McKinsey).
+- [[../resources/ai-software-development-what-changes-2026-2035#the-forecast-timeline|The Forecast Timeline]] — | Year | Milestone | | --- | --- | | 2026 | IT spend exceeds $6T.
+- [[../resources/ai-software-development-what-changes-2026-2035#ai-is-already-writing-half-the-code|AI Is Already Writing Half the Code]] — 84% of developers use or plan to use AI tools.
+- [[../resources/ai-software-development-what-changes-2026-2035#1-the-ai-productivity-gap-will-widen-before-it-closes|1. The AI productivity gap will widen before it closes]] — Goldman Sachs notes that AI investment now constitutes 0.8% of US GDP and has produced essentially zero measurable productivity growth at the macro level (Goldman Sachs).
+- [[../resources/ai-software-development-what-changes-2026-2035#2-ai-services-deflation-is-not-the-death-of-it-services--it-is-the-elimination-of-margin-in-commoditized-delivery|2. AI services deflation is not the death of IT services — it is the elimination of margin in commoditized delivery]] — The body-shopping model cannot survive where AI cuts coding time by 55%.
+
+---
+
+## [[../resources/point-equipe-plateforme-etat-de-notre-pratique-du-coding-assiste-par-ia|Point d'équipe plateforme — état de notre pratique du coding assisté par IA]]
+`meeting-notes · interne`
+
+- [[../resources/point-equipe-plateforme-etat-de-notre-pratique-du-coding-assiste-par-ia#outils-en-place|Outils en place]] — - On a généralisé Claude Code comme agent principal en terminal : il lit le repo, planifie, écrit et corrige tout seul sur plusieurs fichiers à la fois.
+
+---
+
+## [[../resources/state-of-ai-2026-untapped-edge|State of AI in the Enterprise — The untapped edge]]
+`2026-01 · report-pdf · externe — Deloitte`
+
+- [[../resources/state-of-ai-2026-untapped-edge#introduction-et-overview|Introduction et overview]] — Rapport annuel du Deloitte AI Institute publié en janvier 2026, fondé sur une enquête mondiale auprès de plus de **3 235 répondants** director-to-C-suite, 24 pays, 6 industries, août–septembre 2025.
+- [[../resources/state-of-ai-2026-untapped-edge#passage-du-pilote-à-la-production|Passage du pilote à la production]] — L'accès de la main-d'œuvre à l'IA s'est élargi de **50 %** en un an — passant de moins de 40 % à un peu moins de 60 % des travailleurs ayant un accès sanctionné aux outils IA, et 11 % des entreprises leaders fournissent désormais à leurs travailleurs un accès quasi universel (plus de 80 %).
+- [[../resources/state-of-ai-2026-untapped-edge#ia-souveraine|IA souveraine]] — L'**IA souveraine** désigne le cas où un pays — et les entreprises qui y opèrent — conçoit, entraîne et déploie l'IA sous ses propres lois, sur une infrastructure qu'il contrôle, avec des données gouvernées localement.
+- [[../resources/state-of-ai-2026-untapped-edge#ia-physique|IA physique]] — L'**IA physique** est la classe de systèmes IA qui perçoivent le monde réel, prennent des décisions et pilotent des actions physiques via des machines ou des systèmes de contrôle.
+
+---
+
+## [[../resources/top-engineers-anthropic-openai-ai-writes-100-pct-code|Top engineers at Anthropic, OpenAI say AI now writes 100% of their code—with big implications for the future of software development jobs]]
+`2026-01 · article · externe — Fortune`
+
+- [[../resources/top-engineers-anthropic-openai-ai-writes-100-pct-code#le-produit-claude-code-et-leffet-viral|Le produit Claude Code et l'effet viral]] — Anthropic's tools have become a favorite of software engineers over the last few years.
+
+---
+
+## [[../resources/unlocking-value-ai-software-development|Unlocking the value of AI in software development]]
+`2025-11 · report-pdf · externe — McKinsey`
+
+- [[../resources/unlocking-value-ai-software-development#moving-toward-true-ai-driven-value|Moving toward true AI-driven value]] — Au cours des dernières années, beaucoup d'entreprises ont appris par elles-mêmes que générer un véritable impact financier en intégrant l'IA dans le développement de produits logiciels exige des organ

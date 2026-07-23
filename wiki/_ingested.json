@@ -3,13 +3,13 @@
   "files": {
     "2026 Agentic Coding Trends Report.pdf": {
       "slug": "2026-agentic-coding-trends-report",
-      "ingested_at": "2026-07-08",
-      "run": "baseline"
+      "ingested_at": "2026-07-23",
+      "run": "local"
     },
     "2026 Software Industry Outlook | Deloitte Insights.pdf": {
       "slug": "2026-software-industry-outlook",
-      "ingested_at": "2026-07-08",
-      "run": "baseline"
+      "ingested_at": "2026-07-23",
+      "run": "local"
     },
     "new-accenture-research-finds-that-companies-with-ai-led-processes-outperform-peers.pdf": {
       "slug": "accenture-research-ai-led-processes-outperform-peers",
@@ -18,8 +18,8 @@
     },
     "AI FinOps in 2026: Why Runtime Cost Governance Can't Wait.md": {
       "slug": "ai-finops-2026-runtime-cost-governance-cant-wait",
-      "ingested_at": "2026-07-08",
-      "run": "baseline"
+      "ingested_at": "2026-07-23",
+      "run": "local"
     },
     "the-ai-revolution-in-software-development_final.pdf": {
       "slug": "ai-revolution-software-development",
@@ -28,8 +28,8 @@
     },
     "AI Software Development: What Changes from 2026 to 2035.md": {
       "slug": "ai-software-development-what-changes-2026-2035",
-      "ingested_at": "2026-07-08",
-      "run": "baseline"
+      "ingested_at": "2026-07-23",
+      "run": "local"
     },
     "FinOps for AI: Why LLM Cost Is an Engineering Problem, Not a Finance One.md": {
       "slug": "finops-ai-llm-cost-engineering-not-finance",
@@ -43,18 +43,18 @@
     },
     "rewiring-software-delivery-for-the-agentic-era.pdf": {
       "slug": "rewiring-software-delivery-agentic-era",
-      "ingested_at": "2026-07-08",
-      "run": "baseline"
+      "ingested_at": "2026-07-23",
+      "run": "local"
     },
     "state-of-ai-2026.pdf": {
       "slug": "state-of-ai-2026-untapped-edge",
-      "ingested_at": "2026-07-08",
-      "run": "baseline"
+      "ingested_at": "2026-07-23",
+      "run": "local"
     },
     "Top engineers at Anthropic, OpenAI say AI now writes 100% of their code—with big implications for the future of software development jobs.md": {
       "slug": "top-engineers-anthropic-openai-ai-writes-100-pct-code",
-      "ingested_at": "2026-07-08",
-      "run": "baseline"
+      "ingested_at": "2026-07-23",
+      "run": "local"
     },
     "Traditional FinOps Breaks On AI Workloads.md": {
       "slug": "traditional-finops-breaks-ai-workloads",
@@ -63,8 +63,28 @@
     },
     "unlocking-the-value-of-ai-in-software-development.pdf": {
       "slug": "unlocking-value-ai-software-development",
-      "ingested_at": "2026-07-08",
-      "run": "baseline"
+      "ingested_at": "2026-07-23",
+      "run": "local"
+    },
+    "Nowcasting_Econ-Report-v16.pdf": {
+      "slug": "labor-market-impacts-ai-new-measure-early-evidence",
+      "ingested_at": "2026-07-23",
+      "run": "local"
+    },
+    "note-2.txt": {
+      "slug": "finops-c-est-le-financement-des-tokens",
+      "ingested_at": "2026-07-23",
+      "run": "local"
+    },
+    "note.txt": {
+      "slug": "le-finops-et-le-context-engineering",
+      "ingested_at": "2026-07-23",
+      "run": "local"
+    },
+    "note-3.txt": {
+      "slug": "point-equipe-plateforme-etat-de-notre-pratique-du-coding-assiste-par-ia",
+      "ingested_at": "2026-07-23",
+      "run": "local"
     }
   }
 }

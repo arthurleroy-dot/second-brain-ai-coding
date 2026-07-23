@@ -174,12 +174,6 @@ export default function FilterBar({ sources }: { sources: Source[] }) {
         );
       })}
 
-      {params.get('filter') === 'needs_review' && (
-        <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-medium text-orange-700">
-          Filtre : à vérifier
-        </span>
-      )}
-
       {(params.toString() !== '') && (
         <button
           type="button"

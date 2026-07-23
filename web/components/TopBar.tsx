@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Tags, Layers } from 'lucide-react';
+import { Tags, Layers } from 'lucide-react';
 
 const TITLES: Record<string, string> = {
   '/chat': 'Chat',
@@ -24,7 +24,6 @@ function titleFor(pathname: string): string {
 export default function TopBar() {
   const pathname = usePathname();
   const [total, setTotal] = useState<number | null>(null);
-  const [needsReview, setNeedsReview] = useState<number>(0);
   const [pending, setPending] = useState<number>(0);
   const [themePending, setThemePending] = useState<number>(0);
 
@@ -35,7 +34,6 @@ export default function TopBar() {
       .then((d) => {
         if (cancelled) return;
         setTotal(d.total ?? d.sources?.length ?? 0);
-        setNeedsReview(d.needs_review ?? 0);
       })
       .catch(() => {});
     fetch('/api/candidates')
@@ -64,15 +62,6 @@ export default function TopBar() {
         <span className="rounded-full bg-[#E1F5EE] px-3 py-1 text-xs font-medium text-[#0F6E56]">
           {total ?? '—'} sources
         </span>
-        {needsReview > 0 && (
-          <Link
-            href="/sources?filter=needs_review"
-            className="flex items-center gap-1 rounded-full bg-orange-50 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-100"
-          >
-            <AlertTriangle size={12} />
-            {needsReview} à vérifier
-          </Link>
-        )}
         {pending > 0 && (
           <Link
             href="/entities"

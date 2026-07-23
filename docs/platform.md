@@ -9,8 +9,8 @@ plus aucune base externe. L'app **lit et écrit le wiki directement sur le disqu
 Modèle **local-first** : chaque personne installe l'app de bureau et dispose de sa
 propre instance et de son propre wiki EN LOCAL, sous une racine de données unique
 `DATA_ROOT` (le dossier de données utilisateur d'Electron, `userData`). GitHub ne
-sert plus qu'à **distribuer les mises à jour** de l'app (auto-updater Electron) —
-plus aucun commit, plus aucune API GitHub pour les écritures.
+sert plus qu'à **distribuer les binaires** de l'app (releases téléchargées à la main ;
+pas d'auto-updater en v1) — plus aucun commit, plus aucune API GitHub pour les écritures.
 
 ---
 
@@ -119,40 +119,70 @@ donc hors du garde-fou d'`applyFileOps` (à dessein). Routes historiques :
 
 ## 6. Accès IA
 
-L'accès au modèle passe par la **gateway LiteLLM de l'entreprise**
-(`https://llm-gateway.m33.tech`), avec une **clé partagée par les employés** (pas
-de clé Anthropic personnelle). Deux chemins d'authentification distincts :
+**Un seul chemin d'authentification**, partagé par le chat ET l'ingestion : le client
+`getAnthropic()` (`web/lib/claude.ts`, SDK `@anthropic-ai/sdk`) qui parle **uniquement
+le protocole « Messages » d'Anthropic**, en auth **`x-api-key`**. La cible peut être
+**Anthropic en direct** (`baseUrl` vide → `https://api.anthropic.com`) **ou une
+passerelle compatible** (gateway LiteLLM d'entreprise, ex. `https://llm-gateway.m33.tech`).
+Une clé/URL OpenAI ou Gemini ne fonctionne pas.
 
-- **Chat** (`web/lib/claude.ts`, SDK `@anthropic-ai/sdk`) : s'authentifie en
-  `x-api-key` (`ANTHROPIC_API_KEY`) sur `baseURL = ANTHROPIC_BASE_URL` (la
-  gateway). Suffisant pour la lecture/chat.
-- **Ingestion** (`web/lib/ingest-local.ts`, SDK `@anthropic-ai/claude-agent-sdk`) :
-  s'authentifie en **Bearer** via `ANTHROPIC_AUTH_TOKEN` + `ANTHROPIC_BASE_URL`
-  (le SDK Agent exige le token Bearer, cf. `tasks/lessons.md` 2026-07-09).
+Le triplet **clé / adresse / modèle** vient du store de réglages `getAiSettings()`
+(`web/lib/ai-settings.ts`, cf. §7), saisi par l'utilisateur sur l'écran **`/reglages`**
+et **relu à chaud à chaque appel IA** (aucun redémarrage). Le client SDK est mémorisé
+par signature `clé+URL` et reconstruit dès que l'une des deux change. `baseURL` est
+toujours passé explicitement (sinon le SDK relit `process.env.ANTHROPIC_BASE_URL` et la
+gateway du `.env.local` fuiterait dans le preset « Anthropic direct »).
 
-## 7. Variables d'environnement
+> Historique : l'ingestion utilisait auparavant `@anthropic-ai/claude-agent-sdk` en
+> **Bearer** (`ANTHROPIC_AUTH_TOKEN`). Depuis la refonte « IA + déterministe », elle
+> fait un simple `messages.create` via le même client `x-api-key` que le chat — plus
+> aucun `Bearer`, plus aucun `ANTHROPIC_AUTH_TOKEN` dans le code.
 
-Aucune clé n'est obligatoire pour que l'app démarre et lise le wiki. En dev, elles
-sont lues depuis `web/.env.local` (voir `.env.local.example`) ; dans l'app Electron,
-elles sont fournies par l'écran de réglages (clé chiffrée via `safeStorage`) et
-injectées dans `process.env` à l'exécution.
+## 7. Réglages IA & variables d'environnement
+
+Deux sources de configuration IA, le **store primant sur l'env** (`getAiSettings`,
+`web/lib/ai-settings.ts`) :
+
+- **Store de réglages** (voie normale de l'app) : `<DATA_ROOT>/.data/ai-settings.json`
+  = `{ apiKey, baseUrl, model }`, écrit par l'écran **`/reglages`** (`POST /api/settings` ;
+  test sans enregistrer via `POST /api/settings/test`) et relu **à chaud** (lecture
+  synchrone à chaque appel IA). La clé y est **stockée en clair** — choix « Option A »
+  assumé (app mono-utilisateur en local, dossier `.data/` non versionné) ; `safeStorage`
+  a été envisagé mais n'est **pas** implémenté. L'UI ne réaffiche jamais la clé (juste un
+  indice des 4 derniers caractères).
+- **Variables d'environnement** (secours de dev) : lues depuis `web/.env.local` (gabarit
+  propre `.env.local.example`) seulement si le store ne fournit pas la valeur.
+
+Aucune clé n'est obligatoire pour démarrer et **lire** le wiki ; sans clé, seuls le chat
+et l'ingestion sont désactivés.
 
 | Variable | Usage |
 |----------|-------|
-| `ANTHROPIC_API_KEY` | Clé de la gateway LiteLLM (chat + ingestion). Vide = chat/ingestion désactivés, le reste de l'app fonctionne |
-| `ANTHROPIC_BASE_URL` | URL de la gateway (défaut d'exemple : `https://llm-gateway.m33.tech`) |
-| `ANTHROPIC_MODEL` | Modèle routé par la gateway (défaut `claude-sonnet-4-6`) |
-| `DATA_ROOT` | Dossier de données de l'app (défaut dev : racine du dépôt). Dérive `WIKI_ROOT`/`RAW_ROOT` |
+| `ANTHROPIC_API_KEY` | Clé IA (chat + ingestion). Vide = chat/ingestion désactivés, le reste fonctionne |
+| `ANTHROPIC_BASE_URL` | Cible : vide = Anthropic direct ; sinon une passerelle compatible (ex. `https://llm-gateway.m33.tech`) |
+| `ANTHROPIC_MODEL` | Modèle (défaut `claude-sonnet-4-5`) |
+| `DATA_ROOT` | Dossier de données (défaut dev : racine du dépôt ; en Electron : `userData`). Dérive `WIKI_ROOT`/`RAW_ROOT` |
 | `WIKI_ROOT`, `RAW_ROOT` | Override direct des chemins wiki/raw (optionnel) |
-| `REFERENCE_DOCS_ROOT` | Racine des assets de référence (prompt + docs injectées à l'ingestion ; défaut : racine du dépôt) |
+| `REFERENCE_DOCS_ROOT` | Racine des assets de référence (le prompt d'ingestion ; défaut : racine du dépôt) |
 
-## 8. Packaging Electron & accès
+## 8. Packaging Electron & distribution
 
-- **Application de bureau Electron** : chaque utilisateur a sa propre instance et
-  son propre wiki local sous `DATA_ROOT` (`userData`). Les assets de référence
-  (prompt d'ingestion + `docs/` injectées) sont embarqués en lecture seule
-  (`REFERENCE_DOCS_ROOT`).
-- **Pas d'authentification** : accès direct à l'app, sans login (la protection par
-  mot de passe partagé a été retirée — l'app tourne en local pour un seul utilisateur).
-- **Mises à jour** : GitHub distribue les releases de l'app (auto-updater Electron) ;
-  il n'héberge plus de contenu wiki et ne reçoit plus aucun commit d'écriture.
+La coquille Electron vit dans `electron/` (`electron/main.js` = process principal).
+Au lancement elle : (1) **amorce** le wiki dans `userData` au 1er lancement (`seedIfEmpty`
+copie les seeds `wiki/`+`raw/` embarqués **seulement s'ils sont absents** — idempotent,
+non destructif : une mise à jour du code ne touche jamais les données) ; (2) lance le
+**serveur Next standalone** comme process Node séparé sur un port local (`127.0.0.1`) ;
+(3) l'affiche dans une fenêtre, page d'accueil `/chat`.
+
+- **Données** : tout vit sous `DATA_ROOT = userData` (`wiki/`, `raw/`, `.data/`, réglages
+  IA en clair). La clé n'est **pas** injectée par la coquille — elle est saisie via
+  `/reglages` et relue par le serveur.
+- **Assets de référence** embarqués en lecture seule sous `REFERENCE_DOCS_ROOT`
+  (`prompts/` + `docs/` + `CLAUDE.md`) ; seul le **prompt d'ingestion** y est lu au runtime.
+- **Build** (`npm run dist` → `electron-builder`) : cible **`.dmg`** (macOS, non signé —
+  `identity: null`) et **`.exe`** (Windows, installeur NSIS).
+- **Pas d'authentification** : accès direct, sans login (le mot de passe partagé a été
+  retiré — app locale mono-utilisateur).
+- **Mises à jour** : **pas d'auto-updater en v1**. Distribution par **téléchargement
+  manuel** du `.dmg`/`.exe` (releases GitHub) ; GitHub n'héberge plus de contenu wiki et
+  ne reçoit plus aucun commit d'écriture.

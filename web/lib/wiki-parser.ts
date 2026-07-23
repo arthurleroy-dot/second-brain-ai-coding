@@ -69,6 +69,17 @@ function extractChunkEntities(body: string): string[] {
   return out;
 }
 
+/** Récupère les thèmes déclarés en chunk (`topics: [...]` sous un heading). Miroir d'extractChunkEntities. */
+function extractChunkTopics(body: string): string[] {
+  const out: string[] = [];
+  const re = /^`topics:\s*\[([^\]]*)\]`\s*$/;
+  for (const line of body.split('\n')) {
+    const m = line.trim().match(re);
+    if (m) out.push(...m[1].split(',').map((s) => s.trim()).filter(Boolean));
+  }
+  return out;
+}
+
 export interface ParsedResource {
   source: Source;
   body: string; // markdown sans le frontmatter
@@ -89,10 +100,9 @@ export function parseResource(content: string, slugFallback: string): ParsedReso
     date: cleanStr(data.date),
     url: cleanStr(data.url),
     deposited_by: cleanStr(data.deposited_by),
-    topics: arr(data.topics),
+    topics: [...new Set([...arr(data.topics), ...extractChunkTopics(body)])],
     entities,
     origin: cleanOrigin(data.origin),
-    needs_review: data.needs_review === true,
     source_file: cleanStr(data.source_file),
     file_path: `${RESOURCES}/${cleanStr(data.slug) ?? slugFallback}.md`,
   };

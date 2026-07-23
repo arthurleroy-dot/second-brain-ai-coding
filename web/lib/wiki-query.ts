@@ -108,6 +108,5 @@ function normalizeSource(s: any): Source {
     url: s?.url ?? null,
     deposited_by: null,
     topics: Array.isArray(s?.topics) ? s.topics : [],
-    needs_review: false,
   };
 }
