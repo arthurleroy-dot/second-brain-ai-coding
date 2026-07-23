@@ -6,7 +6,7 @@ date: ""
 source_type: meeting-notes
 origin: interne
 topics: [agentic-coding, outils-et-marche, finops-ia, context-engineering, securite-et-risques, transformation-organisationnelle]
-entities: []
+entities: [claude-code, n8n, supabase, databricks]
 url: ""
 source_file: "note-3.txt"
 ---

@@ -409,6 +409,25 @@ test('chaîne complète : 3 branches §R11 + wiki:verify sans erreur', async () 
     0,
     `wiki:verify erreurs : ${JSON.stringify(report.issues.filter((i: any) => i.severity === 'error'), null, 2)}`,
   );
+  // Check graph-unlabeled-node — cas OK : les nœuds entités sont nés labellisés.
+  assert.ok(
+    !report.issues.some((i: any) => i.category === 'graph-unlabeled-node'),
+    'aucun nœud nu après ingestion (entités nées labellisées)',
+  );
+
+  // Check graph-unlabeled-node — cas ERREUR : un nœud entity injecté SANS label est signalé.
+  const goodGraph = (await readRepoFile('wiki/graph.json'))!;
+  const g = JSON.parse(goodGraph);
+  g.nodes.push({ id: 'entity:nunode', type: 'entity' }); // nœud nu (ni label ni entity_type)
+  await applyFileOps([{ path: 'wiki/graph.json', content: JSON.stringify(g, null, 2) + '\n' }]);
+  const report2 = await runVerify();
+  assert.ok(
+    report2.issues.some(
+      (i: any) => i.category === 'graph-unlabeled-node' && i.severity === 'error' && i.message.includes('entity:nunode'),
+    ),
+    'nœud nu injecté → erreur graph-unlabeled-node',
+  );
+  await applyFileOps([{ path: 'wiki/graph.json', content: goodGraph }]); // restaure l'état propre
 });
 
 // ————————————————————————————————————————————————————————————————
@@ -678,6 +697,31 @@ Texte B.
   assert.match(splitFrontmatter(out).fm, /^topics: \[agentic-coding, outils-et-marche, finops-ia\]$/m);
   // Idempotence : re-appliquer ne change rien.
   assert.equal(rollupSectionTopics(out), out);
+});
+
+test('rollupSectionEntities : frontmatter vide + sections → union, idempotent (miroir thèmes)', async () => {
+  const { rollupSectionEntities } = await load();
+  const { splitFrontmatter } = await import('../wiki-mutate');
+  const md = `---
+slug: x
+entities: []
+---
+
+## A
+\`entities: [claude-code, n8n]\`
+
+Texte A.
+
+## B
+\`entities: [supabase, databricks]\`
+
+Texte B.
+`;
+  const out = rollupSectionEntities(md);
+  // L'union des entités de section est remontée au frontmatter, la clé étant créée.
+  assert.match(splitFrontmatter(out).fm, /^entities: \[claude-code, n8n, supabase, databricks\]$/m);
+  // Idempotence : union ⊆ frontmatter → no-op.
+  assert.equal(rollupSectionEntities(out), out);
 });
 
 test('rebuildNav : auteur+date+topics / topics seuls / rien / idempotence', async () => {

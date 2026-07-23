@@ -6,7 +6,7 @@ date: "2026-03-05"
 source_type: report-pdf
 origin: externe
 topics: [transformation-organisationnelle, labor-market-evolution]
-entities: []
+entities: [chatgpt]
 url: ""
 source_file: "Nowcasting_Econ-Report-v16.pdf"
 ---

@@ -9,6 +9,7 @@
     "lint": "next lint",
     "wiki:verify": "tsx scripts/wiki-verify.ts",
     "wiki:backfill-topics": "tsx scripts/wiki-backfill-topics.ts",
+    "wiki:backfill-entities": "tsx scripts/wiki-backfill-entities.ts",
     "test": "node --import tsx --test \"lib/__tests__/*.test.ts\""
   },
   "dependencies": {

@@ -54,9 +54,9 @@
     {"id": "resource:le-finops-et-le-context-engineering", "type": "resource", "label": "Le FinOps et le Context Engineering", "date": ""},
     {"id": "resource:point-equipe-plateforme-etat-de-notre-pratique-du-coding-assiste-par-ia", "type": "resource", "label": "Point d'équipe plateforme — état de notre pratique du coding assisté par IA", "date": ""},
     {"id": "type:meeting-notes", "type": "source_type", "label": "Réunion"},
-    {"id": "entity:n8n", "type": "entity"},
-    {"id": "entity:supabase", "type": "entity"},
-    {"id": "entity:databricks", "type": "entity"},
+    {"id": "entity:n8n", "type": "entity", "label": "n8n", "entity_type": "tool"},
+    {"id": "entity:supabase", "type": "entity", "label": "Supabase", "entity_type": "tool"},
+    {"id": "entity:databricks", "type": "entity", "label": "Databricks", "entity_type": "tool"},
     {"id": "entity:chatgpt", "type": "entity", "entity_type": "tool", "label": "ChatGPT"}
   ],
   "edges": [

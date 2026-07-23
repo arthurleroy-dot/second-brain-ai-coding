@@ -6,6 +6,7 @@ date: "2025-11"
 source_type: report-pdf
 origin: externe
 topics: [outils-et-marche, transformation-organisationnelle, context-engineering, finops-ia, agentic-coding]
+entities: [claude-code]
 url: "https://www.mckinsey.com"
 source_file: "unlocking-the-value-of-ai-in-software-development.pdf"
 ---

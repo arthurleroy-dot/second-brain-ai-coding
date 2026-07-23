@@ -12,6 +12,7 @@
  *   - graph-missing-edge : lien manquant (mentions/has_origin/belongs_to_theme/written_by/has_type/published_on)
  *   - graph-orphan-node  : node resource:<slug> sans fichier ressource (suppression incomplète)
  *   - graph-orphan-edge  : arête référençant une ressource inexistante
+ *   - graph-unlabeled-node : node entity:/theme:/author:/type:/origin: sans `label` (nœud nu)
  *   - invalid-origin     : ressource dont l'origin est hors {interne, externe, ""}
  *   - origin-page-missing: page origin/interne.md ou origin/externe.md absente
  *   - manifest-missing   : ressource dont le source_file n'est pas dans le manifeste
@@ -460,6 +461,18 @@ async function main() {
           break;
         }
       }
+    }
+
+    // Nœuds nus : tout nœud entity:/theme:/author:/type:/origin: DOIT porter un `label`
+    // non vide. Transforme en échec de CI la récidive du bug « entité écrite sans nom »
+    // (une entité déjà validée entrée dans le graphe sans son label). Les nœuds sont
+    // toujours émis labellisés par le moteur ; un nœud nu signale une régression.
+    const LABELLED_PREFIXES = ['entity:', 'theme:', 'author:', 'type:', 'origin:'];
+    for (const n of graph.nodes ?? []) {
+      const id = String(n.id);
+      if (!LABELLED_PREFIXES.some((p) => id.startsWith(p))) continue;
+      if (String(n.label ?? '').trim() === '')
+        add('graph-unlabeled-node', 'error', `nœud ${id} sans label (nœud nu — régression du correctif entités)`);
     }
   }
 

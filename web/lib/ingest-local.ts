@@ -728,6 +728,23 @@ export function rollupSectionTopics(markdown: string): string {
 }
 
 /**
+ * Miroir ENTITÉS de `rollupSectionTopics` : remonte l'UNION des entités de section
+ * dans le frontmatter `entities:`. Corrige à la source l'asymétrie entités/thèmes :
+ * l'IA annote les sections (`` `entities: [...]` ``) mais laisse parfois `entities: []`
+ * au frontmatter, alors que TOUTES les vues + le graphe + l'index dérivent du
+ * frontmatter. Après ce rollup, le frontmatter est TOUJOURS complet (= union
+ * frontmatter+sections), ce qui rend `projectResource` correct sans le modifier.
+ * Idempotent (union ⊆ frontmatter → no-op).
+ */
+export function rollupSectionEntities(markdown: string): string {
+  const meta = parseResourceMeta(markdown, '');          // meta.entities = union(frontmatter, chunk)
+  const { fm, rest } = splitFrontmatter(markdown);
+  let nf = fm;
+  for (const e of meta.entities) nf = patchInlineArray(nf, 'entities', e);  // idempotent ; crée la clé si absente
+  return withFrontmatter(nf, rest);
+}
+
+/**
  * Régénère DÉTERMINISTIQUEMENT la ligne de nav `> Par … · … · Thèmes : …` depuis le
  * frontmatter (remplace la nav écrite par l'IA, à la fidélité incertaine). Gère le cas
  * de la note sans auteur ni date : seul le segment thèmes existe → nav `> Thèmes : …`
@@ -799,9 +816,13 @@ export async function loadProjectViews(
   const declEntMap = new Map(declaredEntities.map((d) => [d.slug, d]));
   const declThemeMap = new Map(declaredThemes.map((d) => [d.slug, d]));
 
-  // Entités (frontmatter ∪ chunk) : lecture fraîche + détermination des créations.
+  // Entités (frontmatter ∪ chunk) : lecture fraîche + détermination des créations +
+  // label/type d'affichage (miroir des thèmes ci-dessous) — priorité :
+  // 1) déclarée-nouvelle (sidecar), 2) registre, 3) repli humanize / 'concept'.
   const entities: Record<string, string | null> = {};
   const newEntities: Record<string, NewEntityDecl> = {};
+  const entityLabels: Record<string, string> = {};
+  const entityTypes: Record<string, string> = {};
   for (const e of meta.entities) {
     const existing = await readRepoFile(`wiki/entities/${e}.md`);
     entities[e] = existing;
@@ -813,6 +834,10 @@ export async function loadProjectViews(
         if (!knownEntSlugs.has(e)) warnings.push(`entité liée « ${e} » ni connue ni déclarée (page créée par défaut en 'concept')`);
       }
     }
+    const known = reg.entities.find((x) => x.slug === e);
+    const decl = newEntities[e];
+    entityLabels[e] = decl?.label ?? known?.label ?? humanize(e);
+    entityTypes[e] = decl?.entity_type ?? known?.entity_type ?? 'concept';
   }
 
   // Thèmes (frontmatter ∪ chunk) : lecture fraîche + labels.
@@ -855,6 +880,8 @@ export async function loadProjectViews(
     originContent,
     entities,
     newEntities,
+    entityLabels,
+    entityTypes,
     yearPath: year ? `wiki/by-date/${year}/${year}.md` : null,
     yearContent,
     monthPath: isMonth ? `wiki/by-date/${year}/${ym}/${ym}.md` : null,
@@ -882,7 +909,8 @@ export async function ingestOne(input: IngestOneInput): Promise<{ ops: FileOp[];
   const withSource = forceSourceFile(input.markdown, file);
   const withDeclared = forceDeclaredLinks(withSource, input.declaredEntities, input.declaredThemes);
   let markdown = rollupSectionTopics(withDeclared);      // section topics → frontmatter (union)
-  const meta = parseResourceMeta(markdown, '');           // meta.topics = frontmatter (déjà union)
+  markdown = rollupSectionEntities(markdown);            // section entities → frontmatter (union)
+  const meta = parseResourceMeta(markdown, '');           // meta.topics/entities = frontmatter (déjà union)
 
   const { views, themeLabels, slug, warnings } = await loadProjectViews(
     markdown,

@@ -5,7 +5,10 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { executeWikiTool } from '../chat-agent';
+import { WIKI_ROOT } from '../wiki-fs';
 
 // ————————————————————————————————————————————————————————————————
 // read_wiki_page
@@ -61,11 +64,14 @@ test('read_wiki_page : path manquant → is_error', async () => {
 // ————————————————————————————————————————————————————————————————
 // list_wiki_folder
 
-test('list_wiki_folder(resources) renvoie les 13 fiches', async () => {
+test('list_wiki_folder(resources) renvoie toutes les fiches .md du dossier', async () => {
   const r = await executeWikiTool('list_wiki_folder', { path: 'resources' });
   assert.equal(r.isError, false);
-  const names = r.content.split('\n');
-  assert.equal(names.length, 13);
+  const names = r.content.split('\n').filter(Boolean);
+  // Compteur DÉRIVÉ du vrai dossier (robuste à l'ajout/suppression de ressources) —
+  // évite un nombre codé en dur qui casse dès qu'une ressource est ingérée.
+  const expected = fs.readdirSync(path.join(WIKI_ROOT, 'resources')).filter((f) => f.endsWith('.md'));
+  assert.equal(names.length, expected.length);
   assert.ok(names.every((n) => n.endsWith('.md')));
 });
 

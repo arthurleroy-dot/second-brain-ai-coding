@@ -351,3 +351,41 @@ pour un formatage byte-identique) + retrait de la ligne `[[themes/<slug>|…]]` 
 **grep exhaustif des slugs supprimés** (fichiers + `graph.json`/`index.md`/`_ingested.json`/candidats),
 pas seulement par le linter. Un thème créé par déclaration chunk-only n'est pas nettoyé par
 `deleteResource` — le retirer explicitement, et valider sur copie avant le vrai dépôt.
+
+## 2026-07-23 — Copier un patron déterministe dans un autre domaine : vérifier ce qui DIFFÈRE en aval
+**Contexte :** chantier « entités = miroir des thèmes » (remontée frontmatter + section index +
+nœuds labellisés). La spec disait « fais exactement comme les thèmes ». Mais les entités ont
+une distinction **niveau ressource vs niveau section** que les thèmes n'ont pas
+(`buildEntityBlock` change d'affichage selon `resourceLevel`, l'arête `mentions` porte des
+ancres de section). En dérivant `resourceLevel = présence au frontmatter` ET en remontant TOUTES
+les entités de section au frontmatter, on **aplatissait** chaque mention en « Ressource entière »
+(perte des ancres de section sur les fiches d'entités + le graphe). La branche section-level de la
+spec devenait morte (contradiction interne). Arthur voulait AU CONTRAIRE les deux : entités au
+frontmatter ET ancres de section conservées.
+**Correction :** découpler l'affichage de l'appartenance au frontmatter :
+`resourceLevel = aucune section ne cible l'entité` (comme les thèmes, mais côté affichage). Les
+entités remontées gardent leurs ancres ; « Ressource entière » seulement si aucune section ne la
+cible. Correction d'une ligne, dans les 2 sites (bloc entité + nœud graphe).
+**Règle :** copier un patron éprouvé dans un nouveau domaine ≠ garantie de correction. Lister ce
+qui **diffère en aval** dans le nouveau domaine (branches conditionnelles, effets sur les vues/le
+graphe) AVANT de coder, pas seulement la symétrie de surface. Un miroir littéral peut créer une
+contradiction interne (ici, une branche rendue morte) — c'est le signal qu'un invariant du domaine
+source n'existe pas dans le domaine cible.
+
+## 2026-07-23 — Réparer l'existant : réparation CIBLÉE > re-projection complète (churn collatéral)
+**Contexte :** le backfill entités devait, par la spec, `projectResource` (re-projeter) chaque
+ressource pour fixer le frontmatter. Mais `projectResource` régénère TOUTES les vues dérivées de la
+ressource — dont les pages **thèmes/origine**, écrites à l'ingestion INITIALE par l'IA avec des
+résumés soignés (et quelques ancres cassées). La re-projection les remplaçait par des résumés bruts
+(1re phrase déterministe) : ~22 fichiers touchés pour un correctif « entités ». Or les fiches
+d'entités + arêtes de graphe portaient DÉJÀ les mentions section-level correctes ; les seuls vrais
+gaps étaient : frontmatter, section index, 3 labels de nœuds nus.
+**Correction (décision d'Arthur : minimal) :** backfill CIBLÉ — (a) `rollupSectionEntities` écrit
+UNIQUEMENT la ligne `entities:` du frontmatter (corps + vues intacts) ; (b) section index
+reconstruite depuis le registre ; (c) filet anti-nu sur `graph.json`. Blast radius : **8 fichiers**
+au lieu de 22, résumés soignés préservés. Validé sur copie scratch (`WIKI_ROOT` isolé) : diff
+chirurgical (1 ligne/fiche), `verify` vert, idempotent — AVANT d'appliquer au vrai wiki.
+**Règle :** avant de re-projeter « pour être propre », mesurer le **blast radius réel** (diff sur
+copie scratch) et se demander quels gaps EXISTENT vraiment. Si les vues dérivées sont déjà correctes,
+une réparation chirurgicale (n'écrire que ce qui manque) bat une re-projection qui écrase du contenu
+soigné. Toujours diffusion sur COPIE d'abord, puis vrai wiki.

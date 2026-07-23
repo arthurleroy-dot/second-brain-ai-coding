@@ -6,6 +6,7 @@ date: "2026"
 source_type: article
 origin: externe
 topics: [finops-ia]
+entities: [claude-code]
 url: "https://leanopstech.com"
 source_file: "Traditional FinOps Breaks On AI Workloads.md"
 ---

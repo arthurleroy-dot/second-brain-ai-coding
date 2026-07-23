@@ -68,6 +68,10 @@ export interface ProjectViews {
   entities: Record<string, string | null>;
   /** Déclaration (type/label/aliases) de chaque entité à CRÉER (déclarée-nouvelle). */
   newEntities: Record<string, NewEntityDecl>;
+  /** Label d'affichage de chaque entité — node graphe + bullet index (miroir themeLabels). */
+  entityLabels: Record<string, string>;
+  /** entity_type de chaque entité — node graphe (miroir entityLabels). */
+  entityTypes: Record<string, string>;
   /** by-date : page année / page mois (si date au mois). `null` = à créer. */
   yearPath: string | null;
   yearContent: string | null;
@@ -301,8 +305,23 @@ function incrementCountOnLineWith(text: string, needle: string): string {
 // ————————————————————————————————————————————————————————————————
 // Graphe (ré-implémentation des upserts privés + les 7 relations)
 
+/**
+ * Upsert d'un nœud : insère s'il est absent, sinon COMPLÈTE uniquement les champs
+ * absents (`existing[k] === undefined`) SANS jamais écraser une valeur présente.
+ * Rend la re-projection auto-réparatrice : un nœud écrit nu (ex. entité déjà validée
+ * entrée sans label avant ce correctif) récupère son `label`/`entity_type` au re-passage
+ * (indispensable au backfill). Idempotence préservée (label figé à la 1ʳᵉ valeur, comme
+ * les thèmes) ; les champs `undefined` du nouveau nœud sont ignorés (ne créent pas de clé).
+ */
 function upsertNode(g: Graph, node: GraphNode): void {
-  if (!g.nodes.some((n) => n.id === node.id)) g.nodes.push(node);
+  const existing = g.nodes.find((n) => n.id === node.id);
+  if (!existing) {
+    g.nodes.push(node);
+    return;
+  }
+  for (const [k, val] of Object.entries(node)) {
+    if (val !== undefined && (existing as any)[k] === undefined) (existing as any)[k] = val;
+  }
 }
 
 /** Upsert d'un edge (fusion des `sections` pour `mentions` ; niveau ressource = sans sections). */
@@ -507,8 +526,11 @@ export function projectResource(input: ProjectResourceInput): FileOp[] {
 
   // 6. entities/ (frontmatter ∪ chunk) — bloc de mention ; création si déclarée-nouvelle.
   for (const e of meta.entities) {
-    const resourceLevel = feEntities.includes(e);
     const secs = sections.filter((s) => s.entities.includes(e));
+    // Niveau ressource ⟺ AUCUNE section ne « possède » l'entité (comme les thèmes).
+    // Une entité remontée au frontmatter mais liée à des sections garde ses ancres de
+    // section (fidélité) ; seule une entité qu'aucune section ne cible → « Ressource entière ».
+    const resourceLevel = secs.length === 0;
     const block = buildEntityBlock(card, resourceLevel, secs, resourceTakeaway);
     const existing = v.entities[e] ?? null;
     let content: string;
@@ -567,12 +589,17 @@ export function projectResource(input: ProjectResourceInput): FileOp[] {
     upsertEdge(g, rid, `theme:${t}`, 'belongs_to_theme');
   }
   for (const e of meta.entities) {
-    const resourceLevel = feEntities.includes(e);
-    const decl = v.newEntities[e];
-    if (decl) upsertNode(g, { id: `entity:${e}`, type: 'entity', entity_type: decl.entity_type, label: decl.label });
-    else upsertNode(g, { id: `entity:${e}`, type: 'entity' });
-    const secs = resourceLevel ? null : sections.filter((s) => s.entities.includes(e)).map((s) => s.anchor);
-    upsertEdge(g, rid, `entity:${e}`, 'mentions', secs);
+    // Naissance TOUJOURS labellisée (déclarée-nouvelle OU déjà au registre) : le nœud
+    // ne peut plus entrer nu dans le graphe (correctif B, à la source). `upsertNode`
+    // garantit l'unicité (id `entity:<slug>`) et complète un nœud nu préexistant sans écraser.
+    upsertNode(g, {
+      id: `entity:${e}`, type: 'entity',
+      entity_type: v.entityTypes[e], label: v.entityLabels[e],
+    });
+    // Arête `mentions` : ancres de section si des sections ciblent l'entité (fidélité),
+    // sinon niveau ressource (aucune section → pas d'ancres). Miroir de la règle du bloc.
+    const secs = sections.filter((s) => s.entities.includes(e)).map((s) => s.anchor);
+    upsertEdge(g, rid, `entity:${e}`, 'mentions', secs.length ? secs : null);
   }
   if (year) {
     if (isMonth) {
@@ -596,7 +623,7 @@ export function projectResource(input: ProjectResourceInput): FileOp[] {
   }
 
   // 10. index.md — bullet ressource + compteurs (vue non jugée par verify, fidélité).
-  ops.push({ path: 'wiki/index.md', content: updateIndex(v, card, feTopics, year, slugifyAuthor, typeLabel, today) });
+  ops.push({ path: 'wiki/index.md', content: updateIndex(v, card, feTopics, feEntities, year, slugifyAuthor, typeLabel, today) });
 
   // 11. raw/ : rien (immuable). 12. log.md : géré par la route (verify l'ignore).
   return ops;
@@ -624,6 +651,7 @@ function updateIndex(
   v: ProjectViews,
   card: Card,
   feTopics: string[],
+  feEntities: string[],
   year: string,
   slugifyAuthor: (s: string) => string,
   typeLabel: (s: string) => string,
@@ -671,6 +699,23 @@ function updateIndex(
     }
   }
 
+  // Entités (miroir Thèmes). Auto-amorçage : l'index historique n'a pas de section
+  // « ## Entités » — on la crée (vide, compteur 0) juste après « ## Thèmes » avant d'y
+  // insérer/incrémenter les bullets. Nouvelle entité (page à créer) → bullet + compteur ;
+  // entité déjà au registre → incrément de son bullet (créé par le backfill le cas échéant).
+  if (feEntities.length) {
+    ({ fm, body } = ensureEntitiesSection(fm, body));
+    for (const e of feEntities) {
+      if ((v.entities[e] ?? null) === null) {
+        body = adjustHeadingCount(body, /^## Entités \(\d+\)/m, 1);
+        body = insertBulletUnderHeading(body, /^## Entités \(/m, `- [[entities/${e}|${v.entityLabels[e] ?? e}]] — 1 ressource`);
+        fm = bumpScalarInt(fm, 'entity_count', 1);
+      } else {
+        body = incrementCountOnLineWith(body, `entities/${e}|`);
+      }
+    }
+  }
+
   // Origine.
   if (card.origin) body = incrementCountOnLineWith(body, `origin/${card.origin}|`);
 
@@ -686,6 +731,38 @@ function updateIndex(
   fm = bumpScalarInt(fm, 'resource_count', 1);
   fm = setScalar(fm, 'last_updated', JSON.stringify(today));
   return withFrontmatter(fm, body);
+}
+
+/**
+ * Auto-amorçage de la section Entités de l'index (miroir de la section Thèmes) :
+ * l'index HISTORIQUE n'a pas encore de heading « ## Entités ». Amorce le compteur
+ * `entity_count: 0` (que `bumpScalarInt` incrémentera) et, si le heading manque, insère
+ * une section VIDE « ## Entités (0) » juste APRÈS la section « ## Thèmes » (en respectant
+ * les séparateurs `---` inter-sections). No-op si la section existe déjà. Exporté pour
+ * être réutilisé À L'IDENTIQUE par le backfill (une seule définition de la section).
+ */
+export function ensureEntitiesSection(fm: string, body: string): { fm: string; body: string } {
+  const nf = /^entity_count:\s*\d+\s*$/m.test(fm) ? fm : `${fm}\nentity_count: 0`;
+  if (/^## Entités\b/m.test(body)) return { fm: nf, body };
+
+  const lines = body.split('\n');
+  const themesStart = lines.findIndex((l) => /^## Thèmes\b/.test(l));
+  if (themesStart !== -1) {
+    for (let i = themesStart + 1; i < lines.length; i++) {
+      if (/^---\s*$/.test(lines[i])) {
+        // Séparateur qui clôt la section Thèmes → insérer la section APRÈS lui.
+        lines.splice(i + 1, 0, '', '## Entités (0)', '', '---');
+        return { fm: nf, body: lines.join('\n') };
+      }
+      if (/^## /.test(lines[i])) {
+        // Pas de séparateur → insérer AVANT le heading suivant (avec son propre `---`).
+        lines.splice(i, 0, '## Entités (0)', '', '---', '');
+        return { fm: nf, body: lines.join('\n') };
+      }
+    }
+  }
+  // Repli (section Thèmes absente ou en fin de document) : ajouter en fin de body.
+  return { fm: nf, body: `${body.replace(/\n+$/, '')}\n\n## Entités (0)\n\n---\n` };
 }
 
 /** Ajoute une sous-section « ### <label> (1) » + bullet à la fin de « ## Ressources ». */

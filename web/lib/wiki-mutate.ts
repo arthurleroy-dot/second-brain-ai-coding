@@ -911,6 +911,9 @@ export function deleteResource(input: DeleteResourceInput): FileOp[] {
     body = adjustHeadingCount(body, new RegExp(`^### ${escapeRe(label)} \\(\\d+\\)`, 'm'), -1);
   }
   for (const topic of meta.topics) body = decrementCountOnLineWith(body, `themes/${topic}|`);
+  // Entités : miroir des thèmes — décrémente le bullet, jamais retiré (registre = jamais
+  // delete) ni le heading « ## Entités (N) » (compte des entités distinctes, inchangé).
+  for (const ent of meta.entities) body = decrementCountOnLineWith(body, `entities/${ent}|`);
   if (meta.origin) body = decrementCountOnLineWith(body, `origin/${meta.origin}|`);
   if (year) body = decrementCountOnLineWith(body, `by-date/${year}/${year}|`);
   // Auteur : bullet retiré si orphelin, sinon compteur décrémenté.

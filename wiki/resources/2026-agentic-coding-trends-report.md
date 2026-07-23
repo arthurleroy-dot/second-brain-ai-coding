@@ -6,6 +6,7 @@ date: "2026"
 source_type: report-pdf
 origin: externe
 topics: [agentic-coding, outils-et-marche, securite-et-risques, transformation-organisationnelle]
+entities: [claude-code]
 url: "https://www.anthropic.com"
 source_file: "2026 Agentic Coding Trends Report.pdf"
 ---

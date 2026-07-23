@@ -4,6 +4,7 @@ last_updated: "2026-07-23"
 resource_count: 17
 theme_count: 8
 author_count: 11
+entity_count: 5
 ---
 
 ## Thèmes (8)
@@ -15,6 +16,15 @@ author_count: 11
 - [[themes/securite-et-risques|Sécurité et Risques]] — 6 ressources
 - [[themes/transformation-organisationnelle|Transformation Organisationnelle]] — 11 ressources
 - [[themes/labor-market-evolution|Labor Market Evolution]] — 1 ressource
+
+---
+
+## Entités (5)
+- [[entities/chatgpt|ChatGPT]] — 1 ressource
+- [[entities/claude-code|Claude Code]] — 7 ressources
+- [[entities/databricks|Databricks]] — 1 ressource
+- [[entities/n8n|n8n]] — 1 ressource
+- [[entities/supabase|Supabase]] — 1 ressource
 
 ---
 

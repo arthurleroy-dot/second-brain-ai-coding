@@ -6,6 +6,7 @@ date: "2026-02-12"
 source_type: report-pdf
 origin: externe
 topics: [outils-et-marche, transformation-organisationnelle, securite-et-risques, finops-ia, agentic-coding]
+entities: [claude-code]
 url: "https://www.deloitte.com/us/en/insights/industry/technology-media-telecom-outlooks/software-industry-outlook.html"
 source_file: "2026 Software Industry Outlook | Deloitte Insights.pdf"
 ---

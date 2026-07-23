@@ -168,7 +168,19 @@ function projectViews(
   const themes: Record<string, string | null> = {};
   for (const t of meta.topics) themes[t] = rd(`wiki/themes/${t}.md`);
   const entities: Record<string, string | null> = {};
-  for (const e of meta.entities) entities[e] = rd(`wiki/entities/${e}.md`);
+  const entityLabels: Record<string, string> = {};
+  const entityTypes: Record<string, string> = {};
+  for (const e of meta.entities) {
+    const page = rd(`wiki/entities/${e}.md`);
+    entities[e] = page;
+    // Miroir de loadProjectViews : déclarée-nouvelle > frontmatter de la page > repli.
+    const decl = cfg.newEntities?.[e];
+    const pageFm = page ? splitFrontmatter(page).fm : '';
+    const pageLabel = pageFm.match(/^label:\s*"?([^"\n]+?)"?\s*$/m)?.[1]?.trim();
+    const pageType = pageFm.match(/^entity_type:\s*(\S+)\s*$/m)?.[1]?.trim();
+    entityLabels[e] = decl?.label ?? pageLabel ?? e;
+    entityTypes[e] = decl?.entity_type ?? pageType ?? 'concept';
+  }
   const aslug = meta.author ? slugify(meta.author) : null;
   const date = meta.date ?? '';
   const year = date.slice(0, 4);
@@ -183,6 +195,8 @@ function projectViews(
     originContent: meta.origin ? rd(`wiki/origin/${meta.origin}.md`) : null,
     entities,
     newEntities: cfg.newEntities ?? {},
+    entityLabels,
+    entityTypes,
     yearPath: year ? `wiki/by-date/${year}/${year}.md` : null,
     yearContent: year ? rd(`wiki/by-date/${year}/${year}.md`) : null,
     monthPath: isMonth ? `wiki/by-date/${year}/${ym}/${ym}.md` : null,
@@ -289,7 +303,9 @@ test('projectResource : page auteur CRÉÉE (nouvel auteur)', () => {
   assert.ok(author.includes('| [[../resources/demo-resource\\|Demo Resource]] | 2026-05 | report-pdf | externe | finops-ia |'));
 });
 
-test('projectResource : entité (registre) reçoit une mention « Ressource entière »', () => {
+test('projectResource : entité liée à une SECTION garde son ancre de section (fidélité)', () => {
+  // RESOURCE annote claude-code dans la section « Contexte » → mention section-level,
+  // même si l'entité figure aussi au frontmatter (remontée). Pas de « Ressource entière ».
   const ops = projectResource({
     slug: 'demo-resource',
     resourceContent: RESOURCE,
@@ -301,7 +317,51 @@ test('projectResource : entité (registre) reçoit une mention « Ressource enti
   const ent = byPath(ops, 'wiki/entities/claude-code.md')!.content;
   assert.ok(ent.includes('### [[../resources/demo-resource|Demo Resource]]'));
   assert.ok(ent.includes('`2026-05 · report-pdf — TestCo`'));
-  assert.ok(ent.includes('- Ressource entière : '));
+  assert.ok(ent.includes('#contexte|Contexte]] —'), 'mention ancrée à la section Contexte');
+  assert.ok(!ent.includes('- Ressource entière : '), 'pas de « Ressource entière » (section-level)');
+});
+
+// Entité au frontmatter qu'AUCUNE section ne cible → mention « Ressource entière ».
+const RESOURCE_RESLEVEL = `---
+slug: demo-reslevel
+title: "Demo Resource-Level"
+author: "TestCo"
+date: "2026-05"
+source_type: report-pdf
+origin: externe
+topics: [finops-ia]
+entities: [claude-code]
+url: ""
+source_file: "demo-reslevel.pdf"
+---
+
+> Par [[../authors/testco|TestCo]] · [[../by-date/2026/2026-05/2026-05|2026-05]] · Thèmes : [[../themes/finops-ia|FinOps IA]]
+
+## Contexte
+\`topics: [finops-ia]\`
+
+Le coût des tokens explose (aucune annotation d'entité dans cette section).
+
+## Analyse
+
+Deuxième section sans annotation.
+`;
+
+test('projectResource : entité au frontmatter SANS section ciblante → « Ressource entière »', () => {
+  const ops = projectResource({
+    slug: 'demo-reslevel',
+    resourceContent: RESOURCE_RESLEVEL,
+    views: projectViews(freshState(), RESOURCE_RESLEVEL, 'demo-reslevel', CFG),
+    slugifyAuthor: slugify,
+    typeLabel,
+    today: TODAY,
+  });
+  const ent = byPath(ops, 'wiki/entities/claude-code.md')!.content;
+  assert.ok(ent.includes('- Ressource entière : '), 'entité non liée à une section → Ressource entière');
+  assert.ok(!ent.includes('#contexte|'), 'aucune ancre de section');
+  // Graphe : arête mentions SANS ancre de section.
+  const { edges } = graphSig(byPath(ops, 'wiki/graph.json')!.content);
+  assert.ok(edges.includes('resource:demo-reslevel|entity:claude-code|mentions|'), 'mentions niveau ressource (sans section)');
 });
 
 test('projectResource : node resource + 7 arêtes présentes', () => {
@@ -324,7 +384,7 @@ test('projectResource : node resource + 7 arêtes présentes', () => {
   assert.ok(edges.includes(`${R}|type:report-pdf|has_type|`));
   assert.ok(edges.includes(`${R}|origin:externe|has_origin|`));
   assert.ok(edges.includes(`${R}|theme:finops-ia|belongs_to_theme|`));
-  assert.ok(edges.includes(`${R}|entity:claude-code|mentions|`)); // niveau ressource → pas de sections
+  assert.ok(edges.includes(`${R}|entity:claude-code|mentions|contexte`)); // section-level → ancre « contexte »
   assert.ok(edges.includes(`${R}|date:2026-05|published_on|`));
   assert.ok(edges.includes(`date:2026-05|date:2026|year_of|`));
   assert.equal(edges.length, 7, '7 arêtes exactement');
@@ -602,4 +662,156 @@ test('projectResource : multi-thèmes — chaque page thème n’a que le bullet
     assert.ok(nodes.includes(`theme:${t}`), `nœud theme:${t}`);
     assert.ok(edges.includes(`${R}|theme:${t}|belongs_to_theme|`), `arête belongs_to_theme ${t}`);
   }
+});
+
+// ————————————————————————————————————————————————————————————————
+// 6. Entités : nœud labellisé (registre + auto-réparation) + section index
+
+const rawNodes = (json: string): any[] => JSON.parse(json).nodes;
+const nodeById = (json: string, id: string) => rawNodes(json).filter((n) => n.id === id);
+
+/** freshState avec un graph.json de substitution (contrôle des nœuds d'entité). */
+function stateWithGraph(graphJson: string): State {
+  const s = freshState();
+  s['wiki/graph.json'] = graphJson;
+  return s;
+}
+
+// Graphe sans le nœud entity:claude-code (il doit NAÎTRE labellisé depuis le registre).
+const GRAPH_NO_ENTITY = JSON.stringify({
+  generated: '2026-01-01',
+  nodes: [
+    { id: 'theme:finops-ia', type: 'theme', label: 'FinOps IA' },
+    { id: 'origin:externe', type: 'origin', label: 'Externe' },
+    { id: 'origin:interne', type: 'origin', label: 'Interne' },
+  ],
+  edges: [],
+});
+
+test('projectResource : entité DÉJÀ au registre → nœud entity né labellisé (correctif B)', () => {
+  const ops = projectResource({
+    slug: 'demo-resource',
+    resourceContent: RESOURCE,
+    views: projectViews(stateWithGraph(GRAPH_NO_ENTITY), RESOURCE, 'demo-resource', CFG),
+    slugifyAuthor: slugify,
+    typeLabel,
+    today: TODAY,
+  });
+  const g = byPath(ops, 'wiki/graph.json')!.content;
+  const found = nodeById(g, 'entity:claude-code');
+  assert.equal(found.length, 1, 'un seul nœud entity:claude-code (jamais de doublon)');
+  assert.equal(found[0].label, 'Claude Code', 'nœud né avec son label (non nu)');
+  assert.equal(found[0].entity_type, 'tool', 'nœud né avec son entity_type');
+});
+
+test('upsertNode : complète un nœud NU existant sans le dupliquer (auto-réparation)', () => {
+  const graphNu = JSON.stringify({
+    generated: '2026-01-01',
+    nodes: [
+      { id: 'theme:finops-ia', type: 'theme', label: 'FinOps IA' },
+      { id: 'entity:claude-code', type: 'entity' }, // NU : ni label ni entity_type
+      { id: 'origin:externe', type: 'origin', label: 'Externe' },
+      { id: 'origin:interne', type: 'origin', label: 'Interne' },
+    ],
+    edges: [],
+  });
+  const ops = projectResource({
+    slug: 'demo-resource',
+    resourceContent: RESOURCE,
+    views: projectViews(stateWithGraph(graphNu), RESOURCE, 'demo-resource', CFG),
+    slugifyAuthor: slugify,
+    typeLabel,
+    today: TODAY,
+  });
+  const g = byPath(ops, 'wiki/graph.json')!.content;
+  const found = nodeById(g, 'entity:claude-code');
+  assert.equal(found.length, 1, 'toujours un seul nœud (complété, pas dupliqué)');
+  assert.equal(found[0].label, 'Claude Code', 'label complété');
+  assert.equal(found[0].entity_type, 'tool', 'entity_type complété');
+});
+
+test('upsertNode : n’ÉCRASE jamais un champ déjà présent', () => {
+  const graphWrong = JSON.stringify({
+    generated: '2026-01-01',
+    nodes: [
+      { id: 'theme:finops-ia', type: 'theme', label: 'FinOps IA' },
+      { id: 'entity:claude-code', type: 'entity', entity_type: 'wrong-type', label: 'WRONG' },
+      { id: 'origin:externe', type: 'origin', label: 'Externe' },
+      { id: 'origin:interne', type: 'origin', label: 'Interne' },
+    ],
+    edges: [],
+  });
+  const ops = projectResource({
+    slug: 'demo-resource',
+    resourceContent: RESOURCE,
+    views: projectViews(stateWithGraph(graphWrong), RESOURCE, 'demo-resource', CFG),
+    slugifyAuthor: slugify,
+    typeLabel,
+    today: TODAY,
+  });
+  const found = nodeById(byPath(ops, 'wiki/graph.json')!.content, 'entity:claude-code');
+  assert.equal(found.length, 1);
+  assert.equal(found[0].label, 'WRONG', 'label présent NON écrasé (idempotence, comme les thèmes)');
+  assert.equal(found[0].entity_type, 'wrong-type', 'entity_type présent NON écrasé');
+});
+
+// Ressource déclarant une entité NOUVELLE (page à créer) → bullet index créé.
+const RESOURCE_NEWENT = `---
+slug: demo-newent
+title: "Demo New Entity"
+author: "TestCo"
+date: "2026-05"
+source_type: report-pdf
+origin: externe
+topics: [finops-ia]
+entities: [langgraph]
+url: ""
+source_file: "demo-newent.pdf"
+---
+
+> Par [[../authors/testco|TestCo]] · [[../by-date/2026/2026-05/2026-05|2026-05]] · Thèmes : [[../themes/finops-ia|FinOps IA]]
+
+## Contexte
+\`topics: [finops-ia]\`
+\`entities: [langgraph]\`
+
+LangGraph orchestre des agents.
+`;
+const CFG_NEWENT = {
+  themeLabels: { 'finops-ia': 'FinOps IA' },
+  newEntities: { langgraph: { entity_type: 'tool', label: 'LangGraph', aliases: [] } },
+};
+
+test('index : section « ## Entités » créée + bullet + compteur ; delete décrémente', () => {
+  const state = freshState(); // pas de page langgraph → entité déclarée-nouvelle
+  const projOps = projectResource({
+    slug: 'demo-newent',
+    resourceContent: RESOURCE_NEWENT,
+    views: projectViews(state, RESOURCE_NEWENT, 'demo-newent', CFG_NEWENT),
+    slugifyAuthor: slugify,
+    typeLabel,
+    today: TODAY,
+  });
+  apply(state, projOps);
+
+  const idx = state['wiki/index.md'];
+  assert.ok(/^## Entités \(1\)/m.test(idx), 'section ## Entités (1) créée');
+  assert.ok(idx.includes('- [[entities/langgraph|LangGraph]] — 1 ressource'), 'bullet entité créé');
+  assert.ok(splitFrontmatter(idx).fm.includes('entity_count: 1'), 'compteur entity_count: 1');
+  // La section Entités est bien insérée entre Thèmes et Auteurs.
+  assert.ok(idx.indexOf('## Thèmes') < idx.indexOf('## Entités'), 'Entités après Thèmes');
+  assert.ok(idx.indexOf('## Entités') < idx.indexOf('## Auteurs'), 'Entités avant Auteurs');
+
+  // Suppression : bullet décrémenté (jamais retiré — miroir thèmes), heading inchangé.
+  const delOps = deleteResource({
+    slug: 'demo-newent',
+    resourceContent: RESOURCE_NEWENT,
+    views: deleteViews(state, RESOURCE_NEWENT, 'demo-newent'),
+    slugifyAuthor: slugify,
+    typeLabel,
+  });
+  apply(state, delOps);
+  const idx2 = state['wiki/index.md'];
+  assert.ok(idx2.includes('- [[entities/langgraph|LangGraph]] — 0 ressource'), 'bullet décrémenté à 0');
+  assert.ok(/^## Entités \(1\)/m.test(idx2), 'heading Entités inchangé (compte des entités distinctes)');
 });
