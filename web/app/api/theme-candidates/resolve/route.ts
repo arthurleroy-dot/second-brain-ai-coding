@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { applyFileOps, readRepoFile } from '@/lib/wiki-fs';
 import { slugify } from '@/lib/wiki-parser';
 import { applyThemeDecision, type SeenIn } from '@/lib/wiki-mutate';
+import { rebuildDerivedIndexes } from '@/lib/ingest-local';
 import { CandidateStatus } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -118,6 +119,8 @@ export async function POST(req: NextRequest) {
 
   try {
     await applyFileOps(ops);
+    // Régénère index.md + by-date EN ENTIER (symétrie avec /api/candidates/resolve).
+    await applyFileOps(await rebuildDerivedIndexes(today()));
     return Response.json({ ok: true, applied: true });
   } catch (e: any) {
     return Response.json(

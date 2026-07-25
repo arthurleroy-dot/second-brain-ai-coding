@@ -25,10 +25,8 @@ import {
   splitFrontmatter,
   withFrontmatter,
   setScalar,
-  bumpScalarInt,
   countResourceBlocks,
   countTableRows,
-  adjustHeadingCount,
   removeResourceBlock,
   parseGraph,
   serializeGraph,
@@ -266,42 +264,6 @@ function insertRowUnderHeading(text: string, headingRe: RegExp, row: string): st
   return lines.join('\n');
 }
 
-/** Insère `bullet` à la fin de la section du heading (après le dernier contenu). */
-function insertBulletUnderHeading(text: string, headingRe: RegExp, bullet: string): string {
-  const lines = text.split('\n');
-  let start = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (headingRe.test(lines[i])) {
-      start = i;
-      break;
-    }
-  }
-  if (start === -1) return text;
-  let end = lines.length;
-  for (let i = start + 1; i < lines.length; i++) {
-    if (/^#{1,3}\s/.test(lines[i]) || /^---\s*$/.test(lines[i])) {
-      end = i;
-      break;
-    }
-  }
-  let k = end - 1;
-  while (k > start && lines[k].trim() === '') k--;
-  lines.splice(k + 1, 0, bullet);
-  return lines.join('\n');
-}
-
-/** Incrémente le premier entier d'une ligne repérée par `needle` (inverse de decrement). */
-function incrementCountOnLineWith(text: string, needle: string): string {
-  const lines = text.split('\n');
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].includes(needle)) {
-      lines[i] = lines[i].replace(/(\d+)/, (d) => String(parseInt(d, 10) + 1));
-      return lines.join('\n');
-    }
-  }
-  return text;
-}
-
 // ————————————————————————————————————————————————————————————————
 // Graphe (ré-implémentation des upserts privés + les 7 relations)
 
@@ -380,22 +342,6 @@ function createAuthorPage(authorSlug: string, label: string, row: string): strin
   );
 }
 
-function createMonthPage(ym: string, row: string): string {
-  return (
-    `---\ntype: by-date\nperiod: ${JSON.stringify(ym)}\nresource_count: 1\n---\n\n` +
-    `| Ressource | Auteur | Type | Origin | Topics |\n|-----------|--------|------|--------|--------|\n${row}\n`
-  );
-}
-
-function createYearPage(y: string, yearRow: string | null, monthBullet: string | null): string {
-  const yearTable = `| Ressource | Auteur | Type | Origin | Topics |\n|-----------|--------|------|--------|--------|${yearRow ? `\n${yearRow}` : ''}`;
-  return (
-    `---\ntype: by-date\nperiod: ${JSON.stringify(y)}\nresource_count: 1\n---\n\n` +
-    `## Date précise inconnue (année seulement)\n\n${yearTable}\n\n` +
-    `## Par mois\n${monthBullet ? `\n${monthBullet}\n` : '\n'}`
-  );
-}
-
 // ————————————————————————————————————————————————————————————————
 // PROJECTION
 
@@ -404,7 +350,6 @@ export function projectResource(input: ProjectResourceInput): FileOp[] {
   const meta = parseResourceMeta(resourceContent, slug);
   const { fm } = splitFrontmatter(resourceContent);
   const feTopics = fmArray(fm, 'topics');
-  const feEntities = fmArray(fm, 'entities');
   const sections = collectSections(meta.body);
   const resourceTakeaway = sections.find((s) => s.takeaway)?.takeaway || meta.title;
 
@@ -468,61 +413,14 @@ export function projectResource(input: ProjectResourceInput): FileOp[] {
     ops.push({ path: v.originPath ?? `wiki/origin/${card.origin}.md`, content: withFrontmatter(nf, rest) });
   }
 
-  // 5. by-date/ — mois (si connu) + année.
+  // 5. by-date/ — RETIRÉ (Phase 2). index.md ET les pages by-date sont désormais
+  //    reconstruits EN ENTIER par `rebuildDerivedIndexes` (wiki-index.ts) après chaque
+  //    lot d'écritures : UN SEUL chemin d'écriture pour ces deux vues, « jamais cassé
+  //    par construction ». Les variables de date restent utiles au graphe (§8).
   const date = card.date;
   const year = date.slice(0, 4);
   const ym = date.slice(0, 7);
   const isMonth = date.length >= 7;
-  if (year) {
-    if (isMonth) {
-      // Idempotence : si le mois porte déjà la ressource, on ne touche à rien (ni au
-      // compteur du mois, ni à celui de l'année).
-      const monthPresent = v.monthContent !== null && hasTableRow(v.monthContent, slug);
-      const mrow = `| [[../../../resources/${slug}\\|${card.title}]] | ${card.author} | ${card.source_type} | ${card.origin} | ${feTopics.join(', ')} |`;
-      const mpath = v.monthPath ?? `wiki/by-date/${year}/${ym}/${ym}.md`;
-      if (v.monthContent === null) {
-        ops.push({ path: mpath, content: createMonthPage(ym, mrow) });
-      } else if (!monthPresent) {
-        const merged = insertRowUnderHeading(v.monthContent, /^\| Ressource /m, mrow);
-        const { fm: f, rest } = splitFrontmatter(merged);
-        ops.push({ path: mpath, content: withFrontmatter(setScalar(f, 'resource_count', String(countTableRows(rest))), rest) });
-      }
-
-      if (!monthPresent) {
-        const monthBullet = `- [[by-date/${year}/${ym}/${ym}|${ym}]] — 1 ressource (${card.author})`;
-        const ypath = v.yearPath ?? `wiki/by-date/${year}/${year}.md`;
-        let ycontent: string;
-        if (v.yearContent === null) {
-          ycontent = createYearPage(year, null, monthBullet);
-        } else {
-          let out = v.yearContent;
-          if (new RegExp(`/${escapeRe(ym)}/${escapeRe(ym)}[|\\]]`).test(out)) {
-            out = upsertMonthBullet(out, ym, card.author);
-          } else {
-            out = insertBulletUnderHeading(out, /^## Par mois/m, monthBullet);
-          }
-          const { fm: f, rest } = splitFrontmatter(out);
-          ycontent = withFrontmatter(bumpScalarInt(f, 'resource_count', 1), rest);
-        }
-        ops.push({ path: ypath, content: ycontent });
-      }
-    } else {
-      // Date à l'année seulement → table « Date précise inconnue ».
-      const yrow = `| [[../../resources/${slug}\\|${card.title}]] | ${card.author} | ${card.source_type} | ${card.origin} | ${feTopics.join(', ')} |`;
-      const ypath = v.yearPath ?? `wiki/by-date/${year}/${year}.md`;
-      let ycontent: string;
-      if (v.yearContent === null) {
-        ycontent = createYearPage(year, yrow, null);
-      } else if (hasTableRow(v.yearContent, slug)) {
-        ycontent = v.yearContent;
-      } else {
-        const merged = insertRowUnderHeading(v.yearContent, /^## Date précise inconnue/m, yrow);
-        const { fm: f, rest } = splitFrontmatter(merged);
-        ycontent = withFrontmatter(bumpScalarInt(f, 'resource_count', 1), rest);
-      }
-      ops.push({ path: ypath, content: ycontent });
-    }
-  }
 
   // 6. entities/ (frontmatter ∪ chunk) — bloc de mention ; création si déclarée-nouvelle.
   for (const e of meta.entities) {
@@ -622,169 +520,13 @@ export function projectResource(input: ProjectResourceInput): FileOp[] {
     });
   }
 
-  // 10. index.md — bullet ressource + compteurs (vue non jugée par verify, fidélité).
-  ops.push({ path: 'wiki/index.md', content: updateIndex(v, card, feTopics, feEntities, year, slugifyAuthor, typeLabel, today) });
-
+  // 10. index.md — RETIRÉ (Phase 2). Reconstruit EN ENTIER par `rebuildDerivedIndexes`
+  //     (wiki-index.ts) après le lot ; plus de retouche incrémentale fragile ici.
   // 11. raw/ : rien (immuable). 12. log.md : géré par la route (verify l'ignore).
   return ops;
 }
 
-/** Upsert du bullet mois dans « ## Par mois » (incrémente N + ajoute l'auteur). */
-function upsertMonthBullet(yearContent: string, ym: string, author: string): string {
-  const lines = yearContent.split('\n');
-  const re = new RegExp(`/${escapeRe(ym)}/${escapeRe(ym)}[|\\]]`);
-  for (let i = 0; i < lines.length; i++) {
-    if (re.test(lines[i])) {
-      let line = lines[i].replace(/(\d+)/, (d) => String(parseInt(d, 10) + 1));
-      if (author && !line.includes(author)) {
-        line = line.replace(/\(([^)]*)\)\s*$/, (_m, inside) => `(${inside}, ${author})`);
-      }
-      lines[i] = line;
-      return lines.join('\n');
-    }
-  }
-  return yearContent;
-}
-
-/** Met à jour index.md : bullet ressource + tous les compteurs (mirroir inverse de deleteResource). */
-function updateIndex(
-  v: ProjectViews,
-  card: Card,
-  feTopics: string[],
-  feEntities: string[],
-  year: string,
-  slugifyAuthor: (s: string) => string,
-  typeLabel: (s: string) => string,
-  today: string,
-): string {
-  // Idempotence : si la ressource figure déjà dans l'index, ne rien recompter.
-  if (v.index.includes(`resources/${card.slug}|`)) return v.index;
-
-  let { fm, rest: body } = splitFrontmatter(v.index);
-
-  // Ressources (N) + sous-section de type.
-  body = adjustHeadingCount(body, /^## Ressources \(\d+\)/m, 1);
-  const resourceBullet = `- [[resources/${card.slug}|${card.title}]] — ${[card.author, card.date].filter(Boolean).join(' · ')}`;
-  if (card.source_type) {
-    const label = typeLabel(card.source_type);
-    const subRe = new RegExp(`^### ${escapeRe(label)} \\(\\d+\\)`, 'm');
-    if (subRe.test(body)) {
-      body = adjustHeadingCount(body, subRe, 1);
-      body = insertBulletUnderHeading(body, subRe, resourceBullet);
-    } else {
-      body = addTypeSubsection(body, label, resourceBullet);
-    }
-  }
-
-  // Auteurs.
-  if (card.author) {
-    const a = slugifyAuthor(card.author);
-    if (v.authorContent === null) {
-      body = adjustHeadingCount(body, /^## Auteurs \(\d+\)/m, 1);
-      body = insertBulletUnderHeading(body, /^## Auteurs \(/m, `- [[authors/${a}|${card.author}]] — 1 ressource`);
-      fm = bumpScalarInt(fm, 'author_count', 1);
-    } else {
-      body = incrementCountOnLineWith(body, `authors/${a}|`);
-    }
-  }
-
-  // Thèmes.
-  for (const t of feTopics) {
-    if ((v.themes[t] ?? null) === null) {
-      body = adjustHeadingCount(body, /^## Thèmes \(\d+\)/m, 1);
-      body = insertBulletUnderHeading(body, /^## Thèmes \(/m, `- [[themes/${t}|${v.themeLabels[t] ?? t}]] — 1 ressource`);
-      fm = bumpScalarInt(fm, 'theme_count', 1);
-    } else {
-      body = incrementCountOnLineWith(body, `themes/${t}|`);
-    }
-  }
-
-  // Entités (miroir Thèmes). Auto-amorçage : l'index historique n'a pas de section
-  // « ## Entités » — on la crée (vide, compteur 0) juste après « ## Thèmes » avant d'y
-  // insérer/incrémenter les bullets. Nouvelle entité (page à créer) → bullet + compteur ;
-  // entité déjà au registre → incrément de son bullet (créé par le backfill le cas échéant).
-  if (feEntities.length) {
-    ({ fm, body } = ensureEntitiesSection(fm, body));
-    for (const e of feEntities) {
-      if ((v.entities[e] ?? null) === null) {
-        body = adjustHeadingCount(body, /^## Entités \(\d+\)/m, 1);
-        body = insertBulletUnderHeading(body, /^## Entités \(/m, `- [[entities/${e}|${v.entityLabels[e] ?? e}]] — 1 ressource`);
-        fm = bumpScalarInt(fm, 'entity_count', 1);
-      } else {
-        body = incrementCountOnLineWith(body, `entities/${e}|`);
-      }
-    }
-  }
-
-  // Origine.
-  if (card.origin) body = incrementCountOnLineWith(body, `origin/${card.origin}|`);
-
-  // Date (année).
-  if (year) {
-    if (body.includes(`by-date/${year}/${year}|`)) {
-      body = incrementCountOnLineWith(body, `by-date/${year}/${year}|`);
-    } else {
-      body = insertBulletUnderHeading(body, /^## Index par date/m, `- [[by-date/${year}/${year}|${year}]] — 1 ressource`);
-    }
-  }
-
-  fm = bumpScalarInt(fm, 'resource_count', 1);
-  fm = setScalar(fm, 'last_updated', JSON.stringify(today));
-  return withFrontmatter(fm, body);
-}
-
-/**
- * Auto-amorçage de la section Entités de l'index (miroir de la section Thèmes) :
- * l'index HISTORIQUE n'a pas encore de heading « ## Entités ». Amorce le compteur
- * `entity_count: 0` (que `bumpScalarInt` incrémentera) et, si le heading manque, insère
- * une section VIDE « ## Entités (0) » juste APRÈS la section « ## Thèmes » (en respectant
- * les séparateurs `---` inter-sections). No-op si la section existe déjà. Exporté pour
- * être réutilisé À L'IDENTIQUE par le backfill (une seule définition de la section).
- */
-export function ensureEntitiesSection(fm: string, body: string): { fm: string; body: string } {
-  const nf = /^entity_count:\s*\d+\s*$/m.test(fm) ? fm : `${fm}\nentity_count: 0`;
-  if (/^## Entités\b/m.test(body)) return { fm: nf, body };
-
-  const lines = body.split('\n');
-  const themesStart = lines.findIndex((l) => /^## Thèmes\b/.test(l));
-  if (themesStart !== -1) {
-    for (let i = themesStart + 1; i < lines.length; i++) {
-      if (/^---\s*$/.test(lines[i])) {
-        // Séparateur qui clôt la section Thèmes → insérer la section APRÈS lui.
-        lines.splice(i + 1, 0, '', '## Entités (0)', '', '---');
-        return { fm: nf, body: lines.join('\n') };
-      }
-      if (/^## /.test(lines[i])) {
-        // Pas de séparateur → insérer AVANT le heading suivant (avec son propre `---`).
-        lines.splice(i, 0, '## Entités (0)', '', '---', '');
-        return { fm: nf, body: lines.join('\n') };
-      }
-    }
-  }
-  // Repli (section Thèmes absente ou en fin de document) : ajouter en fin de body.
-  return { fm: nf, body: `${body.replace(/\n+$/, '')}\n\n## Entités (0)\n\n---\n` };
-}
-
-/** Ajoute une sous-section « ### <label> (1) » + bullet à la fin de « ## Ressources ». */
-function addTypeSubsection(body: string, label: string, bullet: string): string {
-  const lines = body.split('\n');
-  let start = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (/^## Ressources \(/.test(lines[i])) {
-      start = i;
-      break;
-    }
-  }
-  if (start === -1) return body;
-  let end = lines.length;
-  for (let i = start + 1; i < lines.length; i++) {
-    if (/^## /.test(lines[i]) || /^---\s*$/.test(lines[i])) {
-      end = i;
-      break;
-    }
-  }
-  let k = end - 1;
-  while (k > start && lines[k].trim() === '') k--;
-  lines.splice(k + 1, 0, '', `### ${label} (1)`, '', bullet);
-  return lines.join('\n');
-}
+// index.md + by-date : plus AUCUNE génération incrémentale ici (Phase 2). Ces deux vues
+// sont reconstruites EN ENTIER par `rebuildDerivedIndexes` (wiki-index.ts) après chaque
+// lot. Les anciennes briques (updateIndex, upsertMonthBullet, ensureEntitiesSection,
+// addTypeSubsection, incrementCountOnLineWith, insert*/create*Page) ont été supprimées.

@@ -26,6 +26,7 @@ import {
   rollupSectionTopics,
   rebuildNav,
   loadProjectViews,
+  rebuildDerivedIndexes,
   wikiTypeLabel,
   humanize,
   fmArray,
@@ -34,64 +35,6 @@ import { projectResource } from '@/lib/wiki-project';
 import { splitFrontmatter, parseResourceMeta } from '@/lib/wiki-mutate';
 import { slugify } from '@/lib/wiki-parser';
 
-/** Lit un scalaire entier du frontmatter (`resource_count: N`), ou 0. */
-function scalarInt(fm: string, key: string): number {
-  const m = fm.match(new RegExp(`^${key}:\\s*(\\d+)\\s*$`, 'm'));
-  return m ? parseInt(m[1], 10) : 0;
-}
-
-/**
- * Upsert du bullet d'un thème dans « ## Thèmes » de l'index : remplace la ligne
- * existante `[[themes/<slug>|…]]` (compteur réconcilié), ou l'insère sous le heading.
- */
-function upsertThemeBullet(body: string, slug: string, bullet: string): string {
-  const lines = body.split('\n');
-  const re = new RegExp(`\\[\\[themes/${slug}[|\\]]`);
-  for (let i = 0; i < lines.length; i++) {
-    if (re.test(lines[i])) {
-      lines[i] = bullet;
-      return lines.join('\n');
-    }
-  }
-  for (let i = 0; i < lines.length; i++) {
-    if (/^## Thèmes/.test(lines[i])) {
-      let j = i + 1;
-      while (j < lines.length && !/^## /.test(lines[j]) && !/^---/.test(lines[j])) j++;
-      let k = j - 1;
-      while (k > i && lines[k].trim() === '') k--;
-      lines.splice(k + 1, 0, bullet);
-      return lines.join('\n');
-    }
-  }
-  return body;
-}
-
-/**
- * Réconcilie les compteurs de thèmes de `index.md` : la re-projection d'une ressource
- * DÉJÀ indexée court-circuite `updateIndex`, donc les bullets `## Thèmes` ne bougent pas.
- * On relit le `resource_count` AUTORITAIRE de chaque page thème affectée et on réécrit
- * son bullet dans l'index (créé s'il manque).
- */
-async function reconcileIndex(
-  affectedThemes: Set<string>,
-  labels: Record<string, string>,
-): Promise<void> {
-  if (!affectedThemes.size) return;
-  const index = await readRepoFile('wiki/index.md');
-  if (index === null) return;
-  const { fm, rest } = splitFrontmatter(index);
-  let body = rest;
-  for (const t of affectedThemes) {
-    const themePage = await readRepoFile(`wiki/themes/${t}.md`);
-    if (themePage === null) continue;
-    const count = scalarInt(splitFrontmatter(themePage).fm, 'resource_count');
-    const label = labels[t] ?? humanize(t);
-    const bullet = `- [[themes/${t}|${label}]] — ${count} ressource${count > 1 ? 's' : ''}`;
-    body = upsertThemeBullet(body, t, bullet);
-  }
-  await applyFileOps([{ path: 'wiki/index.md', content: `---\n${fm}\n---\n${body}` }]);
-}
-
 async function main() {
   const dryRun = process.argv.includes('--dry-run');
   const today = new Date().toISOString().slice(0, 10);
@@ -99,7 +42,6 @@ async function main() {
   const themeLabel = (t: string) => registries.themes.find((x) => x.slug === t)?.label ?? humanize(t);
 
   const files = (await listWikiDir('resources')).filter((f) => f.endsWith('.md')).sort();
-  const affectedThemes = new Set<string>();
   let fixedCount = 0;
 
   for (const file of files) {
@@ -112,7 +54,6 @@ async function main() {
     if (missing.length === 0) continue; // GARDE d'idempotence : union ⊆ frontmatter
 
     fixedCount += 1;
-    for (const t of missing) affectedThemes.add(t);
 
     if (dryRun) {
       console.log(`• ${meta.slug} — thèmes manquants : ${missing.join(', ')}`);
@@ -140,11 +81,12 @@ async function main() {
     return;
   }
 
-  await reconcileIndex(affectedThemes, Object.fromEntries([...affectedThemes].map((t) => [t, themeLabel(t)])));
+  // index.md + by-date reconstruits EN ENTIER par le moteur unique (Phase 2).
+  await applyFileOps(await rebuildDerivedIndexes(today));
   console.log(
     fixedCount === 0
       ? '✓ Rien à corriger : tous les frontmatters `topics:` sont complets.'
-      : `\n✓ ${fixedCount} ressource(s) corrigée(s) ; index réconcilié sur ${affectedThemes.size} thème(s).`,
+      : `\n✓ ${fixedCount} ressource(s) corrigée(s) ; index/by-date régénérés en entier.`,
   );
 }
 

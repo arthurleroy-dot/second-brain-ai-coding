@@ -9,7 +9,7 @@ import JSZip from 'jszip';
 import { DATA_ROOT, RAW_ROOT, readRepoFile, applyFileOps, listWikiDir } from '@/lib/wiki-fs';
 import { getAnthropic, getModel } from '@/lib/claude';
 import { slugify } from '@/lib/wiki-parser';
-import { typeLabel } from '@/lib/ui';
+import { typeLabel, ALL_TYPES } from '@/lib/ui';
 import { ResourceType } from '@/types';
 import {
   parseResourceMeta,
@@ -20,6 +20,7 @@ import {
   type FileOp,
 } from '@/lib/wiki-mutate';
 import { projectResource, type ProjectViews, type NewEntityDecl } from '@/lib/wiki-project';
+import { buildIndex, buildByDate, salvageDigests, expectedByDatePaths, type ResourceCard } from '@/lib/wiki-index';
 import * as events from '@/lib/ingest-events';
 
 /**
@@ -929,6 +930,87 @@ export async function ingestOne(input: IngestOneInput): Promise<{ ops: FileOp[];
 }
 
 // ————————————————————————————————————————————————————————————————
+// Régénération INTÉGRALE des index dérivés (index.md + by-date) — passage final
+// déterministe qui ÉCRASE la sortie incrémentale (potentiellement buggée) de
+// `projectResource`/`wiki-mutate`. À appeler après tout lot d'écritures (ingestion,
+// résolution de candidat, suppression). Charge l'état complet via les loaders
+// WIKI_ROOT-aware (contrainte Electron), puis délègue aux fonctions PURES de
+// `wiki-index.ts`. « Jamais cassé par construction » — cf. Décisions §D3/§D6.
+
+/** Charge toutes les fiches `resources/` en `ResourceCard[]` (métadonnées d'index). */
+async function loadResourceCards(): Promise<ResourceCard[]> {
+  const files = (await listWikiDir('resources')).filter((f) => f.endsWith('.md'));
+  const cards: ResourceCard[] = [];
+  for (const f of files) {
+    const raw = await readRepoFile(`wiki/resources/${f}`);
+    if (raw === null) continue;
+    const meta = parseResourceMeta(raw, f.replace(/\.md$/, ''));
+    cards.push({
+      slug: meta.slug,
+      title: meta.title,
+      author: meta.author ?? '',
+      date: meta.date ?? '',
+      source_type: meta.source_type ?? '',
+      origin: meta.origin ?? '',
+      topics: meta.topics,
+      entities: meta.entities,
+    });
+  }
+  return cards;
+}
+
+/**
+ * Reconstruit `wiki/index.md` + toutes les pages `by-date/` à partir de l'état
+ * canonique (fiches ressources + registres). Renvoie les `FileOp` (upsert index +
+ * upsert des pages by-date vivantes + suppression des pages by-date orphelines) ;
+ * l'appelant applique via `applyFileOps`. AUCUN appel IA. `graph.json`/`_ingested.json`
+ * ne sont PAS touchés (déjà corrects, reconstruits ailleurs).
+ */
+export async function rebuildDerivedIndexes(today: string): Promise<FileOp[]> {
+  const resources = await loadResourceCards();
+  const registries = await loadRegistries();
+  const priorIndex = (await readRepoFile('wiki/index.md')) ?? '';
+  const { resourceDigests, authorDigests } = salvageDigests(priorIndex, resources);
+
+  const indexContent = buildIndex({
+    resources,
+    entities: registries.entities,
+    themes: registries.themes,
+    today,
+    typeLabel: wikiTypeLabel,
+    slugifyAuthor: slugify,
+    typeOrder: ALL_TYPES.map((t) => typeLabel(t)),
+    resourceDigests,
+    authorDigests,
+  });
+
+  const ops: FileOp[] = [{ path: 'wiki/index.md', content: indexContent }];
+  ops.push(...buildByDate(resources));
+
+  // Purge des pages by-date orphelines (0 ressource) : utile au flux delete, no-op à
+  // l'ingestion. On énumère l'existant et on supprime ce que buildByDate n'émet plus.
+  const expected = expectedByDatePaths(resources);
+  for (const year of await listWikiDir('by-date')) {
+    const yearBase = `by-date/${year}`;
+    for (const entry of await listWikiDir(yearBase)) {
+      if (entry.endsWith('.md')) {
+        const p = `wiki/${yearBase}/${entry}`;
+        if (!expected.has(p)) ops.push({ path: p, delete: true });
+      } else {
+        // Sous-dossier de mois : `by-date/<Y>/<Y-MM>/`.
+        for (const mf of await listWikiDir(`${yearBase}/${entry}`)) {
+          if (!mf.endsWith('.md')) continue;
+          const p = `wiki/${yearBase}/${entry}/${mf}`;
+          if (!expected.has(p)) ops.push({ path: p, delete: true });
+        }
+      }
+    }
+  }
+
+  return ops;
+}
+
+// ————————————————————————————————————————————————————————————————
 // Construction du message utilisateur
 
 function buildUserMessage(
@@ -1050,6 +1132,15 @@ export async function runIngestion(): Promise<void> {
         errors.push(`${file} : ${msg}`);
         log(`[${file}] ERREUR : ${msg}`);
       }
+    }
+
+    // Passage final DÉTERMINISTE : régénère index.md + by-date EN ENTIER, écrasant la
+    // sortie incrémentale (potentiellement corrompue) de projectResource. Best-effort :
+    // une erreur ici ne doit pas annuler une ingestion réussie.
+    try {
+      await applyFileOps(await rebuildDerivedIndexes(today));
+    } catch (e: any) {
+      log(`[rebuild] ⚠ régénération des index dérivés échouée : ${e?.message ?? e}`);
     }
 
     phase('verify', 'Mise à jour des index et vérification');

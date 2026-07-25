@@ -4,6 +4,7 @@ import { slugify } from '@/lib/wiki-parser';
 import { typeLabel } from '@/lib/ui';
 import { ResourceType } from '@/types';
 import { deleteResource, parseResourceMeta, type DeleteViews } from '@/lib/wiki-mutate';
+import { rebuildDerivedIndexes } from '@/lib/ingest-local';
 
 export const dynamic = 'force-dynamic';
 
@@ -124,6 +125,9 @@ export async function DELETE(
 
   try {
     await applyFileOps(ops);
+    // Régénère index.md + by-date EN ENTIER après suppression : lignes retirées,
+    // compteurs à jour, pages by-date orphelines purgées.
+    await applyFileOps(await rebuildDerivedIndexes(new Date().toISOString().slice(0, 10)));
     return Response.json({ ok: true });
   } catch (e: any) {
     return Response.json(

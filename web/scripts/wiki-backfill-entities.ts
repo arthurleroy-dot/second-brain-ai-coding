@@ -8,9 +8,9 @@
  *   1. Frontmatter `entities:` incomplet : l'IA a annoté des entités en section
  *      (`` `entities: [...]` ``) mais laissé la clé du frontmatter incomplète. On remonte
  *      l'union au frontmatter (`rollupSectionEntities`) — et RIEN d'autre dans la fiche.
- *   2. Section « ## Entités » absente de `index.md` : on la (re)construit depuis le
- *      registre, chaque entité avec son `resource_count` autoritaire (nb de mentions de sa
- *      fiche). Section créée si absente (helper partagé `ensureEntitiesSection`).
+ *   2. Section « ## Entités » (et le reste de `index.md` + les pages `by-date/`) : régénérée
+ *      EN ENTIER depuis l'état canonique par `rebuildDerivedIndexes` (moteur unique, Phase 2)
+ *      — plus de reconstruction locale ad hoc.
  *   3. Nœuds de graphe `entity:*` « nus » (sans `label`) : filet anti-nu final — on les
  *      comble depuis le registre. Les arêtes `mentions` (déjà correctes, avec leurs ancres
  *      de section) ne sont PAS touchées.
@@ -31,75 +31,17 @@ import { readRepoFile, applyFileOps, listWikiDir } from '@/lib/wiki-fs';
 import {
   loadRegistries,
   rollupSectionEntities,
+  rebuildDerivedIndexes,
   humanize,
   fmArray,
   type Registries,
 } from '@/lib/ingest-local';
-import { ensureEntitiesSection } from '@/lib/wiki-project';
 import {
   splitFrontmatter,
   parseResourceMeta,
   parseGraph,
   serializeGraph,
-  entityReferencingResources,
 } from '@/lib/wiki-mutate';
-
-/**
- * Upsert du bullet d'une entité dans « ## Entités » de l'index : remplace la ligne
- * existante `[[entities/<slug>|…]]` (compteur réconcilié), ou l'insère sous le heading.
- */
-function upsertEntityBullet(body: string, slug: string, bullet: string): string {
-  const lines = body.split('\n');
-  const re = new RegExp(`\\[\\[entities/${slug}[|\\]]`);
-  for (let i = 0; i < lines.length; i++) {
-    if (re.test(lines[i])) {
-      lines[i] = bullet;
-      return lines.join('\n');
-    }
-  }
-  for (let i = 0; i < lines.length; i++) {
-    if (/^## Entités/.test(lines[i])) {
-      let j = i + 1;
-      while (j < lines.length && !/^## /.test(lines[j]) && !/^---/.test(lines[j])) j++;
-      let k = j - 1;
-      while (k > i && lines[k].trim() === '') k--;
-      lines.splice(k + 1, 0, bullet);
-      return lines.join('\n');
-    }
-  }
-  return body;
-}
-
-/**
- * (Re)construit la section « ## Entités » de `index.md` pour TOUTES les entités du registre,
- * avec le `resource_count` autoritaire de chaque fiche, et synchronise le heading
- * `## Entités (N)` + `entity_count` sur le nombre réel de bullets. Section auto-amorcée.
- */
-async function reconcileIndex(registries: Registries): Promise<number> {
-  const index = await readRepoFile('wiki/index.md');
-  if (index === null) return 0;
-  const parts = splitFrontmatter(index);
-  const seeded = ensureEntitiesSection(parts.fm, parts.rest);
-  let fm = seeded.fm;
-  let body = seeded.body;
-
-  for (const ent of [...registries.entities].sort((a, b) => a.slug.localeCompare(b.slug))) {
-    const page = await readRepoFile(`wiki/entities/${ent.slug}.md`);
-    if (page === null) continue;
-    const count = entityReferencingResources(page).length;
-    const bullet = `- [[entities/${ent.slug}|${ent.label}]] — ${count} ressource${count > 1 ? 's' : ''}`;
-    body = upsertEntityBullet(body, ent.slug, bullet);
-  }
-
-  const n = (body.match(/^- \[\[entities\//gm) ?? []).length;
-  body = body.replace(/^## Entités \(\d+\)/m, `## Entités (${n})`);
-  fm = /^entity_count:\s*\d+\s*$/m.test(fm)
-    ? fm.replace(/^entity_count:\s*\d+\s*$/m, `entity_count: ${n}`)
-    : `${fm}\nentity_count: ${n}`;
-
-  await applyFileOps([{ path: 'wiki/index.md', content: `---\n${fm}\n---\n${body}` }]);
-  return n;
-}
 
 /** Ids des nœuds `entity:*` sans `label` non vide dans un graphe parsé. */
 function nudeEntityNodeIds(graphJson: string): string[] {
@@ -134,6 +76,7 @@ async function fillNudeGraphNodes(registries: Registries): Promise<number> {
 
 async function main() {
   const dryRun = process.argv.includes('--dry-run');
+  const today = new Date().toISOString().slice(0, 10);
   const registries = await loadRegistries();
 
   const files = (await listWikiDir('resources')).filter((f) => f.endsWith('.md')).sort();
@@ -170,7 +113,8 @@ async function main() {
     return;
   }
 
-  const listed = await reconcileIndex(registries);
+  // index.md + by-date reconstruits EN ENTIER par le moteur unique (Phase 2).
+  await applyFileOps(await rebuildDerivedIndexes(today));
   const filled = await fillNudeGraphNodes(registries);
 
   console.log(
@@ -178,7 +122,7 @@ async function main() {
       ? '✓ Rien à remonter : tous les frontmatters `entities:` sont complets.'
       : `\n✓ ${fixedCount} ressource(s) : entités remontées au frontmatter (vues préservées).`,
   );
-  console.log(`✓ Index : section « ## Entités (${listed}) » réconciliée depuis le registre.`);
+  console.log('✓ Index/by-date : régénérés en entier depuis l’état canonique (rebuildDerivedIndexes).');
   console.log(
     filled
       ? `✓ Filet anti-nu : ${filled} nœud(s) entity labellisé(s) depuis le registre.`

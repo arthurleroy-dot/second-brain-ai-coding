@@ -12,6 +12,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseResourceMeta, splitFrontmatter, type FileOp, deleteResource, type DeleteViews } from '../wiki-mutate';
 import { projectResource, addManifestKey, type ProjectViews } from '../wiki-project';
+import { buildByDate, type ResourceCard } from '../wiki-index';
+
+/** Construit un ResourceCard depuis une fiche (comme le fait rebuildDerivedIndexes). */
+function cardOf(content: string, slug: string): ResourceCard {
+  const m = parseResourceMeta(content, slug);
+  return {
+    slug: m.slug, title: m.title, author: m.author ?? '', date: m.date ?? '',
+    source_type: m.source_type ?? '', origin: m.origin ?? '', topics: m.topics, entities: m.entities,
+  };
+}
 
 const slugify = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -417,7 +427,9 @@ test('projectResource : types.md — section créée + ligne', () => {
   assert.ok(types.includes('| [[resources/demo-resource\\|Demo Resource]] | TestCo | 2026-05 | externe |'));
 });
 
-test('projectResource : index — compteurs incrémentés + sous-section de type', () => {
+test('projectResource : n’émet PLUS aucune op index.md ni by-date (Phase 2 — chemin unique)', () => {
+  // index.md + by-date sont désormais reconstruits EN ENTIER par rebuildDerivedIndexes
+  // (couvert par wiki-index.test.ts) ; projectResource ne les touche plus.
   const ops = projectResource({
     slug: 'demo-resource',
     resourceContent: RESOURCE,
@@ -426,35 +438,12 @@ test('projectResource : index — compteurs incrémentés + sous-section de type
     typeLabel,
     today: TODAY,
   });
-  const idx = byPath(ops, 'wiki/index.md')!.content;
-  const { fm } = splitFrontmatter(idx);
-  assert.ok(fm.includes('resource_count: 1'));
-  assert.ok(fm.includes('author_count: 1'));
-  assert.ok(idx.includes('## Ressources (1)'));
-  assert.ok(idx.includes('### Rapport PDF (1)'));
-  assert.ok(idx.includes('- [[resources/demo-resource|Demo Resource]] — TestCo · 2026-05'));
-  assert.ok(idx.includes('## Auteurs (1)'));
-  assert.ok(idx.includes('- [[authors/testco|TestCo]] — 1 ressource'));
-  assert.ok(idx.includes('- [[themes/finops-ia|FinOps IA]] — 1 ressource'));
-  assert.ok(idx.includes('- [[origin/externe|Externe]] — 1 ressource'));
-  assert.ok(idx.includes('- [[by-date/2026/2026|2026]] — 1 ressource'));
-});
-
-test('projectResource : by-date — page mois créée + bullet « Par mois » dans l’année', () => {
-  const ops = projectResource({
-    slug: 'demo-resource',
-    resourceContent: RESOURCE,
-    views: projectViews(freshState(), RESOURCE, 'demo-resource', CFG),
-    slugifyAuthor: slugify,
-    typeLabel,
-    today: TODAY,
-  });
-  const month = byPath(ops, 'wiki/by-date/2026/2026-05/2026-05.md')!.content;
-  assert.ok(month.includes('period: "2026-05"'));
-  assert.ok(month.includes('| [[../../../resources/demo-resource\\|Demo Resource]] | TestCo | report-pdf | externe | finops-ia |'));
-  const year = byPath(ops, 'wiki/by-date/2026/2026.md')!.content;
-  assert.ok(year.includes('## Par mois'));
-  assert.ok(year.includes('- [[by-date/2026/2026-05/2026-05|2026-05]] — 1 ressource (TestCo)'));
+  assert.equal(byPath(ops, 'wiki/index.md'), undefined, 'aucune op index.md');
+  assert.equal(ops.filter((o) => o.path.startsWith('wiki/by-date/')).length, 0, 'aucune op by-date');
+  // Les autres vues restent bien projetées (thèmes/auteurs/entités/types/graphe/manifeste).
+  assert.ok(byPath(ops, 'wiki/themes/finops-ia.md'), 'thème toujours projeté');
+  assert.ok(byPath(ops, 'wiki/authors/testco.md'), 'auteur toujours projeté');
+  assert.ok(byPath(ops, 'wiki/graph.json'), 'graphe toujours projeté');
 });
 
 // ————————————————————————————————————————————————————————————————
@@ -473,6 +462,11 @@ test('round-trip : deleteResource(projectResource(vide)) ramène graphe + manife
     today: TODAY,
   });
   apply(state, projOps);
+  // by-date n'est plus écrit par projectResource (Phase 2) : on le seed via buildByDate,
+  // exactement comme rebuildDerivedIndexes le fait après projection dans le vrai flux —
+  // sinon deleteResource ne peut pas détecter le mois/l'année orphelins (nœuds date +
+  // arête year_of) et le graphe ne reviendrait pas à l'état vide.
+  apply(state, buildByDate([cardOf(RESOURCE, 'demo-resource')]));
 
   // Sanity : la ressource + ses vues existent après projection.
   assert.ok(state['wiki/resources/demo-resource.md']);
@@ -546,13 +540,8 @@ test('idempotence : une seconde projection ne duplique rien', () => {
   const author = state['wiki/authors/testco.md'];
   assert.equal((author.match(/resources\/demo-resource/g) ?? []).length, 1, 'une seule ligne auteur');
   assert.ok(state['wiki/types.md'].includes('## report-pdf (1 ressource)'), 'types stable à 1');
-  const month = state['wiki/by-date/2026/2026-05/2026-05.md'];
-  assert.equal((month.match(/resources\/demo-resource/g) ?? []).length, 1, 'une seule ligne mois');
-  // Compteurs index + année stables (pas de double comptage).
-  assert.ok(splitFrontmatter(state['wiki/index.md']).fm.includes('resource_count: 1'), 'index count stable à 1');
-  assert.ok(state['wiki/index.md'].includes('## Ressources (1)'), 'index Ressources (1) stable');
-  assert.ok(splitFrontmatter(state['wiki/by-date/2026/2026.md']).fm.includes('resource_count: 1'), 'année count stable à 1');
-  assert.ok(state['wiki/by-date/2026/2026.md'].includes('— 1 ressource (TestCo)'), 'bullet mois stable à 1');
+  // (index.md + by-date ne sont plus écrits par projectResource — Phase 2 ; leur
+  //  idempotence est couverte par wiki-index.test.ts / la vérif de reindex.)
 });
 
 // ————————————————————————————————————————————————————————————————
@@ -782,7 +771,7 @@ const CFG_NEWENT = {
   newEntities: { langgraph: { entity_type: 'tool', label: 'LangGraph', aliases: [] } },
 };
 
-test('index : section « ## Entités » créée + bullet + compteur ; delete décrémente', () => {
+test('projectResource : entité déclarée-nouvelle → fiche entité créée + nœud graphe labellisé', () => {
   const state = freshState(); // pas de page langgraph → entité déclarée-nouvelle
   const projOps = projectResource({
     slug: 'demo-newent',
@@ -792,26 +781,16 @@ test('index : section « ## Entités » créée + bullet + compteur ; delete dé
     typeLabel,
     today: TODAY,
   });
-  apply(state, projOps);
-
-  const idx = state['wiki/index.md'];
-  assert.ok(/^## Entités \(1\)/m.test(idx), 'section ## Entités (1) créée');
-  assert.ok(idx.includes('- [[entities/langgraph|LangGraph]] — 1 ressource'), 'bullet entité créé');
-  assert.ok(splitFrontmatter(idx).fm.includes('entity_count: 1'), 'compteur entity_count: 1');
-  // La section Entités est bien insérée entre Thèmes et Auteurs.
-  assert.ok(idx.indexOf('## Thèmes') < idx.indexOf('## Entités'), 'Entités après Thèmes');
-  assert.ok(idx.indexOf('## Entités') < idx.indexOf('## Auteurs'), 'Entités avant Auteurs');
-
-  // Suppression : bullet décrémenté (jamais retiré — miroir thèmes), heading inchangé.
-  const delOps = deleteResource({
-    slug: 'demo-newent',
-    resourceContent: RESOURCE_NEWENT,
-    views: deleteViews(state, RESOURCE_NEWENT, 'demo-newent'),
-    slugifyAuthor: slugify,
-    typeLabel,
-  });
-  apply(state, delOps);
-  const idx2 = state['wiki/index.md'];
-  assert.ok(idx2.includes('- [[entities/langgraph|LangGraph]] — 0 ressource'), 'bullet décrémenté à 0');
-  assert.ok(/^## Entités \(1\)/m.test(idx2), 'heading Entités inchangé (compte des entités distinctes)');
+  // Fiche entité créée (déclarée-nouvelle : type/label du CFG).
+  const page = byPath(projOps, 'wiki/entities/langgraph.md')!.content;
+  assert.ok(page.includes('entity_type: tool'), 'entity_type déclaré');
+  assert.ok(page.includes('label: "LangGraph"'), 'label déclaré');
+  assert.ok(page.includes('### [[../resources/demo-newent|Demo New Entity]]'), 'mention de la ressource');
+  // Nœud graphe entité né LABELLISÉ (jamais nu — correctif B).
+  const graph = JSON.parse(byPath(projOps, 'wiki/graph.json')!.content);
+  const node = graph.nodes.find((n: any) => n.id === 'entity:langgraph');
+  assert.ok(node && node.label === 'LangGraph' && node.entity_type === 'tool', 'nœud entity labellisé');
+  // La génération de la section « ## Entités » de l'index est désormais couverte par
+  // wiki-index.test.ts ; projectResource ne touche PLUS index.md (Phase 2).
+  assert.equal(byPath(projOps, 'wiki/index.md'), undefined, 'aucune op index.md');
 });

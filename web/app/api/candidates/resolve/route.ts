@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { applyFileOps, readRepoFile } from '@/lib/wiki-fs';
 import { slugify } from '@/lib/wiki-parser';
 import { applyEntityDecision, type SeenIn } from '@/lib/wiki-mutate';
+import { rebuildDerivedIndexes } from '@/lib/ingest-local';
 import { CandidateStatus } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -124,6 +125,9 @@ export async function POST(req: NextRequest) {
 
   try {
     await applyFileOps(ops);
+    // Régénère index.md + by-date EN ENTIER : fait apparaître la nouvelle entité dans
+    // « ## Entités » (bug #4 : applyEntityDecision n'émettait aucune op index.md).
+    await applyFileOps(await rebuildDerivedIndexes(today()));
     return Response.json({ ok: true, applied: true });
   } catch (e: any) {
     return Response.json(
