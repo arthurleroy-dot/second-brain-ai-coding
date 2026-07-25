@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Clock, Layers } from 'lucide-react';
 import { ThemeCandidate, ThemeEntry } from '@/types';
@@ -16,6 +16,16 @@ export default function ThemesView() {
   const [themes, setThemes] = useState<ThemeEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const scrollRef = useScrollRestoration<HTMLDivElement>('themes:scroll');
+
+  // Recharge le registre des thèmes depuis le disque. Appelé après une décision
+  // pour refléter aussitôt une création/fusion, sans attendre un refresh.
+  const loadRegistry = useCallback(async () => {
+    const t = await fetch('/api/themes')
+      .then((r) => r.json())
+      .catch(() => null);
+    if (!t) return;
+    setThemes(t.themes ?? []);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,6 +47,18 @@ export default function ThemesView() {
 
   const pending = candidates.filter((c) => c.status === 'pending');
 
+  // Une fois la carte arbitrée (et son animation de sortie terminée) : on retire
+  // le candidat de la liste (la carte disparaît sans refresh) ET on resynchronise
+  // le registre du dessous (une création/fusion y apparaît aussitôt). Handler
+  // stable → n'invalide pas l'effet de sortie de la carte.
+  const handleResolved = useCallback(
+    (normalized: string) => {
+      setCandidates((prev) => prev.filter((c) => c.normalized !== normalized));
+      void loadRegistry();
+    },
+    [loadRegistry],
+  );
+
   return (
     <div ref={scrollRef} className="h-full overflow-y-auto p-6">
       {loading ? (
@@ -56,7 +78,12 @@ export default function ThemesView() {
         ) : (
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {pending.map((c) => (
-              <ThemeCandidateCard key={c.normalized} candidate={c} themes={themes} />
+              <ThemeCandidateCard
+                key={c.normalized}
+                candidate={c}
+                themes={themes}
+                onResolved={handleResolved}
+              />
             ))}
           </div>
         )}

@@ -85,6 +85,36 @@
       "slug": "point-equipe-plateforme-etat-de-notre-pratique-du-coding-assiste-par-ia",
       "ingested_at": "2026-07-23",
       "run": "local"
+    },
+    "note-4.txt": {
+      "slug": "panorama-des-outils-et-acteurs-de-lai-coding-note-de-veille",
+      "ingested_at": "2026-07-24",
+      "run": "local"
+    },
+    "note-5.txt": {
+      "slug": "point-de-veille-agentic-coding-context-engineering-et-finops-ia",
+      "ingested_at": "2026-07-24",
+      "run": "local"
+    },
+    "note-6.txt": {
+      "slug": "deux-angles-emergents-experience-developpeur-evaluation-agents",
+      "ingested_at": "2026-07-24",
+      "run": "local"
+    },
+    "note-7.txt": {
+      "slug": "deux-angles-emergents-lexperience-developpeur-et-levaluation-des-agents",
+      "ingested_at": "2026-07-24",
+      "run": "local"
+    },
+    "note-8.txt": {
+      "slug": "deux-acteurs-a-suivre-mistral-ai-et-simon-willison",
+      "ingested_at": "2026-07-24",
+      "run": "local"
+    },
+    "note-9.txt": {
+      "slug": "le-t-ou-parfois-ecrit-t-veut-dire-transposee",
+      "ingested_at": "2026-07-25",
+      "run": "local"
     }
   }
 }

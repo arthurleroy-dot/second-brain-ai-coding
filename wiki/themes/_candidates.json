@@ -1,5 +1,28 @@
 {
   "version": 1,
-  "generated": "2026-07-22",
-  "candidates": []
+  "generated": "2026-07-24",
+  "candidates": [
+    {
+      "name": "DevEx",
+      "normalized": "devex",
+      "variants": [
+        "DevEx"
+      ],
+      "note": null,
+      "seen_in": [
+        {
+          "resource": "deux-angles-emergents-lexperience-developpeur-et-levaluation-des-agents",
+          "section": "lexperience-developpeur-a-lere-des-agents",
+          "context": "L'expérience développeur — souvent abrégée « DevEx » — désigne la qualité du vécu quotidien d'un ingénieur"
+        }
+      ],
+      "suggested_aliases": [],
+      "status": "pending",
+      "decision": {
+        "target_slug": null,
+        "slug": null
+      },
+      "updated_at": "2026-07-24"
+    }
+  ]
 }

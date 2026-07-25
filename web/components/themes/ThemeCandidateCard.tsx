@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { GitMerge, Plus, X, Check } from 'lucide-react';
 import { ThemeCandidate, ThemeEntry } from '@/types';
@@ -15,14 +15,28 @@ const WIKI_THEME_HREF = (slug: string) => `/wiki/${slug}`;
 export default function ThemeCandidateCard({
   candidate,
   themes,
+  onResolved,
 }: {
   candidate: ThemeCandidate;
   themes: ThemeEntry[];
+  onResolved: (normalized: string) => void;
 }) {
   const [mode, setMode] = useState<'idle' | 'merge' | 'create'>('idle');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  // Sortie animée après une décision : on laisse ~1 s le bandeau vert visible,
+  // puis on fond la carte, puis on prévient le parent qui la retire de la liste.
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => {
+    if (!done) return;
+    const t1 = setTimeout(() => setLeaving(true), 1000);
+    const t2 = setTimeout(() => onResolved(candidate.normalized), 1300);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [done, onResolved, candidate.normalized]);
 
   // Fusion : cible pré-remplie avec la meilleure ressemblance si dispo.
   const [mergeTarget, setMergeTarget] = useState(
@@ -60,7 +74,11 @@ export default function ThemeCandidateCard({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4">
+    <div
+      className={`flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 transition-all duration-300 ${
+        leaving ? 'scale-95 opacity-0 pointer-events-none' : ''
+      }`}
+    >
       {/* Nom + variantes */}
       <div className="flex flex-wrap items-baseline gap-2">
         <h3 className="text-sm font-semibold text-gray-900">{candidate.name}</h3>

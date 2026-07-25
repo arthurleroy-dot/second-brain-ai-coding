@@ -105,6 +105,8 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
   client: 'Clients',
   company: 'Entreprises',
   concept: 'Concepts',
+  model: 'Modèles',
+  person: 'Personnes',
 };
 
 export function entityTypeLabel(type: string): string {

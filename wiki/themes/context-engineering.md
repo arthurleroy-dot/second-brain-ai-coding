@@ -2,8 +2,8 @@
 type: theme
 slug: context-engineering
 label: Context Engineering
-resource_count: 6
-last_updated: "2026-07-23"
+resource_count: 7
+last_updated: "2026-07-24"
 ---
 
 ## [[../resources/ai-revolution-software-development|The AI revolution in software development]]
@@ -48,3 +48,11 @@ last_updated: "2026-07-23"
 `2025-11 · report-pdf · externe — McKinsey`
 
 - Ressource entière — Article de la Technology, Media & Telecommunications Practice de McKinsey (novembre 2025), écrit par Charlotte Relyea, Martin Harrysson et Matt Linderman, avec Jose Mario Pena, Nandita Bothra et Natasha Maniar.
+
+---
+
+## [[../resources/point-de-veille-agentic-coding-context-engineering-et-finops-ia|Point de veille : agentic coding, context engineering et FinOps IA]]
+`2026-07-24 · personal-notes · interne`
+
+- [[../resources/point-de-veille-agentic-coding-context-engineering-et-finops-ia#point-de-veille--agentic-coding-context-engineering-et-finops-ia|Point de veille : agentic coding, context engineering et FinOps IA]] — Petit point personnel reliant trois sujets que je suis de près et qui reviennent dans presque toutes mes sources.
+- [[../resources/point-de-veille-agentic-coding-context-engineering-et-finops-ia#le-context-engineering-comme-compétence-clé|Le context engineering comme compétence clé]] — Tout repose sur le context engineering : bien remplir la fenêtre de contexte de l'agent — les bons fichiers, les bonnes consignes, les bons exemples — décide de la qualité du résultat.

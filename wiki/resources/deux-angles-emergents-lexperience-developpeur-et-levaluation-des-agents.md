@@ -1,0 +1,29 @@
+---
+slug: deux-angles-emergents-lexperience-developpeur-et-levaluation-des-agents
+title: "Deux angles émergents : l'expérience développeur et l'évaluation des agents"
+author: ""
+date: "2026-07-24"
+source_type: personal-notes
+origin: interne
+topics: [evaluation-des-agents]
+entities: [swe-bench]
+url: ""
+source_file: "note-7.txt"
+---
+
+> [[../by-date/2026/2026-07/2026-07|2026-07]] · Thèmes : [[../themes/evaluation-des-agents|Évaluation des agents de code]]
+
+## Deux angles émergents : l'expérience développeur et l'évaluation des agents
+
+Deux sujets montent nettement dans mes lectures récentes. Ils méritent qu'on les suive dans le temps, à travers plusieurs sources.
+
+### L'expérience développeur à l'ère des agents
+`topics: []`
+
+L'expérience développeur — souvent abrégée « DevEx » — désigne la qualité du vécu quotidien d'un ingénieur : temps de mise en route, friction des outils, rapidité de la boucle de feedback. Avec les agents de code, cette expérience change de nature : le développeur passe davantage de temps à relire, cadrer et arbitrer qu'à taper lui-même du code. Mesurer et améliorer cette expérience devient un chantier à part entière, distinct de la simple productivité brute.
+
+### L'évaluation des agents de code
+`topics: [evaluation-des-agents]`
+`entities: [swe-bench]`
+
+Comment savoir si un agent de code est réellement « bon » ? La question de l'évaluation des agents de code — les benchmarks, les jeux de tests reproductibles, les protocoles d'éval comme SWE-bench — devient centrale. Sans méthode d'évaluation partagée, impossible de comparer objectivement deux agents, ni de mesurer un progrès d'une version à l'autre. C'est un angle transversal qu'on retrouvera dans presque toutes les analyses sérieuses des prochains mois.

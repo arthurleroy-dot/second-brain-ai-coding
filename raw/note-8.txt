@@ -1,0 +1,11 @@
+# Deux acteurs à suivre : Mistral AI et Simon Willison
+
+Note rapide sur deux noms qui reviennent dans ma veille.
+
+## Un éditeur de modèles européen
+
+Mistral AI est un éditeur européen de modèles de fondation. Sa présence change un peu la donne sur le marché, jusqu'ici très dominé par les acteurs américains.
+
+## Une voix influente sur l'outillage
+
+Simon Willison, de son côté, est un développeur très suivi : ses billets sur l'usage concret des LLM pour coder font référence, et il documente au fil de l'eau ce qui marche vraiment.

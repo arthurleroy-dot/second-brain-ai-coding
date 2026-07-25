@@ -43,3 +43,12 @@ Assistant de codage agentique d'Anthropic (CLI / IDE / SDK).
 ### [[../resources/unlocking-value-ai-software-development|Unlocking the value of AI in software development]]
 `2025-11 · report-pdf — McKinsey`
 - [[../resources/unlocking-value-ai-software-development#two-key-shifts-to-unlock-ais-full-potential-in-software-development|Two key shifts to unlock AI's full potential in software development]] — 
+
+### [[../resources/panorama-des-outils-et-acteurs-de-lai-coding-note-de-veille|Panorama des outils et acteurs de l'AI coding (note de veille)]]
+`2026-07-24 · personal-notes`
+- [[../resources/panorama-des-outils-et-acteurs-de-lai-coding-note-de-veille#les-éditeurs-et-agents-de-code|Les éditeurs et agents de code]] — Côté outils, trois produits reviennent sans cesse dans mes lectures : Cursor, l'éditeur bâti sur un fork de VS Code ; Windsurf, son concurrent direct ; et GitHub Copilot, le pionnier de la complétion de code.
+- [[../resources/panorama-des-outils-et-acteurs-de-lai-coding-note-de-veille#les-entreprises-derrière-ces-outils|Les entreprises derrière ces outils]] — Ces produits sont édités par une poignée d'entreprises.
+
+### [[../resources/point-de-veille-agentic-coding-context-engineering-et-finops-ia|Point de veille : agentic coding, context engineering et FinOps IA]]
+`2026-07-24 · personal-notes`
+- [[../resources/point-de-veille-agentic-coding-context-engineering-et-finops-ia#lagentic-coding-au-quotidien|L'agentic coding au quotidien]] — L'agentic coding — déléguer à un agent des tâches de code menées de bout en bout — est devenu ma pratique par défaut.

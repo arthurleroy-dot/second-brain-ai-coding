@@ -2,8 +2,8 @@
 type: theme
 slug: agentic-coding
 label: Agentic Coding
-resource_count: 9
-last_updated: "2026-07-23"
+resource_count: 11
+last_updated: "2026-07-24"
 ---
 
 ## [[../resources/ai-revolution-software-development|The AI revolution in software development]]
@@ -87,3 +87,18 @@ last_updated: "2026-07-23"
 - [[../resources/unlocking-value-ai-software-development#what-sets-ai-software-leaders-apart|What sets AI software leaders apart]] — Les leaders qui façonnent activement une adoption mature de l'IA dans le cadre du développement logiciel obtiennent des résultats matériels, avec un **écart de performance de 15 points de pourcentage** (performance gap of 15 percentage points) entre top et bottom performers.
 - [[../resources/unlocking-value-ai-software-development#two-key-shifts-to-unlock-ais-full-potential-in-software-development|Two key shifts to unlock AI's full potential in software development]] — 
 - [[../resources/unlocking-value-ai-software-development#moving-toward-true-ai-driven-value|Moving toward true AI-driven value]] — Au cours des dernières années, beaucoup d'entreprises ont appris par elles-mêmes que générer un véritable impact financier en intégrant l'IA dans le développement de produits logiciels exige des organ
+
+---
+
+## [[../resources/panorama-des-outils-et-acteurs-de-lai-coding-note-de-veille|Panorama des outils et acteurs de l'AI coding (note de veille)]]
+`2026-07-24 · personal-notes · interne`
+
+- [[../resources/panorama-des-outils-et-acteurs-de-lai-coding-note-de-veille#les-éditeurs-et-agents-de-code|Les éditeurs et agents de code]] — Côté outils, trois produits reviennent sans cesse dans mes lectures : Cursor, l'éditeur bâti sur un fork de VS Code ; Windsurf, son concurrent direct ; et GitHub Copilot, le pionnier de la complétion de code.
+
+---
+
+## [[../resources/point-de-veille-agentic-coding-context-engineering-et-finops-ia|Point de veille : agentic coding, context engineering et FinOps IA]]
+`2026-07-24 · personal-notes · interne`
+
+- [[../resources/point-de-veille-agentic-coding-context-engineering-et-finops-ia#point-de-veille--agentic-coding-context-engineering-et-finops-ia|Point de veille : agentic coding, context engineering et FinOps IA]] — Petit point personnel reliant trois sujets que je suis de près et qui reviennent dans presque toutes mes sources.
+- [[../resources/point-de-veille-agentic-coding-context-engineering-et-finops-ia#lagentic-coding-au-quotidien|L'agentic coding au quotidien]] — L'agentic coding — déléguer à un agent des tâches de code menées de bout en bout — est devenu ma pratique par défaut.

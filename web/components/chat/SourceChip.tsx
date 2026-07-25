@@ -1,41 +1,51 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { ExternalLink, FileText } from 'lucide-react';
 import { Source } from '@/types';
 import { typeBadgeClass, typeLabel, formatDate } from '@/lib/ui';
 
+const CHIP_CLASS =
+  'inline-flex max-w-full items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2.5 py-1 text-left text-xs hover:border-gray-300 hover:bg-gray-50';
+
 export default function SourceChip({ source }: { source: Source }) {
   const [open, setOpen] = useState(false);
 
-  const handleClick = () => {
-    if (source.url) {
-      window.open(source.url, '_blank', 'noopener,noreferrer');
-    } else {
-      setOpen(true);
-    }
-  };
+  // Contenu commun aux deux rendus (lien interne ou repli modale).
+  const inner = (
+    <>
+      <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${typeBadgeClass(source.type)}`}>
+        {typeLabel(source.type)}
+      </span>
+      <span className="truncate font-medium text-gray-800">{source.title}</span>
+      <span className="shrink-0 text-gray-400">
+        {source.author ?? 'auteur inconnu'} · {formatDate(source.date)}
+      </span>
+      {source.url ? (
+        <ExternalLink size={11} className="shrink-0 text-gray-400" />
+      ) : (
+        <FileText size={11} className="shrink-0 text-gray-400" />
+      )}
+    </>
+  );
+
+  // Ressource hydratée (présente dans le wiki) → lien vers la fiche interne.
+  // `file_path` n'est posé que pour les vraies ressources (cf. parseResource),
+  // donc son absence signale une source citée mais introuvable : on garde alors
+  // le repli modale pour ne jamais envoyer vers une page 404.
+  if (source.file_path) {
+    return (
+      <Link href={`/sources/${source.slug}`} className={CHIP_CLASS} title={source.title}>
+        {inner}
+      </Link>
+    );
+  }
 
   return (
     <>
-      <button
-        type="button"
-        onClick={handleClick}
-        className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2.5 py-1 text-left text-xs hover:border-gray-300 hover:bg-gray-50"
-        title={source.title}
-      >
-        <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${typeBadgeClass(source.type)}`}>
-          {typeLabel(source.type)}
-        </span>
-        <span className="truncate font-medium text-gray-800">{source.title}</span>
-        <span className="shrink-0 text-gray-400">
-          {source.author ?? 'auteur inconnu'} · {formatDate(source.date)}
-        </span>
-        {source.url ? (
-          <ExternalLink size={11} className="shrink-0 text-gray-400" />
-        ) : (
-          <FileText size={11} className="shrink-0 text-gray-400" />
-        )}
+      <button type="button" onClick={() => setOpen(true)} className={CHIP_CLASS} title={source.title}>
+        {inner}
       </button>
 
       {open && (

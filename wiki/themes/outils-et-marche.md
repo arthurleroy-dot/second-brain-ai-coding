@@ -2,8 +2,8 @@
 type: theme
 slug: outils-et-marche
 label: Outils et Marché
-resource_count: 10
-last_updated: "2026-07-23"
+resource_count: 11
+last_updated: "2026-07-24"
 ---
 
 ## [[../resources/microsoft-google-late-ai-coding-compete-growth|Microsoft and Google are late to AI coding, but 'absolutely critical' they compete for growth]]
@@ -90,3 +90,14 @@ last_updated: "2026-07-23"
 `2025-11 · report-pdf · externe — McKinsey`
 
 - [[../resources/unlocking-value-ai-software-development#moving-toward-true-ai-driven-value|Moving toward true AI-driven value]] — Au cours des dernières années, beaucoup d'entreprises ont appris par elles-mêmes que générer un véritable impact financier en intégrant l'IA dans le développement de produits logiciels exige des organ
+
+---
+
+## [[../resources/panorama-des-outils-et-acteurs-de-lai-coding-note-de-veille|Panorama des outils et acteurs de l'AI coding (note de veille)]]
+`2026-07-24 · personal-notes · interne`
+
+- [[../resources/panorama-des-outils-et-acteurs-de-lai-coding-note-de-veille#panorama-des-outils-et-acteurs-de-lai-coding-note-de-veille|Panorama des outils et acteurs de l'AI coding (note de veille)]] — Cette note recense, pour mémoire, les principaux outils, acteurs et briques techniques que je croise en ce moment autour du coding assisté par IA.
+- [[../resources/panorama-des-outils-et-acteurs-de-lai-coding-note-de-veille#les-éditeurs-et-agents-de-code|Les éditeurs et agents de code]] — Côté outils, trois produits reviennent sans cesse dans mes lectures : Cursor, l'éditeur bâti sur un fork de VS Code ; Windsurf, son concurrent direct ; et GitHub Copilot, le pionnier de la complétion de code.
+- [[../resources/panorama-des-outils-et-acteurs-de-lai-coding-note-de-veille#les-entreprises-derrière-ces-outils|Les entreprises derrière ces outils]] — Ces produits sont édités par une poignée d'entreprises.
+- [[../resources/panorama-des-outils-et-acteurs-de-lai-coding-note-de-veille#les-modèles-de-fondation|Les modèles de fondation]] — Les modèles eux-mêmes évoluent très vite.
+- [[../resources/panorama-des-outils-et-acteurs-de-lai-coding-note-de-veille#les-briques-techniques-et-les-voix-du-domaine|Les briques techniques et les voix du domaine]] — Enfin, une brique technique structure désormais tout l'écosystème : MCP (Model Context Protocol), le standard ouvert qui permet à un agent de se brancher sur des outils et des données externes.

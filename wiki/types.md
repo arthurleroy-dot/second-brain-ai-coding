@@ -29,11 +29,17 @@ last_updated: "2026-07-03"
 | [[resources/accenture-research-ai-led-processes-outperform-peers\|New Accenture Research Finds that Companies with AI-Led Processes Outperform Peers]] | Accenture | 2024-10-10 | externe |
 | [[resources/labor-market-impacts-ai-new-measure-early-evidence\|Labor market impacts of AI: A new measure and early evidence]] | Maxim Massenkoff and Peter McCrory | 2026-03-05 | externe |
 
-## personal-notes (1 ressource)
+## personal-notes (7 ressources)
 
 | Ressource | Auteur | Date | Origin |
 |-----------|--------|------|--------|
 | [[resources/finops-c-est-le-financement-des-tokens\|Finops c'est le financement des tokens]] |  |  | interne |
+| [[resources/panorama-des-outils-et-acteurs-de-lai-coding-note-de-veille\|Panorama des outils et acteurs de l'AI coding (note de veille)]] |  | 2026-07-24 | interne |
+| [[resources/point-de-veille-agentic-coding-context-engineering-et-finops-ia\|Point de veille : agentic coding, context engineering et FinOps IA]] |  | 2026-07-24 | interne |
+| [[resources/deux-angles-emergents-experience-developpeur-evaluation-agents\|Deux angles émergents : l'expérience développeur et l'évaluation des agents]] |  | 2026-07-24 | interne |
+| [[resources/deux-angles-emergents-lexperience-developpeur-et-levaluation-des-agents\|Deux angles émergents : l'expérience développeur et l'évaluation des agents]] |  | 2026-07-24 | interne |
+| [[resources/deux-acteurs-a-suivre-mistral-ai-et-simon-willison\|Deux acteurs à suivre : Mistral AI et Simon Willison]] |  | 2026-07-24 | interne |
+| [[resources/le-t-ou-parfois-ecrit-t-veut-dire-transposee\|Le ⊤ (ou parfois écrit T) veut dire transposée]] |  | 2026-07-25 | interne |
 
 ## meeting-notes (1 ressource)
 
