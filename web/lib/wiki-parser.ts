@@ -325,6 +325,27 @@ export async function getEntity(slug: string): Promise<EntityDetail | null> {
   };
 }
 
+export interface ThemeDetail {
+  theme: ThemeEntry;
+  body: string; // corps markdown (blocs ## par ressource) sans le frontmatter
+}
+
+/** Un thème du registre par slug (frontmatter + corps), ou null. Miroir de getEntity(). */
+export async function getTheme(slug: string): Promise<ThemeDetail | null> {
+  const content = await readWikiFile(`${THEMES}/${slug}.md`);
+  if (!content.trim()) return null;
+  const { data, content: body } = matter(content);
+  const s = cleanStr(data.slug) ?? slug;
+  return {
+    theme: {
+      slug: s,
+      label: cleanStr(data.label) ?? s,
+      aliases: arr(data.aliases),
+    },
+    body,
+  };
+}
+
 /**
  * File des entités candidates (wiki/entities/_candidates.json). Contrat partagé
  * entre les deux moteurs d'ingestion (LLM puis TypeScript) : ils écrivent ce

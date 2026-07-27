@@ -15,6 +15,16 @@ const nextConfig = {
     // et imbriquerait la sortie sous standalone/web/server.js (+ risquerait d'aspirer les
     // node_modules d'Electron). Fixée ici → l'arbre reste plat et déterministe : dev == packagé.
     outputFileTracingRoot: path.join(__dirname),
+    // Pages dynamiques (force-dynamic) : ne PAS réutiliser le Router Cache
+    // client. Sans ça, le lien fixe « Chat » de la barre latérale renvoie la
+    // version /chat mise en cache AVANT que le cookie `active_conversation`
+    // n'existe (conversation vierge) au lieu de rejouer le redirect serveur
+    // vers /chat/<id>. App locale : le refetch relit des fichiers locaux, coût
+    // négligeable. `static` gardé au défaut Next (300 s).
+    staleTimes: {
+      dynamic: 0,
+      static: 300,
+    },
   },
   // En dev, le cache webpack sur disque (PackFileCacheStrategy) rate la lecture
   // de ses `.pack.gz` sous Node récent et lève une unhandledRejection fatale qui

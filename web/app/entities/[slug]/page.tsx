@@ -6,6 +6,7 @@ import { entityTypeLabel } from '@/lib/ui';
 import { derivedPageForDisplay } from '@/lib/wiki-md';
 import FullContentProse from '@/components/sources/FullContentProse';
 import EntityDeleteButton from '@/components/entities/EntityDeleteButton';
+import AliasLine from '@/components/wiki/AliasLine';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,11 +41,7 @@ export default async function EntityDetailPage({
             <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 font-medium text-indigo-700">
               {entityTypeLabel(entity.entity_type)}
             </span>
-            {entity.aliases.length > 0 && (
-              <span className="text-gray-500">
-                alias : {entity.aliases.join(', ')}
-              </span>
-            )}
+            <AliasLine label={entity.label} aliases={entity.aliases} />
           </div>
 
           <h1 className="mb-6 mt-4 text-2xl font-semibold text-gray-900">{entity.label}</h1>

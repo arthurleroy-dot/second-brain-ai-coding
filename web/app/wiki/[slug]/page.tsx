@@ -1,12 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
-import matter from 'gray-matter';
-import { readWikiFile } from '@/lib/wiki-fs';
+import { getTheme } from '@/lib/wiki-parser';
 import { listSources } from '@/lib/wiki-query';
 import { derivedPageForDisplay } from '@/lib/wiki-md';
 import { typeBadgeClass, typeLabel, formatDate } from '@/lib/ui';
 import FullContentProse from '@/components/sources/FullContentProse';
+import AliasLine from '@/components/wiki/AliasLine';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,11 +15,11 @@ export default async function TopicPage({
 }: {
   params: { slug: string };
 }) {
-  const raw = await readWikiFile(`themes/${params.slug}.md`);
-  if (!raw.trim()) notFound();
+  const data = await getTheme(params.slug);
+  if (!data) notFound();
 
-  const { data, content: body } = matter(raw);
-  const title = (typeof data.label === 'string' && data.label) || params.slug;
+  const { theme, body } = data;
+  const title = theme.label;
   const display = derivedPageForDisplay(body);
 
   // Ressources liées : lues depuis les fichiers markdown (resources/).
@@ -38,7 +38,10 @@ export default async function TopicPage({
 
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-gray-900">{title}</h1>
-          <p className="text-sm text-gray-400">{resources.length} ressource(s)</p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <p className="text-sm text-gray-400">{resources.length} ressource(s)</p>
+            <AliasLine label={theme.label} aliases={theme.aliases} />
+          </div>
         </div>
 
         <div className="rounded-xl border border-gray-100 bg-white p-6">

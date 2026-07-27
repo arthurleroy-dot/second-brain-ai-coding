@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useRouter } from 'next/navigation';
 import { Message as MessageType } from '@/types';
 import Message from '@/components/chat/Message';
 import InputBar from '@/components/chat/InputBar';
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export default function ChatWindow({ conversationId, initialMessages = [] }: Props) {
+  const router = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
   // « Collé en bas » : l'auto-scroll ne s'applique que si l'utilisateur est déjà
   // en bas (seuil 80px). Ref et non state : mis à jour à chaque événement scroll,
@@ -128,7 +130,13 @@ export default function ChatWindow({ conversationId, initialMessages = [] }: Pro
       setActiveConversationId(newId);
       void sendMessage(newId, newId, text, undefined); // stream sous la clé uuid
       setAdoptedId(newId); // re-lie cette fenêtre à l'uuid, sans démontage
-      window.history.replaceState(null, '', `/chat/${newId}`); // URL only (Next 14.2)
+      // Vraie navigation Next (et non history.replaceState) : synchronise l'état du
+      // routeur avec l'URL. Sinon le routeur croit rester sur /chat (clé figée "new"),
+      // et « Nouvelle discussion » (router.push('/chat')) ne démonte pas la fenêtre →
+      // on reste collé à la conversation courante. `scroll: false` évite tout saut ;
+      // `adoptedId` (déjà posé juste au-dessus) fait le pont zéro-flash pendant la
+      // transition (la fenêtre montée lit toujours store[newId]).
+      router.replace(`/chat/${newId}`, { scroll: false });
     } finally {
       setSending(false);
     }

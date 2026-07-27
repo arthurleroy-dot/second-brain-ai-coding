@@ -321,7 +321,7 @@ export function addManifestKey(
 
 function createThemePage(slug: string, label: string, block: string, today: string): string {
   return (
-    `---\ntype: theme\nslug: ${slug}\nlabel: ${JSON.stringify(label)}\n` +
+    `---\ntype: theme\nslug: ${slug}\nlabel: ${JSON.stringify(label)}\naliases: []\n` +
     `resource_count: 1\nlast_updated: ${JSON.stringify(today)}\n---\n\n${block}\n`
   );
 }

@@ -389,3 +389,23 @@ chirurgical (1 ligne/fiche), `verify` vert, idempotent — AVANT d'appliquer au 
 copie scratch) et se demander quels gaps EXISTENT vraiment. Si les vues dérivées sont déjà correctes,
 une réparation chirurgicale (n'écrire que ce qui manque) bat une re-projection qui écrase du contenu
 soigné. Toujours diffusion sur COPIE d'abord, puis vrai wiki.
+
+## 2026-07-27 — Miroir entité/thème : passer par un accesseur typé + un composant d'affichage partagés
+**Contexte :** les alias d'un thème ne s'affichaient jamais sur sa page de détail (bug signalé
+sur « Évaluation des agents de code »), alors que les entités les affichaient. Entités et thèmes
+sont des « jumeaux » (le code dit « Miroir de … ») maintenus à la main par copier-coller. Trois
+copies avaient divergé : pas de `getTheme` typé (la page thème re-parsait le frontmatter inline
+et « oubliait » `aliases`), pas d'affichage des alias dans la page thème, et `createThemePage`
+n'émettait pas le champ `aliases` là où `createEntityPage` l'émet.
+**Correction :** ne pas patcher l'affichage seul. Supprimer la classe de bug : (1) un accesseur
+détail **typé** par domaine (`getEntity`/`getTheme`) — la page ne re-parse jamais le frontmatter à
+la main, donc ne peut plus oublier un champ ; (2) un **composant d'affichage partagé**
+(`<AliasLine>`) portant la règle de rendu + dédoublonnage (masquer alias == label, insensible
+casse/espaces) à un seul endroit ; (3) aligner les DEUX chemins de création de page du moteur.
+**Règle :** quand deux domaines sont un miroir maintenu à la main, tout champ ajouté d'un côté
+doit transiter par un accesseur typé partagé ET un composant d'affichage partagé — jamais de
+re-parsing inline du frontmatter dans une page (c'est le maillon qui laisse un champ être oublié).
+Réparer la cause structurelle, pas l'instance. (Preuve : ces server components étant
+`force-dynamic`, un `curl | grep` du HTML rendu par le `next dev` déjà lancé suffit à démontrer
+l'affichage réel sans lancer d'instance ni toucher au wiki — penser à retirer les marqueurs
+`<!-- -->` que React insère entre texte statique et dynamique.)

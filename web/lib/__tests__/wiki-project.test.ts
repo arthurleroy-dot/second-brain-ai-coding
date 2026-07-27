@@ -298,6 +298,26 @@ test('projectResource : bloc thème ajouté + resource_count recalculé', () => 
   assert.ok(theme.includes('resource_count: 1'));
 });
 
+test('projectResource : page thème CRÉÉE porte aliases: [] (miroir de createEntityPage)', () => {
+  // Thème vu SANS page existante → createThemePage. Le frontmatter doit émettre
+  // `aliases: []` pour rester le miroir de createEntityPage (qui écrit toujours
+  // aliases) — sinon un fichier thème naît sans le champ. Ici la fixture part
+  // d'un état SANS wiki/themes/finops-ia.md (projectViews renvoie null pour ce topic).
+  const state = freshState();
+  delete state['wiki/themes/finops-ia.md'];
+  const ops = projectResource({
+    slug: 'demo-resource',
+    resourceContent: RESOURCE,
+    views: projectViews(state, RESOURCE, 'demo-resource', CFG),
+    slugifyAuthor: slugify,
+    typeLabel,
+    today: TODAY,
+  });
+  const theme = byPath(ops, 'wiki/themes/finops-ia.md')!.content;
+  assert.ok(theme.includes('type: theme'), 'page thème bien créée');
+  assert.ok(theme.includes('\naliases: []\n'), 'frontmatter contient aliases: []');
+});
+
 test('projectResource : page auteur CRÉÉE (nouvel auteur)', () => {
   const ops = projectResource({
     slug: 'demo-resource',
