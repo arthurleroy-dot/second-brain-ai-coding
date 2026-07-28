@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import type { Gran } from './LinkPicker';
 import { addName, mergeThemeDraft } from '@/lib/upload-drafts';
@@ -21,13 +21,17 @@ interface ThemePickerProps {
   onGranularityChange: (v: Gran) => void;
 }
 
+// Normalisation légère pour le filtrage : minuscule + suppression des diacritiques
+// (accents), SANS slugifier — on garde espaces/ponctuation pour un `includes` naturel.
+function norm(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+}
+
 /**
- * Sélecteur de thèmes à l'upload. Version aplatie de LinkPicker (les thèmes
- * n'ont pas de dimension `type`) : autocomplétion des thèmes existants (via
- * /api/themes) + saisie d'un nouveau thème à la volée, réutilisable ensuite.
- * Valeur = liste de noms (l'agent slugifie et crée/relie selon docs/entities.md).
- * Un bouton `+` (même UI que LinkPicker) ajoute un thème sans dépendre d'Entrée,
- * et la granularité (indice pour l'agent) vit DANS le cadre, comme pour les liens.
+ * Sélecteur de thèmes à l'upload. Champ de recherche + liste déroulante maison
+ * (combobox) des thèmes existants (via /api/themes) : clic sur une ligne = ajout
+ * immédiat en puce ; « + »/Entrée = création d'un thème inédit tapé. Valeur =
+ * liste de noms (l'agent slugifie et crée/relie selon docs/entities.md).
  */
 const ThemePicker = forwardRef<ThemePickerHandle, ThemePickerProps>(function ThemePicker(
   { value, onChange, granularity, onGranularityChange },
@@ -35,6 +39,8 @@ const ThemePicker = forwardRef<ThemePickerHandle, ThemePickerProps>(function The
 ) {
   const [themes, setThemes] = useState<ThemeInfo[]>([]);
   const [draft, setDraft] = useState('');
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch('/api/themes')
@@ -43,6 +49,17 @@ const ThemePicker = forwardRef<ThemePickerHandle, ThemePickerProps>(function The
       .catch(() => {});
   }, []);
 
+  // Ferme la liste au clic hors du composant. Le clic sur une ligne ou le « + »,
+  // internes au conteneur, ne ferme donc pas → ajouts multiples enchaînables.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
+
   const add = (name: string) => {
     const next = addName(value, name); // trim + dédup casse-insensible (helper partagé)
     if (next === value) return; // vide ou doublon : rien à ajouter
@@ -50,6 +67,7 @@ const ThemePicker = forwardRef<ThemePickerHandle, ThemePickerProps>(function The
   };
   const remove = (name: string) => onChange(value.filter((x) => x !== name));
 
+  // « + » / Entrée : crée (ou re-sélectionne) le thème TAPÉ, puis vide le champ.
   const commitDraft = () => {
     add(draft);
     setDraft('');
@@ -64,9 +82,13 @@ const ThemePicker = forwardRef<ThemePickerHandle, ThemePickerProps>(function The
   };
   useImperativeHandle(ref, () => ({ flush }), [value, draft]);
 
-  // Thèmes existants non encore sélectionnés (proposés en chips rapides).
-  const suggestions = themes.filter(
-    (t) => !value.some((s) => s.toLowerCase() === t.label.toLowerCase() || s.toLowerCase() === t.slug),
+  // Thèmes existants non encore sélectionnés, filtrés par le texte tapé (insensible
+  // à la casse ET aux accents). Pas de cap : la liste scrolle.
+  const q = norm(draft);
+  const options = themes.filter(
+    (t) =>
+      !value.some((s) => s.toLowerCase() === t.label.toLowerCase() || s.toLowerCase() === t.slug) &&
+      (q === '' || norm(t.label).includes(q)),
   );
 
   return (
@@ -89,53 +111,65 @@ const ThemePicker = forwardRef<ThemePickerHandle, ThemePickerProps>(function The
         </div>
       )}
 
-      <div className="flex items-center gap-1.5">
-        <input
-          list="theme-options"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              commitDraft();
-            }
-          }}
-          placeholder="Ajouter un thème — + ou Entrée pour valider"
-          className="w-full rounded-lg border border-gray-300 px-2.5 py-1 text-xs"
-        />
-        <button
-          type="button"
-          onClick={commitDraft}
-          aria-label="Ajouter le thème"
-          className="shrink-0 rounded-lg border border-gray-300 p-1.5 text-gray-500 hover:border-indigo-300 hover:text-indigo-700"
-        >
-          <Plus size={14} />
-        </button>
+      <div ref={boxRef} className="relative">
+        <div className="flex items-center gap-1.5">
+          <input
+            value={draft}
+            onFocus={() => setOpen(true)}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              setOpen(true);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitDraft();
+              } else if (e.key === 'Escape') {
+                setOpen(false);
+              }
+            }}
+            placeholder="Ajouter un thème — + ou Entrée pour créer"
+            className="w-full rounded-lg border border-gray-300 px-2.5 py-1 text-xs"
+          />
+          <button
+            type="button"
+            onClick={commitDraft}
+            aria-label="Créer le thème"
+            className="shrink-0 rounded-lg border border-gray-300 p-1.5 text-gray-500 hover:border-indigo-300 hover:text-indigo-700"
+          >
+            <Plus size={14} />
+          </button>
+        </div>
+
+        {open && (
+          <div className="absolute left-0 right-0 z-10 mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+            {options.length > 0 ? (
+              options.map((t) => (
+                <button
+                  key={t.slug}
+                  type="button"
+                  onClick={() => {
+                    add(t.label);
+                    setDraft(''); // vide le filtre, garde la liste ouverte pour enchaîner
+                  }}
+                  className="block w-full px-2.5 py-1.5 text-left text-xs text-gray-700 hover:bg-indigo-50 hover:text-indigo-700"
+                >
+                  {t.label}
+                </button>
+              ))
+            ) : (
+              <p className="px-2.5 py-1.5 text-[11px] text-gray-400">
+                {draft.trim() ? 'Aucun thème existant — + pour le créer.' : 'Aucun thème disponible.'}
+              </p>
+            )}
+          </div>
+        )}
       </div>
+
       {draft.trim() && (
         <p className="text-[11px] text-gray-400">
           « {draft.trim()} » sera pris en compte au dépôt.
         </p>
-      )}
-      <datalist id="theme-options">
-        {themes.map((t) => (
-          <option key={t.slug} value={t.label} />
-        ))}
-      </datalist>
-
-      {suggestions.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {suggestions.slice(0, 10).map((t) => (
-            <button
-              key={t.slug}
-              type="button"
-              onClick={() => add(t.label)}
-              className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[11px] text-gray-500 hover:border-indigo-300 hover:text-indigo-700"
-            >
-              + {t.label}
-            </button>
-          ))}
-        </div>
       )}
 
       {value.length > 0 && (

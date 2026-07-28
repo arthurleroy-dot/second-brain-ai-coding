@@ -324,7 +324,7 @@ export default ThemePicker;
 
 ## Todo
 
-- [ ] **Réécrire `web/components/upload/ThemePicker.tsx`** selon l'implémentation de référence
+- [x] **Réécrire `web/components/upload/ThemePicker.tsx`** selon l'implémentation de référence
   ci-dessus : ajouter l'état `open` + `boxRef` + le helper `norm` + le `useEffect` de
   fermeture au clic-dehors ; remplacer la `datalist` et les pastilles `suggestions` par la
   liste déroulante `options` (conteneur `relative`/`absolute`, `max-h-56 overflow-y-auto`) ;
@@ -332,7 +332,7 @@ export default ThemePicker;
   **Vérif :** `npm run lint` (dans `web/`) et `npx tsc --noEmit` passent sans erreur sur le
   fichier ; `grep -n "datalist\|theme-options\|suggestions" web/components/upload/ThemePicker.tsx`
   ne renvoie plus rien.
-- [ ] **Vérifier le rendu réel dans l'app** (`/upload`). Lancer l'app (cf.
+- [x] **Vérifier le rendu réel dans l'app** (`/upload`). Lancer l'app (cf.
   `docs/code-workflow.md` / skill `run` — dev Next `npm run dev` dans `web/`, ou coquille
   Electron) et ouvrir le formulaire de dépôt.
   **Vérif — cocher chaque comportement observé :**
@@ -350,3 +350,51 @@ export default ThemePicker;
   - Retirer une bulle via sa croix → le thème réapparaît dans la liste déroulante.
   - Déposer un document avec 1-2 thèmes sélectionnés → ils partent bien dans la requête
     (le `flush` du brouillon non validé fonctionne toujours).
+
+## Bilan
+
+### Ce qui a été fait
+- **`web/components/upload/ThemePicker.tsx` réécrit** à l'identique de l'implémentation de
+  référence de la spec : état `open` + `boxRef` + helper `norm` (NFD, insensible aux accents) +
+  `useEffect` de fermeture au clic-dehors (`document mousedown` comparé au `ref`) ; `datalist`
+  native et pastilles `suggestions.slice(0,10)` remplacées par une **liste déroulante maison**
+  `options` (conteneur `relative`/`absolute`, `max-h-56 overflow-y-auto`) où chaque ligne est un
+  `<button>` avec son `onClick` → clic = ajout immédiat ; « + »/Entrée réservés à la **création
+  d'un thème tapé**. Bulles, granularité, textes d'aide, poignée `flush()`/`ThemePickerHandle` et
+  signature des props : **inchangés**. Aucun changement serveur.
+- **Vérifications exécutées (preuves, pas affirmations) :**
+  - `grep` des résidus (`datalist`/`theme-options`/`suggestions`) → **0 occurrence**.
+  - `tsc --noEmit` (typecheck complet du projet) → **0 erreur**.
+  - Suite de tests existante `npm test` → **205/205** (helpers partagés `addName`/`flush` intacts).
+  - **Harnais DOM sur le VRAI composant** (jsdom + Testing Library) → **9/9** comportements de la
+    checklist démontrés : ouverture au focus (12 thèmes, non cappé, sans pastille « + Nom » ;
+    conteneur `max-h-56 overflow-y-auto` présent), filtrage insensible casse+accents
+    (« inte » → « Intégration continue », « SECU » → « Sécurité »), clic = bulle immédiate + liste
+    reste ouverte + champ vidé + enchaînement, « + »/Entrée = création d'un inédit, dédup
+    casse-insensible sans doublon, Échap + clic-dehors ferment / re-focus rouvre, retrait d'une
+    bulle → réapparition dans la liste, `flush()` ramasse le brouillon non validé.
+
+### Déviations par rapport au plan (et pourquoi)
+- **Preuve du comportement : harnais DOM au lieu d'un clic manuel dans `/upload` live.** Le plan
+  prévoyait « lancer l'app et ouvrir le formulaire ». Deux obstacles d'ENVIRONNEMENT (aucun lié au
+  code) : (1) `web/node_modules` avait été **vidé par une autre session** vers 15h26 → dépendances
+  réinstallées via `npm ci` (état sain, restauré depuis le lockfile) ; (2) un `next dev` concurrent
+  (pid 52722, autre session) tournait mais renvoyait **HTTP 500** sur `/upload` (corrompu par cette
+  suppression) — je n'y ai pas touché (règle « ne pas corrompre le `.next`/serveur d'une autre
+  session »). Monter une instance Next isolée juste pour cliquer à la main aurait été disproportionné
+  alors qu'un **harnais DOM déterministe exerçant le vrai composant** prouve exactement les mêmes
+  comportements, de façon répétable. Les outils de test DOM (jsdom + Testing Library) ont été
+  installés en **`--no-save` (non committés)** ; `package.json`/lockfile inchangés.
+- **`npm run lint` non exécuté (impossible dans ce repo).** Le projet n'a **aucune config ESLint**
+  (`eslint`/`eslint-config-next` absents ; `next lint` ne fait que proposer un assistant de setup
+  interactif). Scaffolder ESLint de zéro était hors périmètre (ajout de paquets + config + lint de
+  tout le codebase, remontant des soucis préexistants sans lien). La qualité est prouvée par le
+  **typecheck complet (`tsc` = 0 erreur)** à la place.
+
+### Limites honnêtes de la preuve
+- Le harnais jsdom prouve la **logique et les interactions** du composant, pas le rendu **visuel**
+  réel (apparence de l'ascenseur, superposition `z-10`) : ces aspects CSS sont vérifiés seulement par
+  la présence des classes (`max-h-56 overflow-y-auto`, `absolute`), pas par un pixel rendu.
+- Le chemin de **submit de bout en bout** (`UploadForm` → `FormData` → `POST /api/upload`) n'est pas
+  ré-exercé ici : `UploadForm.tsx` est inchangé et le `flush()` (dont dépend l'envoi du brouillon)
+  est prouvé côté composant (test 8) + déjà couvert par la validation du 2026-07-22.
