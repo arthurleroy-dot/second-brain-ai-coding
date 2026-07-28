@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { ChevronRight, ChevronDown } from 'lucide-react';
 import { Source } from '@/types';
 import { ALL_ORIGINS, originLabel, typeLabel } from '@/lib/ui';
 
@@ -19,6 +20,12 @@ export default function FilterBar({ sources }: { sources: Source[] }) {
   const [themes, setThemes] = useState<ThemeOpt[]>([]);
   const [entityTypes, setEntityTypes] = useState<EntityType[]>([]);
   const [entities, setEntities] = useState<EntityOpt[]>([]);
+
+  // Panneau des filtres par entité : replié par défaut, MAIS auto-ouvert si on
+  // arrive avec un filtre entité déjà actif (état d'UI éphémère, hors URL).
+  const [showEntityFilters, setShowEntityFilters] = useState(
+    () => (params.get('entity') ?? '').split(',').filter(Boolean).length > 0,
+  );
 
   useEffect(() => {
     fetch('/api/themes')
@@ -73,6 +80,12 @@ export default function FilterBar({ sources }: { sources: Source[] }) {
   // Entités sélectionnées (liste plate de slugs, un par type via les menus).
   const selectedEntities = (params.get('entity') ?? '').split(',').filter(Boolean);
 
+  // Types d'entité qui ont au moins une entité à proposer (les autres n'ont aucun
+  // menu à afficher). Pilote la présence du bouton « Entités » ET la rangée 2.
+  const entityTypesWithOpts = entityTypes.filter((t) =>
+    entities.some((e) => e.entity_type === t.slug),
+  );
+
   // Valeur courante du menu d'un type = le slug sélectionné de ce type (ou '').
   const entityValueForType = (typeSlug: string) =>
     selectedEntities.find((slug) => entityById.get(slug)?.entity_type === typeSlug) ?? '';
@@ -92,102 +105,128 @@ export default function FilterBar({ sources }: { sources: Source[] }) {
     'rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700';
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <select
-        className={selectClass}
-        value={params.get('type') ?? ''}
-        onChange={(e) => setParam('type', e.target.value)}
-      >
-        <option value="">Tous les types</option>
-        {types.map((t) => (
-          <option key={t} value={t}>
-            {typeLabel(t)}
-          </option>
-        ))}
-      </select>
-
-      <select
-        className={selectClass}
-        value={params.get('author') ?? ''}
-        onChange={(e) => setParam('author', e.target.value)}
-      >
-        <option value="">Tous les auteurs</option>
-        {authors.map((a) => (
-          <option key={a} value={a}>
-            {a}
-          </option>
-        ))}
-      </select>
-
-      <select
-        className={selectClass}
-        value={params.get('origin') ?? ''}
-        onChange={(e) => setParam('origin', e.target.value)}
-      >
-        <option value="">Toutes les origines</option>
-        {ALL_ORIGINS.map((o) => (
-          <option key={o} value={o}>
-            {originLabel(o)}
-          </option>
-        ))}
-      </select>
-
-      <select
-        className={selectClass}
-        value={params.get('date') ?? ''}
-        onChange={(e) => setParam('date', e.target.value)}
-      >
-        <option value="">Toutes les dates</option>
-        {dateOptions.map((d) => (
-          <option key={d} value={d}>
-            {d}
-          </option>
-        ))}
-      </select>
-
-      <select
-        className={selectClass}
-        value={params.get('topic') ?? ''}
-        onChange={(e) => setParam('topic', e.target.value)}
-      >
-        <option value="">Tous les thèmes</option>
-        {themes.map((t) => (
-          <option key={t.slug} value={t.slug}>
-            {t.label}
-          </option>
-        ))}
-      </select>
-
-      {/* Un menu par type de lien (Outil, Client, …) — ajouté automatiquement dès
-          qu'un nouveau type apparaît dans le registre des entités. */}
-      {entityTypes.map((t) => {
-        const opts = entities.filter((e) => e.entity_type === t.slug);
-        if (opts.length === 0) return null;
-        return (
-          <select
-            key={t.slug}
-            className={selectClass}
-            value={entityValueForType(t.slug)}
-            onChange={(e) => setEntity(t.slug, e.target.value)}
-          >
-            <option value="">Tous · {t.label}</option>
-            {opts.map((e) => (
-              <option key={e.slug} value={e.slug}>
-                {e.label}
-              </option>
-            ))}
-          </select>
-        );
-      })}
-
-      {(params.toString() !== '') && (
-        <button
-          type="button"
-          onClick={() => router.push('/sources')}
-          className="text-xs text-gray-500 underline hover:text-gray-700"
+    <div className="flex flex-col gap-2">
+      {/* Rangée 1 : filtres cœur + bouton Entités + Réinitialiser */}
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          className={selectClass}
+          value={params.get('type') ?? ''}
+          onChange={(e) => setParam('type', e.target.value)}
         >
-          Réinitialiser
-        </button>
+          <option value="">Tous les types</option>
+          {types.map((t) => (
+            <option key={t} value={t}>
+              {typeLabel(t)}
+            </option>
+          ))}
+        </select>
+
+        <select
+          className={selectClass}
+          value={params.get('author') ?? ''}
+          onChange={(e) => setParam('author', e.target.value)}
+        >
+          <option value="">Tous les auteurs</option>
+          {authors.map((a) => (
+            <option key={a} value={a}>
+              {a}
+            </option>
+          ))}
+        </select>
+
+        <select
+          className={selectClass}
+          value={params.get('origin') ?? ''}
+          onChange={(e) => setParam('origin', e.target.value)}
+        >
+          <option value="">Toutes les origines</option>
+          {ALL_ORIGINS.map((o) => (
+            <option key={o} value={o}>
+              {originLabel(o)}
+            </option>
+          ))}
+        </select>
+
+        <select
+          className={selectClass}
+          value={params.get('date') ?? ''}
+          onChange={(e) => setParam('date', e.target.value)}
+        >
+          <option value="">Toutes les dates</option>
+          {dateOptions.map((d) => (
+            <option key={d} value={d}>
+              {d}
+            </option>
+          ))}
+        </select>
+
+        <select
+          className={selectClass}
+          value={params.get('topic') ?? ''}
+          onChange={(e) => setParam('topic', e.target.value)}
+        >
+          <option value="">Tous les thèmes</option>
+          {themes.map((t) => (
+            <option key={t.slug} value={t.slug}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+
+        {entityTypesWithOpts.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowEntityFilters((v) => !v)}
+            aria-expanded={showEntityFilters}
+            className={`flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm ${
+              selectedEntities.length > 0
+                ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                : 'border-gray-300 bg-white text-gray-700'
+            }`}
+          >
+            {showEntityFilters ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            Entités{selectedEntities.length > 0 ? ` (${selectedEntities.length})` : ''}
+          </button>
+        )}
+
+        {params.toString() !== '' && (
+          <button
+            type="button"
+            onClick={() => router.push('/sources')}
+            className="text-xs text-gray-500 underline hover:text-gray-700"
+          >
+            Réinitialiser
+          </button>
+        )}
+      </div>
+
+      {/* Rangée 2 : filtres par entité (repliable) */}
+      {showEntityFilters && entityTypesWithOpts.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {entityTypesWithOpts.map((t) => {
+            const opts = entities.filter((e) => e.entity_type === t.slug);
+            return (
+              <label
+                key={t.slug}
+                className="flex items-center gap-1.5 text-sm text-gray-600"
+              >
+                <span>{t.label} :</span>
+                <select
+                  className={selectClass}
+                  value={entityValueForType(t.slug)}
+                  onChange={(e) => setEntity(t.slug, e.target.value)}
+                >
+                  <option value="">Tous</option>
+                  {opts.map((e) => (
+                    <option key={e.slug} value={e.slug}>
+                      {e.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            );
+          })}
+        </div>
       )}
     </div>
   );
