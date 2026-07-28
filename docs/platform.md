@@ -8,9 +8,11 @@ plus aucune base externe. L'app **lit et écrit le wiki directement sur le disqu
 
 Modèle **local-first** : chaque personne installe l'app de bureau et dispose de sa
 propre instance et de son propre wiki EN LOCAL, sous une racine de données unique
-`DATA_ROOT` (le dossier de données utilisateur d'Electron, `userData`). GitHub ne
-sert plus qu'à **distribuer les binaires** de l'app (releases téléchargées à la main ;
-pas d'auto-updater en v1) — plus aucun commit, plus aucune API GitHub pour les écritures.
+`DATA_ROOT` = le dossier **`~/second-brain`** (dossier visible du dossier personnel :
+`/Users/<nom>/second-brain` sur Mac, `C:\Users\<nom>\second-brain` sur Windows),
+posé au 1er lancement. GitHub ne sert plus qu'à **distribuer les binaires** de l'app
+(téléchargés à la main ; pas d'auto-updater en v1) — plus aucun commit, plus aucune API
+GitHub pour les écritures.
 
 ---
 
@@ -19,7 +21,7 @@ pas d'auto-updater en v1) — plus aucun commit, plus aucune API GitHub pour les
 - Toutes les données vivent sous `DATA_ROOT` : `WIKI_ROOT = <DATA_ROOT>/wiki` et
   `RAW_ROOT = <DATA_ROOT>/raw` (dérivés dans `web/lib/wiki-fs.ts`). En dev,
   `DATA_ROOT` est la racine du dépôt (un cran au-dessus de `/web`) ; dans l'app
-  packagée, la coquille Electron pointe `DATA_ROOT` vers `userData`.
+  packagée, la coquille Electron pointe `DATA_ROOT` vers `~/second-brain`.
 - Le contenu est toujours **frais sans base intermédiaire ni sync** : l'ingestion
   locale écrit sur le même disque que celui que l'app lit.
 - Les pages lisent le filesystem à la requête via `web/lib/wiki-fs.ts` (garde
@@ -161,28 +163,40 @@ et l'ingestion sont désactivés.
 | `ANTHROPIC_API_KEY` | Clé IA (chat + ingestion). Vide = chat/ingestion désactivés, le reste fonctionne |
 | `ANTHROPIC_BASE_URL` | Cible : vide = Anthropic direct ; sinon une passerelle compatible (ex. `https://llm-gateway.m33.tech`) |
 | `ANTHROPIC_MODEL` | Modèle (défaut `claude-sonnet-4-5`) |
-| `DATA_ROOT` | Dossier de données (défaut dev : racine du dépôt ; en Electron : `userData`). Dérive `WIKI_ROOT`/`RAW_ROOT` |
+| `DATA_ROOT` | Dossier de données (défaut dev : racine du dépôt ; en Electron : `~/second-brain`). Dérive `WIKI_ROOT`/`RAW_ROOT` |
 | `WIKI_ROOT`, `RAW_ROOT` | Override direct des chemins wiki/raw (optionnel) |
 | `REFERENCE_DOCS_ROOT` | Racine des assets de référence (le prompt d'ingestion ; défaut : racine du dépôt) |
 
 ## 8. Packaging Electron & distribution
 
 La coquille Electron vit dans `electron/` (`electron/main.js` = process principal).
-Au lancement elle : (1) **amorce** le wiki dans `userData` au 1er lancement (`seedIfEmpty`
-copie les seeds `wiki/`+`raw/` embarqués **seulement s'ils sont absents** — idempotent,
-non destructif : une mise à jour du code ne touche jamais les données) ; (2) lance le
-**serveur Next standalone** comme process Node séparé sur un port local (`127.0.0.1`) ;
-(3) l'affiche dans une fenêtre, page d'accueil `/chat`.
+Au lancement elle : (0) **migre en douceur** les données de l'ancien emplacement caché
+`userData` (versions < 0.2.0) vers `~/second-brain` si elles existent et que la cible est
+absente (`migrateLegacyData` — copie une-fois, non destructive) ; (1) **amorce** le wiki
+dans `~/second-brain` au 1er lancement (`seedIfEmpty` copie les seeds `wiki/`+`raw/`
+embarqués **seulement s'ils sont absents** — idempotent, non destructif : une mise à jour
+du code ne touche jamais les données) ; (2) lance le **serveur Next standalone** comme
+process Node séparé sur un port local (`127.0.0.1`) ; (3) l'affiche dans une fenêtre, page
+d'accueil `/chat`.
 
-- **Données** : tout vit sous `DATA_ROOT = userData` (`wiki/`, `raw/`, `.data/`, réglages
-  IA en clair). La clé n'est **pas** injectée par la coquille — elle est saisie via
-  `/reglages` et relue par le serveur.
+- **Données** : tout vit sous `DATA_ROOT = ~/second-brain` — dossier **visible** du dossier
+  personnel (`/Users/<nom>/second-brain` sur Mac, `C:\Users\<nom>\second-brain` sur
+  Windows) contenant `wiki/`, `raw/`, `.data/` (réglages IA en clair + historique de chat +
+  `server.log`). « Local » ≠ « caché » : le choix du dossier visible facilite l'ouverture /
+  la sauvegarde manuelle ; la confidentialité tient au fait que rien ne quitte la machine et
+  que le dépôt GitHub est privé. La clé n'est **pas** injectée par la coquille — elle est
+  saisie via `/reglages` et relue par le serveur.
 - **Assets de référence** embarqués en lecture seule sous `REFERENCE_DOCS_ROOT`
   (`prompts/` + `docs/` + `CLAUDE.md`) ; seul le **prompt d'ingestion** y est lu au runtime.
-- **Build** (`npm run dist` → `electron-builder`) : cible **`.dmg`** (macOS, non signé —
-  `identity: null`) et **`.exe`** (Windows, installeur NSIS).
+- **Build** : `npm run dist` en local (→ `electron-builder`), OU — voie recommandée — le
+  workflow **GitHub Actions `.github/workflows/build-desktop.yml`** (matrice `macos-14`
+  arm64 + `windows-latest`) qui lance `npm run build:web` puis
+  `npx electron-builder --publish never` et publie les installeurs en **artefacts
+  téléchargeables** (pas de GitHub Release). Cibles : **`.dmg`** (macOS arm64, non signé —
+  `identity: null`, `CSC_IDENTITY_AUTO_DISCOVERY=false` en CI) et **`.exe`** (Windows,
+  installeur NSIS). Déclenchement : bouton « Run workflow » ou push d'un tag `v*`.
 - **Pas d'authentification** : accès direct, sans login (le mot de passe partagé a été
   retiré — app locale mono-utilisateur).
 - **Mises à jour** : **pas d'auto-updater en v1**. Distribution par **téléchargement
-  manuel** du `.dmg`/`.exe` (releases GitHub) ; GitHub n'héberge plus de contenu wiki et
-  ne reçoit plus aucun commit d'écriture.
+  manuel** du `.dmg`/`.exe` (artefacts du run Actions, déposés sur un Drive partagé) ;
+  GitHub n'héberge plus de contenu wiki et ne reçoit plus aucun commit d'écriture.

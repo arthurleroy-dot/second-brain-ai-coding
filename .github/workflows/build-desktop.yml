@@ -1,0 +1,45 @@
+name: build-desktop
+
+on:
+  workflow_dispatch:        # bouton « Run workflow » (déclenchement principal)
+  push:
+    tags:
+      - 'v*'                # optionnel : pousser un tag v0.2.0 déclenche aussi le build
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14           # runner Apple Silicon (arm64) → cible les Mac M1/M2/M3…
+            artifact_name: secondbrain-mac-dmg
+            artifact_glob: dist/*.dmg
+          - os: windows-latest     # runner Windows x64 → installeur NSIS
+            artifact_name: secondbrain-windows-exe
+            artifact_glob: dist/*.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20         # LTS stable pour Next 14 + electron-builder 26
+
+      - name: Install root deps (electron + electron-builder)
+        run: npm install
+
+      - name: Build web standalone + package installer
+        env:
+          # macOS : app NON signée en v1 → empêcher electron-builder de chercher un certificat.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: |
+          npm run build:web
+          npx electron-builder --publish never
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_glob }}
+          if-no-files-found: error

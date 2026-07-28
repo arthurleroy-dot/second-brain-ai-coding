@@ -1,12 +1,14 @@
 // Coquille Electron — process principal.
 //
-// Rôle : (1) amorcer le wiki dans userData au 1er lancement ; (2) lancer le serveur Next
-// embarqué (standalone) sur un port local ; (3) l'afficher dans une fenêtre. Toutes les
-// données (wiki/raw/.data + réglages IA en clair) vivent dans userData, JAMAIS dans le
-// code bundlé — une mise à jour du code ne les touche pas (décision D9/D-E8).
+// Rôle : (1) amorcer le wiki dans ~/second-brain au 1er lancement ; (2) lancer le serveur
+// Next embarqué (standalone) sur un port local ; (3) l'afficher dans une fenêtre. Toutes les
+// données (wiki/raw/.data + réglages IA en clair) vivent dans ~/second-brain (dossier visible
+// du dossier personnel), JAMAIS dans le code bundlé — une mise à jour du code ne les touche
+// pas (décision D9/D-E8 ; emplacement fixé en v0.2.0, migration douce depuis l'ancien
+// userData caché des versions < 0.2.0).
 //
 // Accès IA : la clé n'est pas injectée par la coquille. Elle est saisie via l'écran
-// /reglages, stockée dans <userData>/.data/ai-settings.json et relue à chaud par le
+// /reglages, stockée dans ~/second-brain/.data/ai-settings.json et relue à chaud par le
 // serveur (Option A retenue par Arthur, 2026-07-21). Pas d'auto-updater en v1 (P3).
 
 // ---------------------------------------------------------------------------
@@ -42,6 +44,24 @@ const HOST = '127.0.0.1';
 const BASE_PORT = 41730;
 
 let win = null;
+
+/**
+ * Migration une-fois, non destructive : rapatrie wiki/raw/.data de l'ancien
+ * emplacement caché (userData, < v0.2.0) vers le nouveau dataRoot (~/second-brain).
+ * Ne copie que si la source existe ET que la cible est absente (jamais d'écrasement).
+ */
+function migrateLegacyData(legacyRoot, dataRoot) {
+  if (legacyRoot === dataRoot) return;
+  for (const name of ['wiki', 'raw', '.data']) {
+    const oldp = path.join(legacyRoot, name);
+    const newp = path.join(dataRoot, name);
+    if (fs.existsSync(oldp) && !fs.existsSync(newp)) {
+      fs.mkdirSync(path.dirname(newp), { recursive: true });
+      fs.cpSync(oldp, newp, { recursive: true });
+      console.log(`[migration] ${name}/ rapatrié ${oldp} → ${newp}`);
+    }
+  }
+}
 
 /** Chemins des ressources, différents en dev et en packagé (app.isPackaged). */
 function resolvePaths() {
@@ -81,8 +101,21 @@ function showFatal(message) {
 }
 
 async function boot() {
-  const dataRoot = app.getPath('userData');
+  const dataRoot = path.join(app.getPath('home'), 'second-brain');
+  const legacyRoot = app.getPath('userData'); // ancien emplacement (< v0.2.0)
   const { serverBase, referenceRoot, seedRoot } = resolvePaths();
+
+  // 0) Migration douce depuis l'ancien userData — AVANT toute création de dossier
+  //    (sinon le mkdirSync .data ci-dessous rendrait existsSync(newp) vrai et le
+  //     .data legacy ne serait jamais rapatrié).
+  try {
+    migrateLegacyData(legacyRoot, dataRoot);
+  } catch (e) {
+    console.error('[migration] échec', e);
+  }
+
+  // S'assurer que dataRoot/.data existe (server.log, ai-settings, etc.).
+  fs.mkdirSync(path.join(dataRoot, '.data'), { recursive: true });
 
   // 1) Amorçage (idempotent, non destructif).
   try {
