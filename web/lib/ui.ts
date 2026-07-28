@@ -89,6 +89,26 @@ export function typeBadgeClass(slug: string): string {
   return TYPE_BADGE_PALETTE[hashSlug(s || 'unknown') % TYPE_BADGE_PALETTE.length];
 }
 
+// Origine par défaut d'un type (BINAIRE). Graine des types intégrés + repli unknown.
+// Sert de valeur par défaut quand types.json ne stocke pas d'origine pour un slug.
+// Classification validée avec l'utilisateur (cf. spec §B1). `unknown` = repli d'affichage
+// (jamais un type de menu), classé `externe` par défaut.
+export const BUILTIN_TYPE_ORIGIN: Record<string, OriginValue> = {
+  'personal-notes': 'interne',
+  'meeting-notes': 'interne',
+  transcript: 'interne',
+  'report-pdf': 'externe',
+  article: 'externe',
+  interview: 'externe',
+  presentation: 'externe',
+  unknown: 'externe',
+};
+
+/** Origine par défaut d'un slug de type (pur, client-safe). Slug inconnu → externe. */
+export function typeOriginDefault(slug: string): OriginValue {
+  return BUILTIN_TYPE_ORIGIN[(slug ?? '').trim()] ?? 'externe';
+}
+
 export function formatDate(date: string | null): string {
   if (!date) return 'date inconnue';
   return date;

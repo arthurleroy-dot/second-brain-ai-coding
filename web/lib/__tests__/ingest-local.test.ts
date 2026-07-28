@@ -173,6 +173,20 @@ test('parseGeneration extrait la ressource + les détections (JSON robuste)', as
   assert.deepEqual(bad.detectedNew, { entities: [], themes: [] });
 });
 
+test('parseSidecar : lit origin + date (autrefois ignorés)', async () => {
+  const { parseSidecar } = await load();
+  const s = parseSidecar('---\ntype: article\norigin: interne\ndate: "2026-03"\n---\n');
+  assert.equal(s.origin, 'interne');
+  assert.equal(s.date, '2026-03');
+  // Absents ou invalides → null.
+  const s2 = parseSidecar('---\ntype: article\n---\n');
+  assert.equal(s2.origin, null);
+  assert.equal(s2.date, null);
+  const s3 = parseSidecar('---\norigin: bidon\ndate: ""\n---\n');
+  assert.equal(s3.origin, null);
+  assert.equal(s3.date, null);
+});
+
 test('resolveDeclarations : collision de type → slug suffixé (§R11)', async () => {
   const { parseSidecar, resolveDeclarations } = await load();
   const reg = {

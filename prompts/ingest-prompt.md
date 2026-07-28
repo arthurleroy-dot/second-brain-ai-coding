@@ -36,19 +36,27 @@ Champs, dans cet ordre (une clé par ligne) :
 - `slug` : dérivé du **titre** (minuscules, sans accents, `[^a-z0-9]+`→`-`), ≤ ~60 car.
 - `title` : titre complet, **entre guillemets**.
 - `author` : personne OU organisation, **entre guillemets** (champ **singulier**).
-- `date` : `AAAA` | `AAAA-MM` | `AAAA-MM-JJ`, **entre guillemets**.
-- `source_type` (slug kebab, non quoté) : reprends VERBATIM celui du sidecar
-  (fait autorité). Sans sidecar, choisis un type existant si l'un convient (cf.
-  « Types de ressource connus » listés dans le message système) ; un slug inédit
-  est autorisé (kebab, minuscules).
-- `origin` (non quoté) : `interne` | `externe` | `""` (voir heuristique).
+- `date` : `AAAA` | `AAAA-MM` | `AAAA-MM-JJ`, **entre guillemets**. Reprends la date
+  du sidecar si fournie (fait autorité). SINON, extrais la date de PUBLICATION du
+  document lui-même (en-tête, chapô, signature, métadonnées) au niveau de précision
+  disponible. Si tu n'en trouves aucune, écris `date: ""` — le moteur déterministe
+  mettra le mois courant. (Renseigner cette métadonnée depuis l'en-tête n'est pas une
+  reformulation du CORPS : la règle VERBATIM ne concerne que le corps.)
+- `source_type` (slug kebab, non quoté) : reprends VERBATIM celui du sidecar s'il est
+  fourni (fait autorité). SANS type au sidecar (mode Auto), DÉDUIS le type le plus
+  probable du contenu, choisi PARMI les « Types de ressource connus » listés dans le
+  message système. Si aucun ne convient clairement → `source_type: unknown`. Ne crée
+  pas de slug de type inédit en mode Auto.
+- `origin` (non quoté) : écris `origin: ""` — le moteur déterministe remplit l'origine à
+  partir du type (ou de l'origine déclarée au dépôt). Ne la déduis pas.
 - `topics` : liste plate de **slugs de thèmes** `[finops-ia, agentic-coding]`.
 - `entities` : liste plate de **slugs d'entités** (optionnel) `[claude-code]`.
 - `url` : **entre guillemets** (JAMAIS déduite du contenu ; du sidecar seulement).
 - `source_file` : nom EXACT du fichier de contenu dans `/raw` (fourni), **entre guillemets**.
 
 Le sidecar de métadonnées (s'il est fourni) **fait autorité** : reprends-en
-`title`/`author`/`date`/`url`/`origin`/`source_type` sans les réinventer.
+`title`/`author`/`date`/`url`/`source_type` sans les réinventer. (L'`origin` n'est plus
+à toi : le moteur déterministe la remplit à partir du type — écris `origin: ""`.)
 
 ## Corps de la ressource
 
@@ -76,14 +84,6 @@ les scories non-contenu (numéros de page, en-têtes/pieds répétés) et (b) re
 mots coupés en fin de ligne. Il ne doit JAMAIS servir de prétexte à réordonner,
 corriger, « améliorer » ou reformuler un mot de contenu. En cas de doute sur un mot,
 recopie-le tel quel.
-
-## Heuristique origin
-
-- `interne` : meeting-notes / personal-notes / transcript manifestement internes.
-- `externe` : article tiers, rapport PDF de cabinet, tweet public, interview.
-- ambiguïté impossible → `origin: ""` (laisser vide).
-Ne JAMAIS déduire l'origin du nom de l'auteur ou du contenu. Une `origin` fournie
-au sidecar fait autorité.
 
 ## Liens — règle stricte
 

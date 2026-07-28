@@ -13,12 +13,13 @@ import {
   TypeEntry,
   WikiTopic,
 } from '@/types';
-import { listWikiDir, readWikiFile } from '@/lib/wiki-fs';
+import { applyFileOps, listWikiDir, readWikiFile } from '@/lib/wiki-fs';
 import {
   ALL_ORIGINS,
   BUILTIN_TYPE_SLUGS,
   originLabel,
   typeLabel,
+  typeOriginDefault,
 } from '@/lib/ui';
 
 const RESOURCES = 'resources';
@@ -230,29 +231,62 @@ export async function listTypes(): Promise<TypeEntry[]> {
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
+export interface TypeRegistryEntry {
+  slug: string;
+  origin: OriginValue;
+}
+
 /**
- * Registre EFFECTIF des types de document = liste complète du menu de dépôt.
- * `wiki/types.json` (`{ "types": [...] }`) fait AUTORITÉ dès qu'il est non vide :
- * on renvoie ses slugs TELS QUELS (ordre préservé, dédoublonnés), y compris si
- * l'utilisateur en a retiré un type par défaut (il ne « repousse » jamais).
- * Fichier absent / vide / illisible → on retombe sur la GRAINE par défaut
- * (`BUILTIN_TYPE_SLUGS`) : un premier ajout/suppression/renommage la matérialise.
- * Pilote UNIQUEMENT le menu de dépôt (filtres/graphe restent dérivés du réel).
+ * Registre EFFECTIF complet (slug + origine) = liste complète du menu de dépôt.
+ * `wiki/types.json` fait AUTORITÉ dès qu'il est non vide (mêmes sémantiques que
+ * listTypeRegistry : plus d'union, un type retiré ne repousse pas). Deux formats
+ * d'entrée tolérés en LECTURE : une string `"article"` (ancien schéma) → origine par
+ * défaut de son slug ; un objet `{ slug, origin }` (nouveau schéma) → origine lue
+ * (repli défaut si absente/invalide). Fichier absent / vide / illisible → GRAINE
+ * `BUILTIN_TYPE_SLUGS` avec leur origine par défaut.
  */
-export async function listTypeRegistry(): Promise<string[]> {
+export async function listTypeRegistryFull(): Promise<TypeRegistryEntry[]> {
   const content = await readWikiFile('types.json'); // '' si absent
   if (content.trim()) {
     try {
       const j = JSON.parse(content);
-      if (Array.isArray(j?.types)) {
-        const list = j.types.map((x: unknown) => String(x).trim()).filter(Boolean);
-        if (list.length) return [...new Set<string>(list)];
+      if (Array.isArray(j?.types) && j.types.length) {
+        const seen = new Set<string>();
+        const out: TypeRegistryEntry[] = [];
+        for (const raw of j.types) {
+          const slug = (typeof raw === 'string' ? raw : String(raw?.slug ?? '')).trim();
+          if (!slug || seen.has(slug)) continue;
+          seen.add(slug);
+          const o = raw && typeof raw === 'object' ? String((raw as any).origin ?? '').trim() : '';
+          out.push({ slug, origin: o === 'interne' || o === 'externe' ? o : typeOriginDefault(slug) });
+        }
+        if (out.length) return out;
       }
     } catch {
       /* fichier illisible → on retombe sur la graine */
     }
   }
-  return [...BUILTIN_TYPE_SLUGS];
+  return [...BUILTIN_TYPE_SLUGS].map((slug) => ({ slug, origin: typeOriginDefault(slug) }));
+}
+
+/**
+ * Registre EFFECTIF des types (slugs seuls) = dérivé de listTypeRegistryFull. Conserve
+ * la sémantique historique (graine si vide/absent/illisible ; fichier autoritaire
+ * dédoublonné ; un type retiré ne repousse pas). Pilote UNIQUEMENT le menu de dépôt.
+ */
+export async function listTypeRegistry(): Promise<string[]> {
+  return (await listTypeRegistryFull()).map((t) => t.slug);
+}
+
+/**
+ * Écrit la liste effective complète (objets `{slug, origin}`) dans `wiki/types.json`
+ * via l'unique voie d'écriture `applyFileOps` (garde-fou wiki-fs). Partagé par les
+ * routes POST/PATCH/DELETE de l'API registre — matérialise la graine au 1er changement.
+ */
+export async function writeTypeRegistry(entries: TypeRegistryEntry[]): Promise<void> {
+  await applyFileOps([
+    { path: 'wiki/types.json', content: JSON.stringify({ types: entries }, null, 2) + '\n' },
+  ]);
 }
 
 /**

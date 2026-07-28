@@ -216,19 +216,31 @@ Mettre à jour (ajouter nodes+edges) à chaque ingestion — ne pas régénérer
 
 ---
 
-## 5. Heuristique origin
+## 5. Origine, date et type — remplissage déterministe
 
-| Indice dans la source | → origin |
-|-----------------------|----------|
-| meeting-notes, personal-notes, transcript interne | `interne` |
-| article signé d'un tiers, rapport PDF d'un cabinet, tweet public, interview | `externe` |
-| ambiguïté impossible à lever sans l'humain | `""` (laisser vide) |
+Depuis le chantier 2026-07-28, **l'IA ne décide plus l'origine** ; l'origine, la date
+et le type sont garantis par un **moteur déterministe** (les `force*` de
+`ingest-local.ts`, appliqués au dépôt LIVE avant projection). Plus aucune fiche ne sort
+de l'ingestion avec une origine ou une date vide.
 
-**Ne jamais déduire origin depuis le nom de l'auteur ou le contenu.**
-Si incertain : laisser `origin` vide.
+- **Origine (BINAIRE, `interne`|`externe`) — 100 % déterministe.** Cascade `forceOrigin`
+  (le 1er qui s'applique gagne) : (1) origine **déclarée** au dépôt (clé `origin:` du
+  sidecar) — prioritaire, **même en contradiction avec le type** ; (2) sinon origine du
+  **type** final, via le registre `wiki/types.json` (map slug→origine — chaque type porte
+  une origine par défaut, cf. graine `BUILTIN_TYPE_ORIGIN` dans `web/lib/ui.ts`) ;
+  (3) filet edge (type hors map) → `externe`. L'origine écrite par l'IA est ignorée.
+  Pour un document exceptionnel (ex. un article réellement interne), **déclarer** l'origine
+  au dépôt.
+- **Type — « Auto » par défaut.** Le menu de dépôt démarre sur **« Auto (déduit par
+  l'IA) »** (plus de défaut `article` trompeur). En Auto, aucun `type:` n'est écrit au
+  sidecar → l'IA **déduit** le type parmi les « Types de ressource connus » ; repli
+  déterministe `unknown` (`forceType`) si elle n'en produit aucun d'exploitable.
+- **Date — extraite du document, sinon mois courant.** Cascade `forceDate` :
+  (1) date **déclarée** au dépôt ; (2) sinon date **extraite** par l'IA de l'en-tête /
+  chapô / métadonnées du document ; (3) sinon **mois courant** (`AAAA-MM`).
 
-Une `origin` fournie par l'humain (clé `origin:` du sidecar d'upload) **fait
-autorité** et court-circuite l'heuristique.
+Changer l'origine par défaut d'un type (via `/upload` → « Gérer les types ») **ne
+reclasse pas** les ressources déjà ingérées — seulement les futurs dépôts.
 
 ---
 

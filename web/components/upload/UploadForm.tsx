@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { ClipboardType, Info, UploadCloud } from 'lucide-react';
-import { ResourceType } from '@/types';
+import { OriginValue, ResourceType } from '@/types';
 import { clear, getView, seedFromServer, startTracking, subscribe } from '@/lib/ingest-view-store';
 import IngestStatus from './IngestStatus';
 import LinkPicker, { LinksValue, Gran, LinkPickerHandle } from './LinkPicker';
@@ -15,6 +15,7 @@ type TypeOpt = { slug: string; label: string };
 const ACCEPT_UPLOAD = '.pdf,.pptx,.docx,.txt,.md';
 const DEPOSITED_BY_KEY = 'wiki:deposited_by';
 const NEW_TYPE = '__new__'; // valeur sentinelle de l'option « + Nouveau type… »
+const AUTO_TYPE = ''; // '' = Auto (l'IA déduit le type du contenu) — miroir du champ Origine Auto
 
 const TITLE_HINT =
   'Pour un article, le titre est détecté de façon fiable par l’analyse. En revanche, ' +
@@ -47,8 +48,10 @@ export default function UploadForm() {
   const [author, setAuthor] = useState('');
   const [date, setDate] = useState('');
   const [depositedBy, setDepositedBy] = useState('');
-  const [type, setType] = useState<ResourceType>('article');
-  // Origine : '' = Auto (l'agent d'ingestion déduit du type), sinon forcée.
+  // Type : démarre sur Auto ('') — l'IA déduit le type du contenu (repli déterministe
+  // `unknown`). Miroir du champ Origine « Auto ». Plus de défaut concret trompeur.
+  const [type, setType] = useState<ResourceType>(AUTO_TYPE);
+  // Origine : '' = Auto (le moteur déterministe la dérive du type), sinon forcée.
   const [origin, setOrigin] = useState<'' | 'interne' | 'externe'>('');
 
   // Registre des types de document (menu unique alimenté par /api/types). La
@@ -57,6 +60,7 @@ export default function UploadForm() {
   const [types, setTypes] = useState<TypeOpt[]>([]);
   const [creating, setCreating] = useState(false); // ligne de création inline ouverte
   const [newTypeName, setNewTypeName] = useState('');
+  const [newTypeOrigin, setNewTypeOrigin] = useState<OriginValue>('externe'); // origine du type créé
   const [creatingBusy, setCreatingBusy] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [managing, setManaging] = useState(false); // modale « Gérer les types » ouverte
@@ -72,7 +76,9 @@ export default function UploadForm() {
           label: t.label,
         }));
         setTypes(list);
-        setType((cur) => (list.some((t) => t.slug === cur) ? cur : list[0]?.slug ?? 'unknown'));
+        // Auto ('') doit survivre à un rechargement du registre ; sinon on garde le type
+        // courant s'il existe encore, à défaut on retombe sur Auto (jamais list[0]).
+        setType((cur) => (cur === AUTO_TYPE || list.some((t) => t.slug === cur) ? cur : AUTO_TYPE));
       })
       .catch(() => {});
   }, []);
@@ -146,7 +152,7 @@ export default function UploadForm() {
       const res = await fetch('/api/types', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, origin: newTypeOrigin }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -165,12 +171,13 @@ export default function UploadForm() {
       setType(d.slug as ResourceType);
       setCreating(false);
       setNewTypeName('');
+      setNewTypeOrigin('externe');
     } catch {
       setCreateError('Erreur réseau');
     } finally {
       setCreatingBusy(false);
     }
-  }, [newTypeName, types, loadTypes]);
+  }, [newTypeName, newTypeOrigin, types, loadTypes]);
 
   // Réinitialise le formulaire pour un nouveau dépôt (garde le déposant mémorisé).
   const reset = () => {
@@ -178,9 +185,9 @@ export default function UploadForm() {
     setTitle('');
     setAuthor('');
     setDate('');
-    // Type par défaut : le premier du registre courant (article peut avoir été
-    // renommé/supprimé) ; 'unknown' en dernier recours si le menu est vide.
-    setType(types[0]?.slug ?? 'unknown');
+    // Type par défaut : Auto ('') — l'IA déduit (miroir de l'origine Auto). Plus de
+    // défaut concret trompeur.
+    setType(AUTO_TYPE);
     setOrigin('');
     setLinks({});
     setLinkGranularity({});
@@ -192,6 +199,7 @@ export default function UploadForm() {
     setError(null);
     setCreating(false);
     setNewTypeName('');
+    setNewTypeOrigin('externe');
     setCreateError(null);
     clear();
   };
@@ -239,7 +247,9 @@ export default function UploadForm() {
       if (author.trim()) form.append('author', author.trim());
       if (date.trim()) form.append('date', date.trim());
       if (depositedBy.trim()) form.append('deposited_by', depositedBy.trim());
-      form.append('type', type);
+      // Type envoyé SEULEMENT si un vrai type est choisi ; Auto ('') → pas de champ →
+      // l'IA déduit le type du contenu (repli déterministe `unknown`).
+      if (type) form.append('type', type);
       // Origine : envoyée seulement si forcée par l'utilisateur (sinon Auto → l'agent déduit).
       if (origin) form.append('origin', origin);
       // URL : pertinente seulement pour un article collé (sans PDF).
@@ -434,6 +444,7 @@ export default function UploadForm() {
                 // Ouvre la ligne de création inline SANS changer le type courant.
                 setCreating(true);
                 setNewTypeName('');
+                setNewTypeOrigin('externe');
                 setCreateError(null);
               } else {
                 setType(v as ResourceType);
@@ -441,6 +452,7 @@ export default function UploadForm() {
             }}
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
           >
+            <option value={AUTO_TYPE}>Auto (déduit par l'IA)</option>
             {types.map((t) => (
               <option key={t.slug} value={t.slug}>
                 {t.label}
@@ -448,6 +460,9 @@ export default function UploadForm() {
             ))}
             <option value={NEW_TYPE}>+ Nouveau type…</option>
           </select>
+          <span className="mt-1 block text-[11px] text-gray-400">
+            Laisse « Auto » pour que l'IA déduise le type d'après le contenu.
+          </span>
 
           {creating && (
             <div className="mt-2 flex items-center gap-2">
@@ -462,8 +477,19 @@ export default function UploadForm() {
                   }
                 }}
                 placeholder="Nom du nouveau type (ex. Podcast)"
-                className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+                className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
               />
+              {/* Origine par défaut du type créé (BINAIRE). Défaut « Externe » ; pilote
+                  l'origine des futurs dépôts de ce type (modifiable ensuite via Gérer). */}
+              <select
+                value={newTypeOrigin}
+                onChange={(e) => setNewTypeOrigin(e.target.value as OriginValue)}
+                aria-label="Origine par défaut du nouveau type"
+                className="shrink-0 rounded-lg border border-gray-300 px-2 py-1.5 text-xs"
+              >
+                <option value="externe">Externe</option>
+                <option value="interne">Interne</option>
+              </select>
               <button
                 type="button"
                 onClick={createType}
@@ -478,6 +504,7 @@ export default function UploadForm() {
                   setCreating(false);
                   setCreateError(null);
                   setNewTypeName('');
+                  setNewTypeOrigin('externe');
                 }}
                 className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
               >

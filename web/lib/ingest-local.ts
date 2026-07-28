@@ -8,8 +8,9 @@ import mammoth from 'mammoth';
 import JSZip from 'jszip';
 import { DATA_ROOT, RAW_ROOT, readRepoFile, applyFileOps, listWikiDir } from '@/lib/wiki-fs';
 import { getAnthropic, getModel } from '@/lib/claude';
-import { slugify, listTypeRegistry } from '@/lib/wiki-parser';
-import { typeLabel } from '@/lib/ui';
+import { slugify, listTypeRegistry, listTypeRegistryFull } from '@/lib/wiki-parser';
+import { typeLabel, BUILTIN_TYPE_ORIGIN } from '@/lib/ui';
+import { OriginValue } from '@/types';
 import {
   parseResourceMeta,
   splitFrontmatter,
@@ -227,6 +228,10 @@ export interface Sidecar {
   entitiesGranularity: unknown;
   themes: string[];
   themesGranularity: string;
+  /** Origine DÉCLARÉE au dépôt (1er palier de la cascade forceOrigin), sinon null. */
+  origin: OriginValue | null;
+  /** Date DÉCLARÉE au dépôt (1er palier de la cascade forceDate), sinon null. */
+  date: string | null;
 }
 
 export function parseSidecar(sidecarText: string): Sidecar {
@@ -237,11 +242,18 @@ export function parseSidecar(sidecarText: string): Sidecar {
   }
   const themes = arr(data.themes).length ? arr(data.themes) : arr((data as any).topics);
   const tg = (data as any).themes_granularity;
+  // origin/date : autrefois ignorés (ils ne survivaient que via le texte brut injecté au
+  // prompt) ; désormais lus pour piloter les cascades déterministes forceOrigin/forceDate.
+  const o = typeof data.origin === 'string' ? data.origin.trim() : '';
+  const origin: OriginValue | null = o === 'interne' || o === 'externe' ? o : null;
+  const date = typeof data.date === 'string' && data.date.trim() ? data.date.trim() : null;
   return {
     links,
     entitiesGranularity: (data as any).entities_granularity,
     themes,
     themesGranularity: typeof tg === 'string' ? tg : 'auto',
+    origin,
+    date,
   };
 }
 
@@ -737,6 +749,71 @@ export function rollupSectionEntities(markdown: string): string {
   return withFrontmatter(nf, rest);
 }
 
+// ————————————————————————————————————————————————————————————————
+// Filets déterministes du dépôt LIVE : type → origine → date (§0 de la spec).
+// Appliqués dans la boucle `runIngestion` AVANT `ingestOne` (jamais dans `ingestOne`,
+// partagé par le backfill : y forcer origine/date réécrirait rétroactivement le corpus).
+// « L'IA propose, le moteur garantit. » `setScalar` est no-op si la clé manque → on la
+// crée au besoin (même piège que forceSourceFile).
+
+/** Map slug→origine du run (graine BUILTIN_TYPE_ORIGIN ∪ registre). Chargée 1 fois/ingestion. */
+async function loadTypeOriginMap(): Promise<Record<string, OriginValue>> {
+  const map: Record<string, OriginValue> = { ...BUILTIN_TYPE_ORIGIN };
+  for (const t of await listTypeRegistryFull()) map[t.slug] = t.origin;
+  return map;
+}
+
+/**
+ * Repli déterministe du type : si l'IA n'a produit aucun `source_type` exploitable
+ * (mode Auto sans déduction), force `unknown`. Ne touche à rien si un type est présent.
+ */
+export function forceType(markdown: string): string {
+  const meta = parseResourceMeta(markdown, '');
+  if (meta.source_type) return markdown;
+  const { fm, rest } = splitFrontmatter(markdown);
+  let nf = setScalar(fm, 'source_type', 'unknown');
+  if (!/^source_type:/m.test(nf)) nf = `${nf}\nsource_type: unknown`;
+  return withFrontmatter(nf, rest);
+}
+
+/**
+ * Cascade déterministe de l'origine (le 1er qui s'applique gagne) :
+ *  1) origine DÉCLARÉE au dépôt (sidecar) — gagne toujours, même en contradiction avec le type ;
+ *  2) sinon origine du TYPE final (déclaré ou déduit par l'IA), via la map registre ;
+ *  3) filet edge (type hors map) → externe.
+ * L'origine écrite par l'IA est IGNORÉE/écrasée. DOIT s'exécuter APRÈS forceType.
+ */
+export function forceOrigin(
+  markdown: string,
+  declaredOrigin: OriginValue | null,
+  typeOrigins: Record<string, OriginValue>,
+): string {
+  const meta = parseResourceMeta(markdown, '');
+  const finalType = meta.source_type ?? 'unknown';
+  const origin: OriginValue = declaredOrigin ?? typeOrigins[finalType] ?? 'externe';
+  const { fm, rest } = splitFrontmatter(markdown);
+  let nf = setScalar(fm, 'origin', origin); // valeur NON quotée (convention frontmatter)
+  if (!/^origin:/m.test(nf)) nf = `${nf}\norigin: ${origin}`;
+  return withFrontmatter(nf, rest);
+}
+
+/**
+ * Cascade déterministe de la date (le 1er qui s'applique gagne) :
+ *  1) date DÉCLARÉE au dépôt (sidecar) ;
+ *  2) sinon date extraite par l'IA (présente au frontmatter) ;
+ *  3) sinon MOIS COURANT (AAAA-MM) — plus jamais de date vide.
+ * Écrit une valeur QUOTÉE (convention frontmatter). Clé créée si absente.
+ */
+export function forceDate(markdown: string, declaredDate: string | null, today: string): string {
+  const meta = parseResourceMeta(markdown, '');
+  const date = declaredDate ?? meta.date ?? today.slice(0, 7); // today = AAAA-MM-JJ → AAAA-MM
+  const { fm, rest } = splitFrontmatter(markdown);
+  const raw = JSON.stringify(date);
+  let nf = setScalar(fm, 'date', raw);
+  if (!/^date:/m.test(nf)) nf = `${nf}\ndate: ${raw}`;
+  return withFrontmatter(nf, rest);
+}
+
 /**
  * Régénère DÉTERMINISTIQUEMENT la ligne de nav `> Par … · … · Thèmes : …` depuis le
  * frontmatter (remplace la nav écrite par l'IA, à la fidélité incertaine). Gère le cas
@@ -1081,6 +1158,8 @@ export async function runIngestion(): Promise<void> {
     // évite que l'IA « corrige » un slug inédit venu du sidecar (qui fait autorité).
     const knownTypes = (await listTypeRegistry()).join(', ');
     const system = `${staticPrompt}\n\nTypes de ressource connus (registre) : ${knownTypes}.\n\n${renderRegistrySnapshot(registries)}`;
+    // Map slug→origine du run (graine ∪ registre) — chargée une fois, consommée par forceOrigin.
+    const typeOrigins = await loadTypeOriginMap();
 
     const perFile: { file: string; costUsd: number }[] = [];
     let totalCost = 0;
@@ -1111,9 +1190,14 @@ export async function runIngestion(): Promise<void> {
         );
 
         phase('project', lbl('Structuration de la fiche'), file);
+        // Filet déterministe : type (repli unknown) → origine (cascade) → date (cascade).
+        // AVANT ingestOne (qui est aussi appelé par le backfill : ne pas y toucher).
+        let md = forceType(gen.markdown);
+        md = forceOrigin(md, sidecar.origin, typeOrigins);
+        md = forceDate(md, sidecar.date, today);
         const { ops, slug, warnings } = await ingestOne({
           file,
-          markdown: gen.markdown,
+          markdown: md,
           detectedNew: gen.detectedNew,
           declaredEntities,
           declaredThemes,

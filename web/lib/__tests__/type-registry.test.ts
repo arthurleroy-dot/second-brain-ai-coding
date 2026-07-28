@@ -16,8 +16,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 // EN PREMIER : fige WIKI_ROOT vers un tmp AVANT le chargement de wiki-fs (via wiki-parser).
 import { wikiDir } from './_type-registry-env';
-import { typeLabel, typeBadgeClass, BUILTIN_TYPE_SLUGS } from '../ui';
-import { listTypeRegistry } from '../wiki-parser';
+import {
+  typeLabel,
+  typeBadgeClass,
+  typeOriginDefault,
+  BUILTIN_TYPE_SLUGS,
+  BUILTIN_TYPE_ORIGIN,
+} from '../ui';
+import { listTypeRegistry, listTypeRegistryFull } from '../wiki-parser';
 
 // ————————————————————————————————————————————————————————————————
 // typeLabel — override curé, sinon dérivation du slug
@@ -101,4 +107,71 @@ test('listTypeRegistry : fichier illisible → graine par défaut', async () => 
   fs.writeFileSync(typesJson, '{ pas du json');
   const reg = await listTypeRegistry();
   assert.deepEqual(reg, [...BUILTIN_TYPE_SLUGS]);
+});
+
+// ————————————————————————————————————————————————————————————————
+// typeOriginDefault — graine binaire, repli externe
+
+test('typeOriginDefault : interne / externe selon la graine, repli externe', () => {
+  assert.equal(typeOriginDefault('personal-notes'), 'interne');
+  assert.equal(typeOriginDefault('meeting-notes'), 'interne');
+  assert.equal(typeOriginDefault('transcript'), 'interne');
+  assert.equal(typeOriginDefault('article'), 'externe');
+  assert.equal(typeOriginDefault('report-pdf'), 'externe');
+  assert.equal(typeOriginDefault('unknown'), 'externe');
+  // Slug créé inconnu → repli externe.
+  assert.equal(typeOriginDefault('podcast'), 'externe');
+  assert.equal(typeOriginDefault(''), 'externe');
+});
+
+// ————————————————————————————————————————————————————————————————
+// listTypeRegistryFull — slug + origine (compat string/objet, graine)
+
+test('listTypeRegistryFull : graine (fichier absent) = 7 slugs avec origines par défaut', async () => {
+  if (fs.existsSync(typesJson)) fs.rmSync(typesJson);
+  const full = await listTypeRegistryFull();
+  assert.deepEqual(
+    full,
+    [...BUILTIN_TYPE_SLUGS].map((slug) => ({ slug, origin: BUILTIN_TYPE_ORIGIN[slug] })),
+  );
+});
+
+test('listTypeRegistryFull : fichier objets {slug,origin} fait AUTORITÉ', async () => {
+  fs.writeFileSync(
+    typesJson,
+    JSON.stringify(
+      { types: [{ slug: 'podcast', origin: 'interne' }, { slug: 'veille', origin: 'externe' }] },
+      null,
+      2,
+    ) + '\n',
+  );
+  const full = await listTypeRegistryFull();
+  assert.deepEqual(full, [
+    { slug: 'podcast', origin: 'interne' },
+    { slug: 'veille', origin: 'externe' },
+  ]);
+});
+
+test('listTypeRegistryFull : entrée string (ancien format) → origine par défaut', async () => {
+  // `article` (string) → origine par défaut de son slug (externe) ; `transcript` → interne.
+  fs.writeFileSync(typesJson, JSON.stringify({ types: ['article', 'transcript'] }, null, 2) + '\n');
+  const full = await listTypeRegistryFull();
+  assert.deepEqual(full, [
+    { slug: 'article', origin: 'externe' },
+    { slug: 'transcript', origin: 'interne' },
+  ]);
+});
+
+test('listTypeRegistryFull : origine invalide → repli défaut du slug ; dédoublonnage', async () => {
+  fs.writeFileSync(
+    typesJson,
+    JSON.stringify(
+      { types: [{ slug: 'transcript', origin: 'zzz' }, { slug: 'transcript', origin: 'externe' }] },
+      null,
+      2,
+    ) + '\n',
+  );
+  const full = await listTypeRegistryFull();
+  // Origine invalide → repli défaut (transcript=interne) ; 2e occurrence dédoublonnée.
+  assert.deepEqual(full, [{ slug: 'transcript', origin: 'interne' }]);
 });

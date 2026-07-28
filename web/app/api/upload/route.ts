@@ -104,7 +104,7 @@ function parseThemes(raw: string | null): string[] {
 /** Construit le sidecar `<source>.meta.md` à partir des métadonnées du formulaire. */
 function buildSidecar(meta: {
   title: string | null;
-  sourceType: string;
+  sourceType: string | null;
   origin: string | null;
   author: string | null;
   date: string | null;
@@ -117,9 +117,11 @@ function buildSidecar(meta: {
 }): string {
   const lines: string[] = ['---'];
   if (meta.title) lines.push(`title: ${yamlStr(meta.title)}`);
-  lines.push(`type: ${meta.sourceType}`);
-  // Origine optionnelle : si absente, l'agent d'ingestion la déduit du type
-  // (heuristique docs/wiki-spec.md §5). Si fournie, le sidecar fait autorité.
+  // Type optionnel : ABSENT (mode Auto) ⇒ pas de ligne `type:` ⇒ l'IA déduit le type
+  // du contenu (repli déterministe `unknown` via forceType). Présent ⇒ fait autorité.
+  if (meta.sourceType) lines.push(`type: ${meta.sourceType}`);
+  // Origine optionnelle : si absente, le moteur déterministe (forceOrigin) la remplit à
+  // partir du type. Si fournie, elle fait autorité (1er palier de la cascade).
   if (meta.origin) lines.push(`origin: ${meta.origin}`);
   if (meta.author) lines.push(`author: ${yamlStr(meta.author)}`);
   if (meta.date) lines.push(`date: ${yamlStr(meta.date)}`);
@@ -180,10 +182,10 @@ export async function POST(req: NextRequest) {
   const date = field(form, 'date');
   const depositedBy = field(form, 'deposited_by');
   const url = field(form, 'url');
-  // Le menu de dépôt envoie DÉJÀ le slug kebab (identité canonique). On le
-  // re-slugifie par sûreté (idempotent sur un slug propre) et on retombe sur
-  // `unknown` si vide. Le sidecar écrit alors `type: <slug>`.
-  const sourceType = slugify(field(form, 'type') ?? '') || 'unknown';
+  // Type ABSENT (mode Auto) ⇒ null ⇒ pas de ligne `type:` au sidecar ⇒ l'IA déduit
+  // (repli déterministe `unknown` via forceType). Présent : re-slugifié par sûreté.
+  const typeRaw = field(form, 'type');
+  const sourceType = typeRaw ? (slugify(typeRaw) || null) : null;
   // Origine : 'interne' | 'externe' si l'utilisateur a choisi, sinon null (= Auto,
   // l'agent d'ingestion déduira). On n'accepte que les deux valeurs connues.
   const originRaw = field(form, 'origin');

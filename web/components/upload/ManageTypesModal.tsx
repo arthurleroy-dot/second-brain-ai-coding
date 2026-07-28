@@ -2,8 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { X, Lock, Trash2, Pencil, Check } from 'lucide-react';
+import { OriginValue } from '@/types';
 
-type TypeRow = { slug: string; label: string; source_count: number; builtin: boolean };
+type TypeRow = {
+  slug: string;
+  label: string;
+  source_count: number;
+  builtin: boolean;
+  origin: OriginValue;
+};
 
 /**
  * Mini-modale de GESTION des types de document (créer se fait dans le menu du
@@ -110,6 +117,32 @@ export default function ManageTypesModal({ onClose }: { onClose: () => void }) {
     }
   }
 
+  // Change l'origine par défaut d'un type — PATCH { origin }. TOUJOURS autorisé (même
+  // pour un type verrouillé en renommage/suppression) : ne touche pas au slug, n'affecte
+  // QUE les futurs dépôts. Met à jour l'état local au succès.
+  async function changeOrigin(slug: string, origin: OriginValue) {
+    setBusy(slug);
+    setError(null);
+    try {
+      const res = await fetch(`/api/types/${encodeURIComponent(slug)}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ origin }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(d.error ?? "Échec du changement d'origine");
+        setBusy(null);
+        return;
+      }
+      setTypes((prev) => prev.map((t) => (t.slug === slug ? { ...t, origin } : t)));
+      setBusy(null);
+    } catch {
+      setError('Erreur réseau');
+      setBusy(null);
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -169,13 +202,28 @@ export default function ManageTypesModal({ onClose }: { onClose: () => void }) {
                       className="min-w-0 flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm"
                     />
                   ) : (
-                    <span className="flex items-center gap-2 text-sm text-gray-800">
-                      {t.label}
-                      <span className="text-xs text-gray-400">× {t.source_count}</span>
+                    <span className="flex min-w-0 items-center gap-2 text-sm text-gray-800">
+                      <span className="truncate">{t.label}</span>
+                      <span className="shrink-0 text-xs text-gray-400">× {t.source_count}</span>
                     </span>
                   )}
 
-                  {locked ? (
+                  <div className="flex shrink-0 items-center gap-2">
+                    {/* Origine par défaut — TOUJOURS active (même verrouillé) : n'affecte
+                        que les futurs dépôts, ne touche pas au slug (cardinale #5). */}
+                    <select
+                      value={t.origin}
+                      onChange={(e) => changeOrigin(t.slug, e.target.value as OriginValue)}
+                      disabled={busy === t.slug}
+                      aria-label={`Origine par défaut du type ${t.label}`}
+                      title="Origine par défaut appliquée aux futurs dépôts de ce type"
+                      className="rounded-md border border-gray-200 px-1.5 py-1 text-xs text-gray-600 disabled:opacity-50"
+                    >
+                      <option value="externe">Externe</option>
+                      <option value="interne">Interne</option>
+                    </select>
+
+                    {locked ? (
                     <span
                       className="shrink-0 text-gray-300"
                       title={`${t.source_count} ressource(s) l'utilisent — nom figé`}
@@ -252,6 +300,7 @@ export default function ManageTypesModal({ onClose }: { onClose: () => void }) {
                       </button>
                     </span>
                   )}
+                  </div>
                 </li>
               );
             })}

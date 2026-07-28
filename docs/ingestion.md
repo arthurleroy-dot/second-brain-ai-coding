@@ -59,7 +59,8 @@ la route d'upload (même lot `applyFileOps`). Le fichier de contenu reste
 ```yaml
 ---
 title: "Titre saisi (peut être vide)"
-type: article                 # source_type (slug kebab) — registre OUVERT & éditable (wiki/types.json), types créables/renommables/supprimables depuis /upload
+type: article                 # source_type (slug kebab) — OPTIONNEL : absent (mode « Auto ») ⇒ l'IA déduit le type (repli déterministe `unknown`). Registre OUVERT & éditable (wiki/types.json), types créables/renommables/supprimables depuis /upload
+origin: interne               # OPTIONNEL — déclaration prioritaire (interne|externe). Absente ⇒ le moteur (forceOrigin) dérive l'origine du type.
 author: "Auteur / Organisation"
 date: "2026-07"
 url: "https://..."
@@ -84,8 +85,10 @@ exactes. Voir [entities.md](entities.md) pour le mécanisme candidate (thèmes i
 **Précédence « l'humain gagne si rempli » :** une métadonnée saisie dans le
 sidecar est autoritaire ; l'agent ne comble que les champs vides par inférence.
 L'`url` n'est **jamais** devinée depuis le contenu — elle vient uniquement du
-sidecar. Un dépôt manuel par git peut ne pas avoir de sidecar : dans ce cas
-l'agent infère tout (et applique l'heuristique origin de wiki-spec.md §5).
+sidecar. **L'`origin` n'est plus inférée par l'IA** : elle est 100 % déterministe
+(déclaration prioritaire, sinon dérivée du type via `forceOrigin`, cf.
+[wiki-spec.md](wiki-spec.md) §5). Un dépôt manuel par git peut ne pas avoir de sidecar :
+l'agent infère `title`/`author`/`date`/`type` (le moteur remplit ensuite origine/date).
 
 ---
 
@@ -102,8 +105,10 @@ l'agent infère tout (et applique l'heuristique origin de wiki-spec.md §5).
    brut non structuré** : elle sera normalisée en markdown propre à l'étape 4
    (titres, paragraphes, listes) sans perte d'information. Un `.md` déjà bien
    formé garde sa structure.
-2. Déterminer : `title`, `source_type`, `author`, `date`, `topics`, `url`,
-   `origin` (heuristique wiki-spec.md §5). Le sidecar prime sur l'inférence.
+2. Déterminer : `title`, `source_type` (déduit en mode Auto), `author`, `date`
+   (extraite de l'en-tête si absente du sidecar), `topics`, `url`. Le sidecar prime
+   sur l'inférence. L'`origin` est laissée à `""` (remplie par le moteur `forceOrigin`,
+   cf. wiki-spec.md §5) ; la date vide et le type manquant sont comblés par le moteur.
 3. Détecter les entités (voir [entities.md](entities.md)) : alias connu → lien
    (mandat de complétude : TOUTE mention connue est reliée) ; écriture inconnue →
    candidate dans `entities/_candidates.json`. Déterminer la granularité
@@ -188,6 +193,16 @@ passe de ~6,64 $ à **~0,12 $/ressource**. `runIngestion()` :
   d'autre : `<resource>…</resource>` (la page canonique — frontmatter + nav + corps
   annoté par section) et `<detected-new>{entities,themes}</detected-new>` (les inédits
   repérés). Elle n'utilise **aucun outil** et **n'écrit aucun fichier**.
+- **Filets déterministes du dépôt LIVE** (`forceType` → `forceOrigin` → `forceDate`,
+  appliqués dans la boucle `runIngestion` **avant** `ingestOne`, jamais dedans — car
+  `ingestOne` est partagé avec le backfill qui re-projette le corpus existant) :
+  garantissent qu'aucune fiche ne sort avec un type/origine/date absent. **`forceType`** :
+  si l'IA n'a produit aucun `source_type` exploitable (mode Auto sans déduction), force
+  `unknown`. **`forceOrigin`** : origine 100 % déterministe — déclarée au dépôt (prioritaire,
+  même contre le type) → sinon origine du **type** via le registre `wiki/types.json`
+  (map slug→origine) → sinon `externe` ; **l'origine écrite par l'IA est ignorée**.
+  **`forceDate`** : date déclarée → sinon date extraite par l'IA → sinon **mois courant**
+  (`AAAA-MM`). `forceType` s'exécute avant `forceOrigin` (l'origine dépend du type final).
 - **Projection déterministe** (`ingestOne` → `projectResource`,
   `web/lib/wiki-project.ts`) : avant projection, `source_file` est forcé au nom réel du
   fichier et les **déclarations du sidecar sont réinjectées** dans le frontmatter
