@@ -12,11 +12,13 @@ import { X, AlertTriangle } from 'lucide-react';
 export default function DeleteThemeModal({
   slug,
   title,
+  sourceCount = 0,
   onClose,
   onDeleted,
 }: {
   slug: string;
   title: string;
+  sourceCount?: number;
   onClose: () => void;
   onDeleted: (slug: string) => void;
 }) {
@@ -69,7 +71,14 @@ export default function DeleteThemeModal({
         </div>
 
         <p className="mb-1 text-sm text-gray-700">
-          Êtes-vous sûr de vouloir supprimer ce thème vide ? Il n'est rattaché à aucune ressource.
+          {sourceCount > 0 ? (
+            <>
+              {sourceCount} ressource(s) citent ce thème ; le supprimer retirera ce thème de ces
+              ressources (frontmatter, annotations, navigation) et régénérera les vues dérivées.
+            </>
+          ) : (
+            <>Êtes-vous sûr de vouloir supprimer ce thème ? Il n'est rattaché à aucune ressource.</>
+          )}
         </p>
         <p className="mb-4 truncate rounded-md bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-gray-600">
           {title}

@@ -46,3 +46,8 @@ last_updated: "2026-07-03"
 | Ressource | Auteur | Date | Origin |
 |-----------|--------|------|--------|
 | [[resources/point-equipe-plateforme-etat-de-notre-pratique-du-coding-assiste-par-ia\|Point d'équipe plateforme — état de notre pratique du coding assisté par IA]] |  |  | interne |
+
+## podcast (0 ressource)
+
+| Ressource | Auteur | Date | Origin |
+|-----------|--------|------|--------|

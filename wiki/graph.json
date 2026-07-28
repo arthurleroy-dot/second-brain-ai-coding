@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-25",
+  "generated": "2026-07-28",
   "nodes": [
     {"id": "resource:ai-finops-2026-runtime-cost-governance-cant-wait", "type": "resource", "label": "AI FinOps in 2026: Why Runtime Cost Governance Can't Wait", "date": "2026"},
     {"id": "resource:finops-ai-llm-cost-engineering-not-finance", "type": "resource", "label": "FinOps for AI: Why LLM Cost Is an Engineering Problem, Not a Finance One", "date": "2026"},

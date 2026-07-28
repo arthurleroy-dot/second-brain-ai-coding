@@ -1086,31 +1086,112 @@ export function deleteEntity(input: DeleteEntityInput): FileOp[] {
 }
 
 // ————————————————————————————————————————————————————————————————
-// DELETE : thème vide (miroir de deleteEntity — geste EXPLICITE, restreint aux
-// thèmes que plus AUCUNE ressource ne cite : l'appelant garantit la vacuité).
+// DELETE : thème (miroir de deleteEntity — geste EXPLICITE, pas de cascade).
+// Contrairement à l'entité, un thème apparaît AUSSI dans le blockquote de nav des
+// ressources et dans la colonne « Topics » des pages auteur → deux strippers en plus.
+
+/** Inverse de `addThemeToNav` : retire `[[../themes/<slug>|…]]` du blockquote de nav
+ *  `> … · Thèmes : …`. Retire tout le segment « · Thèmes : … » si c'était le seul
+ *  thème (et la ligne entière si la nav devient un blockquote vide). No-op si absent. */
+export function removeThemeFromNav(body: string, slug: string): string {
+  const lines = body.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!/^\s*>/.test(line) || !/Th[èe]mes\s*:/.test(line) || !line.includes('themes/')) continue;
+    const m = line.match(/^(.*?)(Th[èe]mes\s*:\s*)(.*)$/);
+    if (!m) continue;
+    const items = m[3].split(',').map((s) => s.trim()).filter(Boolean);
+    const kept = items.filter((it) => !it.includes(`themes/${slug}|`));
+    if (kept.length === items.length) return body; // slug absent → inchangé
+    if (kept.length === 0) {
+      const head = m[1].replace(/\s*·\s*$/, '').replace(/\s+$/, '');
+      if (/^\s*>\s*$/.test(head)) lines.splice(i, 1); // nav dégénérée vidée → ligne retirée
+      else lines[i] = head;
+    } else {
+      lines[i] = `${m[1]}Thèmes : ${kept.join(', ')}`;
+    }
+    return lines.join('\n');
+  }
+  return body;
+}
+
+/** Retire un thème (frontmatter `topics:` + annotations chunk + nav) d'une ressource.
+ *  Miroir de `removeEntityLink`, plus le stripper de nav (les entités n'ont pas de nav). */
+function removeThemeLink(resourceContent: string, slug: string): string {
+  const { fm, rest } = splitFrontmatter(resourceContent);
+  const newFm = removeFromInlineArray(fm, 'topics', slug);
+  let newBody = removeFromBacktickedArrays(rest, 'topics', slug);
+  newBody = removeThemeFromNav(newBody, slug);
+  return withFrontmatter(newFm, newBody);
+}
+
+/** Retire un thème de la cellule « Topics » (DERNIÈRE colonne, sans pipe) de la ligne
+ *  d'une ressource dans une page auteur. No-op si la ligne/le thème est absent. */
+export function removeTopicFromAuthorRow(
+  authorContent: string,
+  resourceSlug: string,
+  themeSlug: string,
+): string {
+  const rowRe = new RegExp(`^\\|\\s*\\[\\[[^\\]]*resources/${escapeRe(resourceSlug)}[\\\\|#\\]]`);
+  const lines = authorContent.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (!rowRe.test(lines[i])) continue;
+    lines[i] = lines[i].replace(/\|([^|]*)\|(\s*)$/, (_m, cell: string, ws: string) => {
+      const kept = cell.split(',').map((s) => s.trim()).filter((s) => s && s !== themeSlug);
+      return `| ${kept.join(', ')} |${ws}`;
+    });
+    return lines.join('\n');
+  }
+  return authorContent;
+}
 
 export interface DeleteThemeInput {
   slug: string;
   graph: string; // contenu wiki/graph.json
+  /** `resources/<r>.md` par slug, pour chaque ressource citant le thème (l'appelant les lit). */
+  referencingResources?: Record<string, string>;
+  /** `authors/<aslug>.md` par slug d'auteur (colonne Topics à nettoyer). */
+  authorPages?: Record<string, string>;
+  /** slugify auteur injecté (= `slugify` de wiki-parser, cf. projectResource). */
+  slugify?: (s: string) => string;
 }
 
 /**
- * Supprime un thème VIDE du registre. Précondition (vérifiée côté route) : aucune
- * ressource ne cite le thème (`source_count === 0`) — sinon la projection le
- * recréerait à la prochaine ingestion. Retire la fiche `wiki/themes/<slug>.md` et
- * le nœud `theme:<slug>` + ses arêtes du graphe. Le bullet dans `index.md` est
- * retiré par `rebuildDerivedIndexes` (reconstruction depuis le registre sur disque),
- * appelé ensuite. Fonction PURE (l'appelant applique les `FileOp`).
+ * Supprime un thème du registre — geste EXPLICITE (jamais en cascade). Retire : la fiche
+ * `wiki/themes/<slug>.md`, le thème du frontmatter/annotations/nav de chaque ressource
+ * citante, le thème de la colonne « Topics » des pages auteur concernées, et le nœud
+ * `theme:<slug>` + ses arêtes du graphe. `index.md` + `by-date/` sont reconstruits par
+ * `rebuildDerivedIndexes` (appelé ensuite par la route, APRÈS le strip des ressources).
+ * Fonction PURE (l'appelant applique les `FileOp`).
  */
 export function deleteTheme(input: DeleteThemeInput): FileOp[] {
   const { slug } = input;
   const ops: FileOp[] = [];
   const tid = `theme:${slug}`;
+  const refs = input.referencingResources ?? {};
+  const slugifyFn = input.slugify ?? ((s) => s);
 
   // 1. La fiche de registre du thème.
   ops.push({ path: `wiki/themes/${slug}.md`, delete: true });
 
-  // 2. graph.json : retirer le nœud theme:<slug> + toute arête le touchant.
+  // 2. Ressources citantes : strip frontmatter + chunk + nav. Éditions des pages auteur
+  //    cumulées PAR slug auteur (plusieurs ressources peuvent partager une même page,
+  //    et `applyFileOps` garde la DERNIÈRE écriture d'un chemin → on plie d'abord).
+  const authorEdits = new Map<string, string>();
+  for (const [r, content] of Object.entries(refs)) {
+    ops.push({ path: `wiki/resources/${r}.md`, content: removeThemeLink(content, slug) });
+    const meta = parseResourceMeta(content, r);
+    if (meta.author && input.authorPages) {
+      const aslug = slugifyFn(meta.author);
+      const base = authorEdits.get(aslug) ?? input.authorPages[aslug];
+      if (base) authorEdits.set(aslug, removeTopicFromAuthorRow(base, r, slug));
+    }
+  }
+  for (const [aslug, content] of authorEdits) {
+    ops.push({ path: `wiki/authors/${aslug}.md`, content });
+  }
+
+  // 3. graph.json : retirer le nœud theme:<slug> + toute arête le touchant.
   const graph = parseGraph(input.graph);
   graph.nodes = graph.nodes.filter((n) => n.id !== tid);
   graph.edges = graph.edges.filter((e) => e.source !== tid && e.target !== tid);

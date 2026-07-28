@@ -1,6 +1,6 @@
 ---
 type: index
-last_updated: "2026-07-25"
+last_updated: "2026-07-28"
 resource_count: 23
 theme_count: 11
 author_count: 11
@@ -86,10 +86,6 @@ entity_count: 19
 - [[resources/unlocking-value-ai-software-development|Unlocking the value of AI in software development]] — McKinsey · 2025-11 · 300 cotées ; 2 shifts + 3 enablers ; Cursor case study ; +15pp top performers
 - [[resources/accenture-research-ai-led-processes-outperform-peers|New Accenture Research Finds that Companies with AI-Led Processes Outperform Peers]] — Accenture · 2024-10-10 · 2 000 exécutifs ; 2.5×/2.4×/3.3× ; 4 actions clés
 
-### Réunion (1)
-
-- [[resources/point-equipe-plateforme-etat-de-notre-pratique-du-coding-assiste-par-ia|Point d'équipe plateforme — état de notre pratique du coding assisté par IA]] — 
-
 ### Note perso (7)
 
 - [[resources/le-t-ou-parfois-ecrit-t-veut-dire-transposee|Le ⊤ (ou parfois écrit T) veut dire transposée]] — 2026-07-25
@@ -99,6 +95,10 @@ entity_count: 19
 - [[resources/panorama-des-outils-et-acteurs-de-lai-coding-note-de-veille|Panorama des outils et acteurs de l'AI coding (note de veille)]] — 2026-07-24
 - [[resources/point-de-veille-agentic-coding-context-engineering-et-finops-ia|Point de veille : agentic coding, context engineering et FinOps IA]] — 2026-07-24
 - [[resources/finops-c-est-le-financement-des-tokens|Finops c'est le financement des tokens]] — 
+
+### Réunion (1)
+
+- [[resources/point-equipe-plateforme-etat-de-notre-pratique-du-coding-assiste-par-ia|Point d'équipe plateforme — état de notre pratique du coding assisté par IA]] — 
 
 ---
 

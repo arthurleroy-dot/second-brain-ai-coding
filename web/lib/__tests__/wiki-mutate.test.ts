@@ -26,6 +26,9 @@ import {
   applyThemeDecision,
   deleteResource,
   deleteEntity,
+  deleteTheme,
+  removeThemeFromNav,
+  removeTopicFromAuthorRow,
   entityReferencingResources,
   removeFromInlineArray,
   purgeCandidatesForEntity,
@@ -840,4 +843,157 @@ test('removeFromInlineArray : retire un item en préservant les autres, no-op si
 test('purgeCandidatesForEntity : null si rien ne matche (pas d’op inutile)', () => {
   const cand = JSON.stringify({ version: 1, candidates: [{ name: 'Cursor', normalized: 'cursor', decision: { slug: null } }] });
   assert.equal(purgeCandidatesForEntity(cand, 'julien-ye', slugify), null);
+});
+
+// ————————————————————————————————————————————————————————————————
+// deleteTheme + helpers de strip thème (nav, cellule Topics auteur)
+
+// theta : deux thèmes (finops-ia + garde-theme), nav complète, chunk finops-ia, auteur Accenture.
+const RES_THETA = `---
+slug: theta
+title: "Theta"
+author: "Accenture"
+date: "2024-10-10"
+topics: [finops-ia, garde-theme]
+---
+
+> Par [[../authors/accenture|Accenture]] · [[../by-date/2024/2024-10/2024-10|2024-10]] · Thèmes : [[../themes/finops-ia|FinOps IA]], [[../themes/garde-theme|Garde Thème]]
+
+## Contexte
+\`topics: [finops-ia]\`
+
+Corps.
+`;
+
+// iota : finops-ia SEUL thème (→ segment nav entier retiré), même auteur (fold page auteur).
+const RES_IOTA = `---
+slug: iota
+title: "Iota"
+author: "Accenture"
+date: "2024-11-01"
+topics: [finops-ia]
+---
+
+> Par [[../authors/accenture|Accenture]] · [[../by-date/2024/2024-11/2024-11|2024-11]] · Thèmes : [[../themes/finops-ia|FinOps IA]]
+
+## Contexte
+\`topics: [finops-ia]\`
+
+Corps.
+`;
+
+const AUTHOR_ACCENTURE = `---
+type: author
+slug: accenture
+label: Accenture
+resource_count: 2
+---
+
+| Ressource | Date | Type | Origin | Topics |
+|-----------|------|------|--------|--------|
+| [[../resources/theta\\|Theta]] | 2024-10-10 | report-pdf | externe | finops-ia, garde-theme |
+| [[../resources/iota\\|Iota]] | 2024-11-01 | article | externe | finops-ia |
+`;
+
+const GRAPH_WITH_THEME = JSON.stringify({
+  generated: '2026-01-01',
+  nodes: [
+    { id: 'resource:theta', type: 'resource', label: 'Theta' },
+    { id: 'resource:iota', type: 'resource', label: 'Iota' },
+    { id: 'theme:finops-ia', type: 'theme', label: 'FinOps IA' },
+    { id: 'theme:garde-theme', type: 'theme', label: 'Garde Thème' },
+  ],
+  edges: [
+    { source: 'resource:theta', target: 'theme:finops-ia', relation: 'belongs_to_theme' },
+    { source: 'resource:iota', target: 'theme:finops-ia', relation: 'belongs_to_theme' },
+    { source: 'resource:theta', target: 'theme:garde-theme', relation: 'belongs_to_theme' },
+  ],
+});
+
+test('deleteTheme : thème cité → retiré du frontmatter/chunk/nav des ressources + cellule Topics auteur + nœud/arêtes', () => {
+  const ops = deleteTheme({
+    slug: 'finops-ia',
+    graph: GRAPH_WITH_THEME,
+    referencingResources: { theta: RES_THETA, iota: RES_IOTA },
+    authorPages: { accenture: AUTHOR_ACCENTURE },
+    slugify,
+  });
+
+  // Fiche du thème supprimée.
+  assert.ok(deletes(ops).some((o) => o.path === 'wiki/themes/finops-ia.md'), 'fiche thème supprimée');
+
+  // theta : garde garde-theme partout, plus AUCUN finops-ia.
+  const theta = byPath(ops, 'wiki/resources/theta.md')!.content;
+  assert.ok(/topics: \[garde-theme\]/.test(theta), 'theta : frontmatter ne garde que garde-theme');
+  assert.ok(!/topics: \[[^\]]*finops-ia/.test(theta), 'theta : finops-ia retiré du frontmatter');
+  assert.ok(theta.includes('`topics: []`'), 'theta : annotation chunk vidée');
+  assert.ok(theta.includes('themes/garde-theme|'), 'theta : nav garde garde-theme');
+  assert.ok(!theta.includes('themes/finops-ia|'), 'theta : nav sans finops-ia');
+  assert.ok(/Thèmes :/.test(theta), 'theta : segment Thèmes conservé (garde-theme reste)');
+
+  // iota : finops-ia était le SEUL thème → segment « · Thèmes : … » retiré, auteur/date conservés.
+  const iota = byPath(ops, 'wiki/resources/iota.md')!.content;
+  assert.ok(/topics: \[\]/.test(iota), 'iota : frontmatter vidé');
+  assert.ok(!iota.includes('themes/finops-ia|'), 'iota : nav sans finops-ia');
+  assert.ok(!/Thèmes :/.test(iota), 'iota : segment Thèmes retiré (aucun thème restant)');
+  assert.ok(iota.includes('[[../authors/accenture|Accenture]]'), 'iota : segment auteur conservé');
+
+  // Page auteur : UNE seule écriture (fold des deux lignes) et plus aucun finops-ia.
+  const authorOps = upserts(ops).filter((o) => o.path === 'wiki/authors/accenture.md');
+  assert.equal(authorOps.length, 1, 'une seule écriture de la page auteur (fold)');
+  const author = authorOps[0].content;
+  assert.ok(!author.includes('finops-ia'), 'auteur : finops-ia retiré des colonnes Topics');
+  assert.ok(author.includes('| garde-theme |'), 'auteur : garde-theme conservé (ligne theta)');
+
+  // Graphe : nœud finops-ia + ses 2 arêtes retirés ; garde-theme + son arête conservés.
+  const g = JSON.parse(byPath(ops, 'wiki/graph.json')!.content);
+  assert.ok(!g.nodes.some((n: any) => n.id === 'theme:finops-ia'), 'nœud finops-ia retiré');
+  assert.ok(g.nodes.some((n: any) => n.id === 'theme:garde-theme'), 'nœud garde-theme conservé');
+  assert.ok(!g.edges.some((e: any) => e.target === 'theme:finops-ia'), 'arêtes finops-ia retirées');
+  assert.ok(g.edges.some((e: any) => e.target === 'theme:garde-theme'), 'arête garde-theme conservée');
+});
+
+test('removeThemeFromNav : seul thème → segment « · Thèmes : … » entier retiré', () => {
+  const nav = '> Par [[../authors/x|X]] · Thèmes : [[../themes/a|A]]';
+  assert.equal(removeThemeFromNav(nav, 'a'), '> Par [[../authors/x|X]]');
+});
+
+test('removeThemeFromNav : un thème parmi plusieurs → seul ce lien retiré', () => {
+  const nav = '> Par [[../authors/x|X]] · Thèmes : [[../themes/a|A]], [[../themes/b|B]]';
+  assert.equal(removeThemeFromNav(nav, 'a'), '> Par [[../authors/x|X]] · Thèmes : [[../themes/b|B]]');
+});
+
+test('removeThemeFromNav : slug absent → inchangé', () => {
+  const nav = '> Par [[../authors/x|X]] · Thèmes : [[../themes/a|A]]';
+  assert.equal(removeThemeFromNav(nav, 'z'), nav);
+});
+
+test('removeThemeFromNav : nav dégénérée (thèmes seuls) vidée → ligne retirée', () => {
+  const body = 'texte\n> Thèmes : [[../themes/a|A]]\n\ncorps';
+  assert.equal(removeThemeFromNav(body, 'a'), 'texte\n\ncorps');
+});
+
+const AUTHOR_ROWS = `---
+type: author
+slug: x
+---
+
+| Ressource | Date | Type | Origin | Topics |
+|-----------|------|------|--------|--------|
+| [[../resources/r1\\|R1]] | 2024 | article | externe | a, b, c |
+`;
+
+test('removeTopicFromAuthorRow : retire au milieu, préserve les autres', () => {
+  const out = removeTopicFromAuthorRow(AUTHOR_ROWS, 'r1', 'b');
+  assert.ok(out.includes('| a, c |'), 'b retiré, a et c conservés');
+});
+
+test('removeTopicFromAuthorRow : dernier thème → cellule vidée', () => {
+  const single = AUTHOR_ROWS.replace('a, b, c', 'only');
+  const out = removeTopicFromAuthorRow(single, 'r1', 'only');
+  assert.ok(/externe \|  \|/.test(out), 'cellule Topics vidée');
+});
+
+test('removeTopicFromAuthorRow : thème absent → inchangé', () => {
+  assert.equal(removeTopicFromAuthorRow(AUTHOR_ROWS, 'r1', 'z'), AUTHOR_ROWS);
 });

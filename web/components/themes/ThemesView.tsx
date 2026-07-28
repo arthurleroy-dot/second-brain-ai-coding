@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Clock, Layers } from 'lucide-react';
-import { ThemeCandidate, ThemeEntry } from '@/types';
+import { Clock, Layers, Trash2 } from 'lucide-react';
+import { ThemeCandidate, ThemeEntry, WikiTopic } from '@/types';
 import { useScrollRestoration } from '@/lib/use-scroll-restoration';
 import ThemeCandidateCard from './ThemeCandidateCard';
+import DeleteThemeModal from '@/components/wiki/DeleteThemeModal';
 
 /**
  * Gestion des thèmes. Miroir de EntitiesView : « en attente de décision »
@@ -14,8 +15,20 @@ import ThemeCandidateCard from './ThemeCandidateCard';
 export default function ThemesView() {
   const [candidates, setCandidates] = useState<ThemeCandidate[]>([]);
   const [themes, setThemes] = useState<ThemeEntry[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [deleting, setDeleting] = useState<ThemeEntry | null>(null);
   const [loading, setLoading] = useState(true);
   const scrollRef = useScrollRestoration<HTMLDivElement>('themes:scroll');
+
+  // Comptes « nb de ressources » par thème (vérité live via /api/wiki) — sert à avertir
+  // dans la modale de suppression ; absent du registre /api/themes (slug/label/aliases).
+  const loadCounts = useCallback(async () => {
+    const w = await fetch('/api/wiki')
+      .then((r) => r.json())
+      .catch(() => null);
+    if (!w) return;
+    setCounts(Object.fromEntries((w.topics ?? []).map((x: WikiTopic) => [x.slug, x.source_count])));
+  }, []);
 
   // Recharge le registre des thèmes depuis le disque. Appelé après une décision
   // pour refléter aussitôt une création/fusion, sans attendre un refresh.
@@ -25,18 +38,23 @@ export default function ThemesView() {
       .catch(() => null);
     if (!t) return;
     setThemes(t.themes ?? []);
-  }, []);
+    void loadCounts();
+  }, [loadCounts]);
 
   useEffect(() => {
     let cancelled = false;
     Promise.all([
       fetch('/api/theme-candidates').then((r) => r.json()),
       fetch('/api/themes').then((r) => r.json()),
+      fetch('/api/wiki').then((r) => r.json()),
     ])
-      .then(([c, t]) => {
+      .then(([c, t, w]) => {
         if (cancelled) return;
         setCandidates(c.candidates ?? []);
         setThemes(t.themes ?? []);
+        setCounts(
+          Object.fromEntries((w.topics ?? []).map((x: WikiTopic) => [x.slug, x.source_count])),
+        );
       })
       .catch(() => {})
       .finally(() => !cancelled && setLoading(false));
@@ -100,25 +118,48 @@ export default function ThemesView() {
         ) : (
           <div className="space-y-1.5">
             {themes.map((t) => (
-              <Link
+              <div
                 key={t.slug}
-                href={`/wiki/${t.slug}`}
-                className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-2.5 hover:border-gray-300"
+                className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white pr-2 hover:border-gray-300"
               >
-                <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
-                  {t.label}
-                </span>
-                {t.aliases.length > 0 && (
-                  <span className="shrink-0 text-xs text-gray-400">
-                    {t.aliases.length} alias
+                <Link
+                  href={`/wiki/${t.slug}`}
+                  className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2.5"
+                >
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
+                    {t.label}
                   </span>
-                )}
-              </Link>
+                  {t.aliases.length > 0 && (
+                    <span className="shrink-0 text-xs text-gray-400">
+                      {t.aliases.length} alias
+                    </span>
+                  )}
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setDeleting(t)}
+                  aria-label={`Supprimer ${t.label}`}
+                  title="Supprimer le thème"
+                  className="shrink-0 rounded-md p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-600"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
             ))}
           </div>
         )}
       </section>
         </>
+      )}
+
+      {deleting && (
+        <DeleteThemeModal
+          slug={deleting.slug}
+          title={deleting.label}
+          sourceCount={counts[deleting.slug] ?? 0}
+          onClose={() => setDeleting(null)}
+          onDeleted={(slug) => setThemes((prev) => prev.filter((x) => x.slug !== slug))}
+        />
       )}
     </div>
   );

@@ -3,7 +3,7 @@ type: theme
 slug: finops-ia
 label: FinOps IA
 resource_count: 13
-last_updated: "2026-07-24"
+last_updated: "2026-07-28"
 ---
 
 ## [[../resources/finops-ai-llm-cost-engineering-not-finance|FinOps for AI: Why LLM Cost Is an Engineering Problem, Not a Finance One]]
@@ -110,3 +110,5 @@ last_updated: "2026-07-24"
 
 - [[../resources/point-de-veille-agentic-coding-context-engineering-et-finops-ia#point-de-veille--agentic-coding-context-engineering-et-finops-ia|Point de veille : agentic coding, context engineering et FinOps IA]] — Petit point personnel reliant trois sujets que je suis de près et qui reviennent dans presque toutes mes sources.
 - [[../resources/point-de-veille-agentic-coding-context-engineering-et-finops-ia#le-nerf-de-la-guerre--le-finops-ia|Le nerf de la guerre : le FinOps IA]] — Reste la question du coût.
+
+---
