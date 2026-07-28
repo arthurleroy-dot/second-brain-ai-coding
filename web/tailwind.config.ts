@@ -4,6 +4,9 @@ const config: Config = {
   content: [
     './app/**/*.{ts,tsx}',
     './components/**/*.{ts,tsx}',
+    // lib/ui.ts porte les classes de badge de type (overrides + palette des types
+    // créés) en chaînes littérales → doit être scanné pour que Tailwind les génère.
+    './lib/**/*.{ts,tsx}',
   ],
   theme: {
     extend: {

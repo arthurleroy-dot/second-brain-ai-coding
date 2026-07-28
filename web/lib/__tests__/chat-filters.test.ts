@@ -81,17 +81,22 @@ test('date : ressource sans date (ou format inconnu) passe toujours', () => {
 });
 
 // ————————————————————————————————————————————————————————————————
-// Filtre types — résolution dossier → ResourceType
+// Filtre types — slug kebab (identité canonique) + rétro-compat snake
 
-test('types : match direct et via dossier by-type', () => {
+test('types : match slug + rétro-compat snake→kebab', () => {
   assert.ok(sourcePassesFilters(src({ type: 'article' }), { types: ['article'] }));
-  assert.ok(sourcePassesFilters(src({ type: 'report_pdf' }), { types: ['report_pdf'] }));
-  assert.ok(!sourcePassesFilters(src({ type: 'tweet' }), { types: ['article'] }));
-  assert.ok(sourcePassesFilters(src({ type: 'tweet' }), { types: ['article', 'tweet'] }));
+  assert.ok(sourcePassesFilters(src({ type: 'report-pdf' }), { types: ['report-pdf'] }));
+  // Rétro-compat : ancienne URL snake `report_pdf` → résolue en `report-pdf`.
+  assert.ok(sourcePassesFilters(src({ type: 'report-pdf' }), { types: ['report_pdf'] }));
+  assert.ok(!sourcePassesFilters(src({ type: 'meeting-notes' }), { types: ['article'] }));
+  assert.ok(sourcePassesFilters(src({ type: 'meeting-notes' }), { types: ['article', 'meeting-notes'] }));
 });
 
-test('types : valeurs irrésolubles ignorées (filtre sans effet)', () => {
-  assert.ok(sourcePassesFilters(src({ type: 'article' }), { types: ['nimporte-quoi'] }));
+test('types : slug ouvert — un filtre non concordant rejette ; valeur vide ignorée', () => {
+  // Système ouvert : n'importe quel slug est un filtre valide → rejette ce qui ne matche pas.
+  assert.ok(!sourcePassesFilters(src({ type: 'article' }), { types: ['podcast'] }));
+  // Valeur vide → resolveType renvoie null → retirée de `wanted` → filtre sans effet.
+  assert.ok(sourcePassesFilters(src({ type: 'article' }), { types: [''] }));
 });
 
 // ————————————————————————————————————————————————————————————————
@@ -120,11 +125,11 @@ test('origins : appartenance stricte, origin null rejeté', () => {
 
 test('axes combinés en ET', () => {
   const f: ChatFilterState = {
-    types: ['report_pdf'],
+    types: ['report-pdf'],
     authors: ['McKinsey'],
     date: { mode: 'after', from: '2026-01' },
   };
-  const ok = src({ type: 'report_pdf', author: 'McKinsey', date: '2026' });
+  const ok = src({ type: 'report-pdf', author: 'McKinsey', date: '2026' });
   assert.ok(sourcePassesFilters(ok, f));
   assert.ok(!sourcePassesFilters({ ...ok, type: 'article' }, f));
   assert.ok(!sourcePassesFilters({ ...ok, author: null }, f));

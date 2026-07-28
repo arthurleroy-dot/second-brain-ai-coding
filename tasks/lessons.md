@@ -429,3 +429,72 @@ règle « telle valeur est du bruit », la porter à la SOURCE (empêcher l'écr
 l'existant + garder l'affichage comme filet, et loger la règle dans un module unique partagé.
 Toujours dry-run + diff surgical + `wiki:verify` (comparer les avertissements avant/après) avant
 d'écrire dans le vrai wiki.
+
+## 2026-07-28 — Tailwind ne scanne QUE les chemins de `content` : une classe dans `lib/` est ignorée
+**Contexte :** chantier « types de document ouverts » — les badges de type créé prennent leur
+couleur d'une palette de classes LITTÉRALES dans `web/lib/ui.ts` (`bg-emerald-50 text-emerald-700`…).
+Or `tailwind.config.ts` avait `content: ['./app/**', './components/**']` — **pas `./lib/**`**. Donc
+Tailwind ne voyait AUCUNE classe de `ui.ts` : ni la nouvelle palette, ni même les overrides existants
+(`bg-[#EAF0FB]`…). Preuve : le CSS compilé du build précédent contenait **0** occurrence de `#eaf0fb`
+— les badges de type étaient (silencieusement) sans couleur d'arrière-plan depuis toujours.
+**Correction :** ajouter `./lib/**/*.{ts,tsx}` au `content`. Vérifié SANS build Next complet (un
+`next dev` concurrent tournait sur `.next` — le corrompre est interdit, cf. 2026-07-21) : `npx
+tailwindcss -c tailwind.config.ts -i <@tailwind utilities> -o out.css` puis `grep` de la classe →
+`bg-emerald-50` ET `#eaf0fb` désormais présents.
+**Règle :** toute classe Tailwind qui n'apparaît QUE dans un fichier hors `app/`/`components/`
+(souvent un helper `lib/*.ts` qui mappe donnée→classe) exige que son dossier figure dans `content`.
+Symptôme = élément sans style alors que la classe est « correcte ». Vérifier vite en compilant le CSS
+avec la CLI `tailwindcss` (zéro dépendance au build Next) et en greppant la classe attendue.
+
+## 2026-07-28 — Prouver un chantier full-stack sans coût ni serveur, en pilotant les vrais handlers
+**Contexte :** livrer « types de document créables depuis l'UI » (registre `wiki/types.json`, API
+CRUD, moteur déterministe) tout en (a) évitant le vrai chemin de dépôt (appel LLM payant + mutation
+du vrai wiki) et (b) sans monopoliser `.next` (un `next dev` concurrent tournait — cf. 2026-07-21 :
+plusieurs sessions Claude mutent l'arbre en //, ici ChatWindow.tsx cassait `tsc` par intermittence).
+**Correction (chaîne de preuves, zéro coût, vrai wiki intact) :** (1) copie ISOLÉE du wiki
+(`DATA_ROOT`/`WIKI_ROOT` surchargés) ; (2) import DIRECT des handlers `GET/POST/DELETE` de la route
+(`new Request(...)` suffit, NextRequest ⊃ Request) → prouve doublon 409, intégré 403, en-usage 409,
+créé-inutilisé OK, et l'écriture de `types.json` ; (3) pour le downstream déterministe, appeler
+`ingestOne({ markdown: <fiche source_type: podcast rédigée à la main>, … })` — il NE fait PAS l'appel
+LLM (le markdown est un paramètre) → `applyFileOps` + `rebuildDerivedIndexes` → grep `graph.json`
+(nœud `type:podcast` + arête `has_type`), `types.md` (`## podcast`), `listTypes` (podcast=1) ;
+(4) build de prod dans une COPIE isolée (`rsync` + symlink `node_modules`, `.next` propre) pour ne
+pas corrompre le `.next` du dev concurrent ; (5) Tailwind vérifié via sa CLI (cf. leçon ci-dessus).
+**Règle :** un chantier full-stack se prouve sans le happy-path coûteux en pilotant les **vrais**
+handlers de route (import direct, `Request` natif) sur un `DATA_ROOT` isolé, et en exerçant le
+moteur déterministe via sa fonction pure d'entrée (celle qui prend le markdown en paramètre, pas
+celle qui appelle l'IA). Build/Tailwind : copie isolée + CLI, jamais sur le `.next` partagé quand une
+autre session tourne. `git add` cadré sur MES fichiers (laisser ChatWindow.tsx & co à l'autre session).
+
+## 2026-07-28 — Un registre « avec des entrées permanentes » se bat avec l'attente de contrôle total
+**Contexte :** j'avais conçu le registre de types avec des types « intégrés » INDÉBOULONNABLES
+(garde-fou 403 sur DELETE + cadenas UI même à 0 ressource). `wiki/types.json` ne stockait que les
+AJOUTS utilisateur, unis aux intégrés à la lecture. En test, Arthur a vu 8 types verrouillés (dont 4
+inutilisés) et voulait les supprimer/renommer : le « mobilier permanent » contredisait son attente de
+piloter la liste.
+**Correction :** UNE seule règle — un type est renommable ET supprimable tant qu'aucune ressource ne le
+porte ; dès qu'≥1 ressource l'utilise, son slug est figé (cardinale #5, identifiants immuables). Plus
+de type « permanent » : `BUILTIN_TYPE_SLUGS` devient une simple GRAINE. `types.json` devient la liste
+COMPLÈTE du menu, autoritaire dès qu'il est non vide (fin de l'union → un type retiré ne repousse pas) ;
+chaque mutation réécrit la liste effective entière (matérialise la graine au 1er changement). Renommage
+= PATCH qui échange le slug (interdit si utilisé). Le libellé RESTE dérivé du slug (fonction pure) : pas
+de label stocké → renommer un type utilisé resterait impossible sans réécrire tous les documents+graphe,
+donc explicité comme limite plutôt que bricolé.
+**Règle :** avant de rendre des entrées « permanentes/non supprimables » dans un registre piloté par
+l'utilisateur, se demander si ça sert un invariant RÉEL ou si ça ne fait qu'ôter du contrôle. Une graine
+éditable + une règle unique fondée sur l'usage réel (« modifiable tant qu'inutilisé, figé dès qu'utilisé »)
+bat une liste figée arbitraire. Corollaire honnêteté : quand une limite technique subsiste (ici renommer
+un type déjà utilisé), l'expliquer, ne pas la masquer.
+
+## 2026-07-28 — Un `<button>` imbriqué dans un `<label>` détourne le clic vers le contrôle du label
+**Contexte :** dans le champ « Type » de l'upload, le `<label>` enveloppait à la fois le bouton « Gérer
+les types », le `<select>` et la ligne de création inline (avec ses boutons Créer/Annuler). Symptôme
+rapporté : cliquer « Annuler » (ou ailleurs dans la zone) ouvrait la modale « Gérer les types » par
+erreur. Cause : un `<label>` renvoie tout clic sur ses descendants NON interactifs vers son PREMIER
+contrôle labelable — ici le bouton « Gérer les types » — d'où des activations parasites.
+**Correction :** ne jamais imbriquer de contrôles interactifs (surtout plusieurs boutons) dans un
+`<label>`. Passer le conteneur en `<div>` et n'associer le caption qu'au `<select>` via
+`<label htmlFor="type-select">` + `id`. Les boutons deviennent de simples frères, sans détournement.
+**Règle :** un `<label>` n'enveloppe QUE son unique contrôle (ou utilise `htmlFor`). Dès qu'un champ
+porte des boutons d'action à côté de son input/select, utiliser un `<div>` + `htmlFor` — sinon clics
+fantômes vers le premier élément labelable.

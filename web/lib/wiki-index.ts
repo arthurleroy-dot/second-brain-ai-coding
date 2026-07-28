@@ -52,7 +52,7 @@ export interface IndexInput {
   typeLabel: (sourceType: string) => string;
   /** nom d'auteur → slug (slugify injecté). */
   slugifyAuthor: (name: string) => string;
-  /** Ordre canonique des libellés de type (= ALL_TYPES mappés) pour trier les sous-sections. */
+  /** Ordre canonique des libellés de type (registre effectif mappé) pour trier les sous-sections. */
   typeOrder: string[];
   /** slug ressource → queue curée (digest) récupérée de l'index courant (salvage). */
   resourceDigests: Record<string, string>;
@@ -148,7 +148,7 @@ export function buildIndex(input: IndexInput): string {
   L.push('', '---', '');
 
   // 4. Ressources — sous-sections par libellé canonique de type (dédoublonne Article/Articles),
-  //    ordre ALL_TYPES ; bullets triés date desc puis slug.
+  //    ordre du registre (typeOrder) ; bullets triés date desc puis slug.
   const groups = new Map<string, ResourceCard[]>();
   for (const r of resources) {
     const label = typeLabel(r.source_type || '');

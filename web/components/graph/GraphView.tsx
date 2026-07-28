@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { GraphData, GraphNode } from '@/types';
-import { resolveSourceType } from '@/lib/ui';
 
 // ————————————————————————————————————————————————————————————————
 // Couleurs par genre de nœud. `typeBadgeClass` (@/lib/ui) ne couvre que les
@@ -41,8 +40,8 @@ const NODE_R = 5; // rayon des nœuds (unités monde)
  * Les facettes `/sources?…` doivent recevoir les valeurs **canoniques** que la
  * page attend (SourceList/FilterBar), pas le slug brut de l'id :
  *  - `author` → le **nom d'affichage** (`node.label`), pas le slug ;
- *  - `type`   → le **ResourceType** (`report_pdf`), pas le source_type brut
- *    (`report-pdf`).
+ *  - `type`   → le **slug `source_type`** kebab (`report-pdf`), identité canonique
+ *    unique (= la valeur du filtre de FilterBar/SourceList).
  */
 function hrefForNode(node: { id: string; label: string }): string {
   const { id } = node;
@@ -61,7 +60,7 @@ function hrefForNode(node: { id: string; label: string }): string {
     case 'date':
       return `/sources?date=${encodeURIComponent(slug)}`;
     case 'type':
-      return `/sources?type=${encodeURIComponent(resolveSourceType(slug))}`;
+      return `/sources?type=${encodeURIComponent(slug)}`;
     case 'origin':
       return `/sources?origin=${encodeURIComponent(slug)}`;
     default:

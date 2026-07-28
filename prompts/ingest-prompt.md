@@ -37,8 +37,10 @@ Champs, dans cet ordre (une clé par ligne) :
 - `title` : titre complet, **entre guillemets**.
 - `author` : personne OU organisation, **entre guillemets** (champ **singulier**).
 - `date` : `AAAA` | `AAAA-MM` | `AAAA-MM-JJ`, **entre guillemets**.
-- `source_type` (enum, non quoté) : `article` | `report-pdf` | `tweet` | `interview`
-  | `presentation` | `meeting-notes` | `transcript` | `personal-notes`.
+- `source_type` (slug kebab, non quoté) : reprends VERBATIM celui du sidecar
+  (fait autorité). Sans sidecar, choisis un type existant si l'un convient (cf.
+  « Types de ressource connus » listés dans le message système) ; un slug inédit
+  est autorisé (kebab, minuscules).
 - `origin` (non quoté) : `interne` | `externe` | `""` (voir heuristique).
 - `topics` : liste plate de **slugs de thèmes** `[finops-ia, agentic-coding]`.
 - `entities` : liste plate de **slugs d'entités** (optionnel) `[claude-code]`.

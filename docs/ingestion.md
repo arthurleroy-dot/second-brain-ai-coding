@@ -59,7 +59,7 @@ la route d'upload (même lot `applyFileOps`). Le fichier de contenu reste
 ```yaml
 ---
 title: "Titre saisi (peut être vide)"
-type: article                 # source_type choisi dans la modale
+type: article                 # source_type (slug kebab) — registre OUVERT & éditable (wiki/types.json), types créables/renommables/supprimables depuis /upload
 author: "Auteur / Organisation"
 date: "2026-07"
 url: "https://..."

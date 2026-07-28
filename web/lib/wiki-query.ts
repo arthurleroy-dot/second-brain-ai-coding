@@ -1,5 +1,5 @@
 import { ChatFilterState, OriginValue, ResourceType, Source } from '@/types';
-import { ALL_TYPES, TYPE_TO_FOLDER, originLabel, typeLabel } from '@/lib/ui';
+import { originLabel, typeLabel } from '@/lib/ui';
 import {
   getSourceDetail,
   listAllSources,
@@ -33,13 +33,14 @@ export interface ChatFilters extends ChatFilterState {
   topic?: string;
 }
 
-/** Résout un filtre `type` (ResourceType ou ancien libellé de dossier) → ResourceType. */
-export function resolveType(value: string): ResourceType | null {
-  if ((ALL_TYPES as string[]).includes(value)) return value as ResourceType;
-  const entry = (Object.entries(TYPE_TO_FOLDER) as [ResourceType, string][]).find(
-    ([, folder]) => folder === value,
-  );
-  return entry ? entry[0] : null;
+/**
+ * Résout un filtre `type` → slug `source_type` kebab (identité canonique). Le slug
+ * est la valeur du filtre ; on tolère les anciennes URLs snake (`report_pdf`) via
+ * `_`→`-` (rétro-compat). Renvoie `null` si vide.
+ */
+export function resolveType(value: string): string | null {
+  const v = (value ?? '').trim().replace(/_/g, '-'); // report_pdf → report-pdf
+  return v || null;
 }
 
 /** Décrit les filtres actifs en une phrase lisible (pour le prompt système). */

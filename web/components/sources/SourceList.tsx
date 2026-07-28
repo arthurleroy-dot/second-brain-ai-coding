@@ -3,8 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Source } from '@/types';
-import { TYPE_TO_FOLDER } from '@/lib/ui';
-import { ResourceType } from '@/types';
 import { setSourcesQuery } from '@/lib/sources-nav-store';
 import { useScrollRestoration } from '@/lib/use-scroll-restoration';
 import SourceRow from '@/components/sources/SourceRow';
@@ -43,8 +41,8 @@ export default function SourceList() {
   const filtered = useMemo(() => {
     const entities = entityParam.split(',').filter(Boolean);
     return all.filter((s) => {
-      if (type && TYPE_TO_FOLDER[s.type as ResourceType] !== type && s.type !== type)
-        return false;
+      // La valeur du filtre `type` est désormais le slug kebab = `s.type`.
+      if (type && s.type !== type) return false;
       if (author && s.author !== author) return false;
       if (origin && s.origin !== origin) return false;
       if (date && !(s.date ?? '').startsWith(date)) return false;

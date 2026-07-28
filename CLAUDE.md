@@ -38,7 +38,15 @@ tasks/   ← todo.md + lessons.md + specs/ (plans validés → implémentation)
    déterministe : `web/lib/wiki-mutate.ts` (voir [docs/entities.md](docs/entities.md) §7).
 3. **`wiki/resources/*.md` est canonique.** Tout le reste sous `wiki/` (themes/,
    authors/, entities/, by-date/, types.md, origin/, index.md, graph.json) est
-   une **vue dérivée** — jamais de contenu original dedans.
+   une **vue dérivée** — jamais de contenu original dedans. **Exception :**
+   `wiki/types.json` est un **registre canonique** (liste COMPLÈTE des slugs de types
+   de document du menu de dépôt), comme les registres thèmes/entités — **non dérivé**,
+   écrit via l'UI (`/upload`). Amorcé par une graine de types par défaut
+   (`BUILTIN_TYPE_SLUGS` dans `web/lib/ui.ts`) tant que le fichier est vide ; dès la 1re
+   écriture il fait autorité et est entièrement éditable (ajout / renommage / suppression
+   d'un type **tant qu'aucune ressource ne le porte** — dès qu'une ressource l'utilise, le
+   slug est figé, cf. règle 5). Ne pilote QUE le menu de dépôt ; les filtres/graphe/explore
+   restent dérivés des ressources réelles.
 4. **L'IA d'ingestion n'écrit aucun fichier.** Elle ne produit que du texte (la page
    ressource) ; un **moteur déterministe** (`web/lib/wiki-project.ts`) reconstruit
    toutes les vues sous `wiki/`. L'unique voie d'écriture est `applyFileOps`

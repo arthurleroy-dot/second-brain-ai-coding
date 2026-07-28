@@ -8,9 +8,8 @@ import mammoth from 'mammoth';
 import JSZip from 'jszip';
 import { DATA_ROOT, RAW_ROOT, readRepoFile, applyFileOps, listWikiDir } from '@/lib/wiki-fs';
 import { getAnthropic, getModel } from '@/lib/claude';
-import { slugify } from '@/lib/wiki-parser';
-import { typeLabel, ALL_TYPES } from '@/lib/ui';
-import { ResourceType } from '@/types';
+import { slugify, listTypeRegistry } from '@/lib/wiki-parser';
+import { typeLabel } from '@/lib/ui';
 import {
   parseResourceMeta,
   splitFrontmatter,
@@ -552,17 +551,10 @@ export async function consumeModelStream(
 // ————————————————————————————————————————————————————————————————
 // Confiance graduée : candidates (détectés-inconnus)
 
-const WIKI_TYPE_TO_RT: Record<string, ResourceType> = {
-  article: 'article',
-  'report-pdf': 'report_pdf',
-  tweet: 'tweet',
-  interview: 'interview',
-  presentation: 'presentation',
-  'meeting-notes': 'meeting_note',
-  transcript: 'transcript',
-  'personal-notes': 'personal_note',
-};
-export const wikiTypeLabel = (t: string) => typeLabel(WIKI_TYPE_TO_RT[t] ?? 'unknown');
+// Libellé d'un `source_type` (slug kebab brut) — désormais fonction pure du slug
+// (cf. lib/ui.typeLabel). Conservé comme export nommé : injecté dans
+// projectResource/buildIndex et réutilisé par sources/[slug]/route + le backfill.
+export const wikiTypeLabel = (t: string) => typeLabel(t);
 
 function normalizeForm(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[^a-z0-9]+/g, ' ').trim();
@@ -979,7 +971,10 @@ export async function rebuildDerivedIndexes(today: string): Promise<FileOp[]> {
     today,
     typeLabel: wikiTypeLabel,
     slugifyAuthor: slugify,
-    typeOrder: ALL_TYPES.map((t) => typeLabel(t)),
+    // Ordre canonique des sous-sections « Ressources » de l'index = ordre du
+    // registre effectif (intégrés ∪ créés). Un label hors liste retombe en alpha
+    // dans buildIndex → robuste même si un type manque.
+    typeOrder: (await listTypeRegistry()).map((t) => wikiTypeLabel(t)),
     resourceDigests,
     authorDigests,
   });
@@ -1081,8 +1076,11 @@ export async function runIngestion(): Promise<void> {
     const today = nowIso().slice(0, 10);
     const registries = await loadRegistries();
     const staticPrompt = await fs.readFile(PROMPT_PATH, 'utf-8');
-    // Système = prompt statique + snapshot registres (identique dans le run → cache hits).
-    const system = `${staticPrompt}\n\n${renderRegistrySnapshot(registries)}`;
+    // Système = prompt statique + registre des TYPES connus + snapshot registres
+    // entités/thèmes (identique dans le run → cache hits). La liste des types connus
+    // évite que l'IA « corrige » un slug inédit venu du sidecar (qui fait autorité).
+    const knownTypes = (await listTypeRegistry()).join(', ');
+    const system = `${staticPrompt}\n\nTypes de ressource connus (registre) : ${knownTypes}.\n\n${renderRegistrySnapshot(registries)}`;
 
     const perFile: { file: string; costUsd: number }[] = [];
     let totalCost = 0;

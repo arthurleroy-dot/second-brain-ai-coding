@@ -1,13 +1,8 @@
-export type ResourceType =
-  | 'article'
-  | 'report_pdf'
-  | 'tweet'
-  | 'meeting_note'
-  | 'interview'
-  | 'presentation'
-  | 'transcript'
-  | 'personal_note'
-  | 'unknown';
+// Type de document = slug `source_type` kebab (ex. `report-pdf`). Open set piloté
+// par le registre `wiki/types.json` : `ResourceType` n'est plus une union figée
+// mais un alias `string`, sur le modèle des `entity_type`. Libellé/couleur sont
+// dérivés du slug (cf. typeLabel/typeBadgeClass dans lib/ui.ts).
+export type ResourceType = string;
 
 // Origine d'une ressource : produite en interne vs source tierce publique.
 export type OriginValue = 'interne' | 'externe';

@@ -60,7 +60,7 @@ slug: <slug-stable>           # dérivé du titre, minuscules+tirets, max 60 cha
 title: "Titre complet"
 author: "Nom Auteur / Organisation"
 date: "2026-04"               # AAAA | AAAA-MM | AAAA-MM-JJ
-source_type: article          # article | report-pdf | tweet | interview | presentation | meeting-notes | transcript | personal-notes
+source_type: article          # slug kebab — REGISTRE OUVERT & ÉDITABLE (wiki/types.json) ; graine par défaut : article | report-pdf | personal-notes | meeting-notes | interview | presentation | transcript | unknown ; ajout/renommage/suppression via /upload (tant que 0 ressource ne porte le type) ; tout slug reste un source_type valide
 origin: externe               # interne | externe — déterminé par heuristique (voir §5)
 topics: [finops-ia, agentic-coding]   # union de tous les topics de sections
 entities: [n8n]               # entités liées au niveau ressource (optionnel — voir entities.md)

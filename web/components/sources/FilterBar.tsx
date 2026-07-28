@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Source } from '@/types';
-import { ALL_ORIGINS, ALL_TYPES, TYPE_TO_FOLDER, originLabel, typeLabel } from '@/lib/ui';
+import { ALL_ORIGINS, originLabel, typeLabel } from '@/lib/ui';
 
 // Formes minimales renvoyées par /api/themes et /api/entities (types locaux :
 // on évite d'importer les interfaces définies dans le module serveur wiki-parser).
@@ -40,6 +40,12 @@ export default function FilterBar({ sources }: { sources: Source[] }) {
     for (const e of entities) m.set(e.slug, e);
     return m;
   }, [entities]);
+
+  // Types DÉRIVÉS des ressources présentes (comme authors/dates) — un type non
+  // utilisé n'apparaît pas (règle « filtres = réalité » ; `tweet` disparaît).
+  // La valeur du filtre = le slug kebab lui-même.
+  const types = Array.from(new Set(sources.map((s) => s.type).filter(Boolean) as string[]))
+    .sort((a, b) => typeLabel(a).localeCompare(typeLabel(b)));
 
   const authors = Array.from(
     new Set(sources.map((s) => s.author).filter(Boolean) as string[]),
@@ -93,8 +99,8 @@ export default function FilterBar({ sources }: { sources: Source[] }) {
         onChange={(e) => setParam('type', e.target.value)}
       >
         <option value="">Tous les types</option>
-        {ALL_TYPES.map((t) => (
-          <option key={t} value={TYPE_TO_FOLDER[t]}>
+        {types.map((t) => (
+          <option key={t} value={t}>
             {typeLabel(t)}
           </option>
         ))}

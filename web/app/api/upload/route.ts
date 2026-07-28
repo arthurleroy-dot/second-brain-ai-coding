@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server';
 import path from 'path';
-import { ResourceType } from '@/types';
 import { applyFileOps, resolveAvailableRawName, type WriteOp } from '@/lib/wiki-fs';
 import { runIngestion } from '@/lib/ingest-local';
 
@@ -8,19 +7,6 @@ export const dynamic = 'force-dynamic';
 
 const ACCEPTED_EXT = ['.md', '.txt', '.pdf', '.pptx', '.docx'];
 const MAX_BYTES = 50 * 1024 * 1024; // 50 Mo
-
-// ResourceType (UI) → source_type (vocabulaire wiki, cf. docs/wiki-spec.md).
-const TYPE_TO_SOURCE_TYPE: Record<ResourceType, string> = {
-  article: 'article',
-  report_pdf: 'report-pdf',
-  tweet: 'tweet',
-  meeting_note: 'meeting-notes',
-  interview: 'interview',
-  presentation: 'presentation',
-  transcript: 'transcript',
-  personal_note: 'personal-notes',
-  unknown: 'unknown',
-};
 
 function ext(name: string): string {
   const i = name.lastIndexOf('.');
@@ -194,8 +180,10 @@ export async function POST(req: NextRequest) {
   const date = field(form, 'date');
   const depositedBy = field(form, 'deposited_by');
   const url = field(form, 'url');
-  const typeRaw = (field(form, 'type') ?? 'unknown') as ResourceType;
-  const sourceType = TYPE_TO_SOURCE_TYPE[typeRaw] ?? 'unknown';
+  // Le menu de dépôt envoie DÉJÀ le slug kebab (identité canonique). On le
+  // re-slugifie par sûreté (idempotent sur un slug propre) et on retombe sur
+  // `unknown` si vide. Le sidecar écrit alors `type: <slug>`.
+  const sourceType = slugify(field(form, 'type') ?? '') || 'unknown';
   // Origine : 'interne' | 'externe' si l'utilisateur a choisi, sinon null (= Auto,
   // l'agent d'ingestion déduira). On n'accepte que les deux valeurs connues.
   const originRaw = field(form, 'origin');

@@ -1,4 +1,4 @@
-import type { ChatFilterState, ResourceType, Source } from '@/types';
+import type { ChatFilterState, Source } from '@/types';
 import { resolveType } from '@/lib/wiki-query';
 
 /**
@@ -29,7 +29,7 @@ export function sourcePassesFilters(s: Source, filters?: ChatFilterState): boole
   if (filters.types?.length) {
     const wanted = filters.types
       .map(resolveType)
-      .filter((t): t is ResourceType => !!t);
+      .filter((t): t is string => !!t);
     if (wanted.length && !wanted.includes(s.type)) return false;
   }
 

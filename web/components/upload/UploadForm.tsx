@@ -3,36 +3,18 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { ClipboardType, Info, UploadCloud } from 'lucide-react';
 import { ResourceType } from '@/types';
-import { typeLabel } from '@/lib/ui';
 import { clear, getView, seedFromServer, startTracking, subscribe } from '@/lib/ingest-view-store';
 import IngestStatus from './IngestStatus';
 import LinkPicker, { LinksValue, Gran, LinkPickerHandle } from './LinkPicker';
 import ThemePicker, { ThemePickerHandle } from './ThemePicker';
+import ManageTypesModal from './ManageTypesModal';
 
 type Mode = 'paste' | 'upload';
+type TypeOpt = { slug: string; label: string };
 
 const ACCEPT_UPLOAD = '.pdf,.pptx,.docx,.txt,.md';
 const DEPOSITED_BY_KEY = 'wiki:deposited_by';
-
-/** Types proposés en mode « coller » (docs textuels sans fichier source). */
-const PASTE_TYPES: ResourceType[] = [
-  'article',
-  'meeting_note',
-  'interview',
-  'personal_note',
-  'transcript',
-];
-/** Types proposés en mode « uploader un fichier » (PDF / PPTX / DOCX / TXT / MD). */
-const UPLOAD_TYPES: ResourceType[] = [
-  'report_pdf',
-  'article',
-  'presentation',
-  'transcript',
-  'meeting_note',
-  'interview',
-  'personal_note',
-  'unknown',
-];
+const NEW_TYPE = '__new__'; // valeur sentinelle de l'option « + Nouveau type… »
 
 const TITLE_HINT =
   'Pour un article, le titre est détecté de façon fiable par l’analyse. En revanche, ' +
@@ -68,6 +50,35 @@ export default function UploadForm() {
   const [type, setType] = useState<ResourceType>('article');
   // Origine : '' = Auto (l'agent d'ingestion déduit du type), sinon forcée.
   const [origin, setOrigin] = useState<'' | 'interne' | 'externe'>('');
+
+  // Registre des types de document (menu unique alimenté par /api/types). La
+  // création se fait inline via l'option sentinelle « + Nouveau type… » ; la
+  // suppression via ManageTypesModal (lien « Gérer les types »).
+  const [types, setTypes] = useState<TypeOpt[]>([]);
+  const [creating, setCreating] = useState(false); // ligne de création inline ouverte
+  const [newTypeName, setNewTypeName] = useState('');
+  const [creatingBusy, setCreatingBusy] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [managing, setManaging] = useState(false); // modale « Gérer les types » ouverte
+
+  // Recharge le registre ET réconcilie le type sélectionné : si le type courant a
+  // disparu (supprimé via la modale), on retombe sur le premier du menu.
+  const loadTypes = useCallback(() => {
+    fetch('/api/types')
+      .then((r) => r.json())
+      .then((d) => {
+        const list: TypeOpt[] = (d.types ?? []).map((t: { slug: string; label: string }) => ({
+          slug: t.slug,
+          label: t.label,
+        }));
+        setTypes(list);
+        setType((cur) => (list.some((t) => t.slug === cur) ? cur : list[0]?.slug ?? 'unknown'));
+      })
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    loadTypes();
+  }, [loadTypes]);
 
   // Liens typés (optionnel) — { type d'entité → noms }, cf. docs/entities.md.
   const [links, setLinks] = useState<LinksValue>({});
@@ -113,19 +124,53 @@ export default function UploadForm() {
     }
   }, []);
 
+  // Menu de type unique dans les deux onglets (fin de la distinction paste/upload) :
+  // un type créé n'a pas de mode. On garde seulement setMode + reset d'erreur.
   const switchMode = useCallback((next: Mode) => {
     setMode(next);
     setError(null);
-    // Réaligne le type sur la liste de l'onglet si l'actuel n'y figure pas.
-    const allowed = next === 'paste' ? PASTE_TYPES : UPLOAD_TYPES;
-    setType((cur) => (allowed.includes(cur) ? cur : allowed[0]));
   }, []);
 
   const pick = useCallback((f: File | null | undefined) => {
     if (f) setFile(f);
   }, []);
 
-  const typeOptions = mode === 'paste' ? PASTE_TYPES : UPLOAD_TYPES;
+  // Crée un type via POST /api/types { name }. Succès → recharge, sélectionne, referme.
+  // 409 (existe déjà) → message + si le slug figure déjà au menu, on le sélectionne quand même.
+  const createType = useCallback(async () => {
+    const name = newTypeName.trim();
+    if (!name) return;
+    setCreatingBusy(true);
+    setCreateError(null);
+    try {
+      const res = await fetch('/api/types', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setCreateError(d.error ?? 'Création impossible');
+        // Le slug déterministe du nom (localSlug == slugify serveur) : s'il est déjà
+        // au menu, on le sélectionne et on referme (le type existe, but c'est le voulu).
+        const existing = localSlug(name);
+        if (types.some((t) => t.slug === existing)) {
+          setType(existing as ResourceType);
+          setCreating(false);
+          setNewTypeName('');
+        }
+        return;
+      }
+      loadTypes();
+      setType(d.slug as ResourceType);
+      setCreating(false);
+      setNewTypeName('');
+    } catch {
+      setCreateError('Erreur réseau');
+    } finally {
+      setCreatingBusy(false);
+    }
+  }, [newTypeName, types, loadTypes]);
 
   // Réinitialise le formulaire pour un nouveau dépôt (garde le déposant mémorisé).
   const reset = () => {
@@ -133,7 +178,9 @@ export default function UploadForm() {
     setTitle('');
     setAuthor('');
     setDate('');
-    setType('article');
+    // Type par défaut : le premier du registre courant (article peut avoir été
+    // renommé/supprimé) ; 'unknown' en dernier recours si le menu est vide.
+    setType(types[0]?.slug ?? 'unknown');
     setOrigin('');
     setLinks({});
     setLinkGranularity({});
@@ -143,6 +190,9 @@ export default function UploadForm() {
     setUrl('');
     setFile(null);
     setError(null);
+    setCreating(false);
+    setNewTypeName('');
+    setCreateError(null);
     clear();
   };
 
@@ -228,7 +278,7 @@ export default function UploadForm() {
     }
   };
 
-  const authorLabel = type === 'meeting_note' ? 'Participants (optionnel)' : 'Auteur (optionnel)';
+  const authorLabel = type === 'meeting-notes' ? 'Participants (optionnel)' : 'Auteur (optionnel)';
 
   // ---- Vue ingestion (après un dépôt réussi, ou reprise d'un run en cours) ----
   if (ingest) {
@@ -361,20 +411,84 @@ export default function UploadForm() {
           </span>
         </label>
 
-        <label className="text-xs text-gray-600">
-          Type
+        {/* Champ Type en <div> (PAS <label>) : un <label> renvoie tout clic vers son
+            premier contrôle labelable — ici le bouton « Gérer les types » — donc cliquer
+            « Annuler »/le menu ouvrait la modale par erreur. Caption = <label htmlFor>. */}
+        <div className="text-xs text-gray-600">
+          <span className="flex items-center justify-between">
+            <label htmlFor="type-select">Type</label>
+            <button
+              type="button"
+              onClick={() => setManaging(true)}
+              className="text-[11px] font-normal text-gray-400 underline hover:text-gray-600"
+            >
+              Gérer les types
+            </button>
+          </span>
           <select
+            id="type-select"
             value={type}
-            onChange={(e) => setType(e.target.value as ResourceType)}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === NEW_TYPE) {
+                // Ouvre la ligne de création inline SANS changer le type courant.
+                setCreating(true);
+                setNewTypeName('');
+                setCreateError(null);
+              } else {
+                setType(v as ResourceType);
+              }
+            }}
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
           >
-            {typeOptions.map((t) => (
-              <option key={t} value={t}>
-                {typeLabel(t)}
+            {types.map((t) => (
+              <option key={t.slug} value={t.slug}>
+                {t.label}
               </option>
             ))}
+            <option value={NEW_TYPE}>+ Nouveau type…</option>
           </select>
-        </label>
+
+          {creating && (
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                autoFocus
+                value={newTypeName}
+                onChange={(e) => setNewTypeName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    createType();
+                  }
+                }}
+                placeholder="Nom du nouveau type (ex. Podcast)"
+                className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+              />
+              <button
+                type="button"
+                onClick={createType}
+                disabled={!newTypeName.trim() || creatingBusy}
+                className="rounded-lg bg-[#0F6E56] px-2.5 py-1.5 text-xs font-medium text-white hover:bg-[#0c5a47] disabled:opacity-50"
+              >
+                {creatingBusy ? '…' : 'Créer'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCreating(false);
+                  setCreateError(null);
+                  setNewTypeName('');
+                }}
+                className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+              >
+                Annuler
+              </button>
+            </div>
+          )}
+          {createError && (
+            <span className="mt-1 block text-[11px] text-red-600">{createError}</span>
+          )}
+        </div>
 
         <label className="text-xs text-gray-600">
           Origine
@@ -465,6 +579,15 @@ export default function UploadForm() {
           {submitting ? 'Dépôt…' : 'Déposer →'}
         </button>
       </div>
+
+      {managing && (
+        <ManageTypesModal
+          onClose={() => {
+            setManaging(false);
+            loadTypes(); // un type supprimé disparaît du menu ; réconcilie le type courant
+          }}
+        />
+      )}
     </div>
   );
 }

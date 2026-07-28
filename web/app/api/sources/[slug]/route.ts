@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server';
 import { applyFileOps, readRepoFile, repoPathExists } from '@/lib/wiki-fs';
 import { slugify } from '@/lib/wiki-parser';
 import { typeLabel } from '@/lib/ui';
-import { ResourceType } from '@/types';
 import { deleteResource, parseResourceMeta, type DeleteViews } from '@/lib/wiki-mutate';
 import { rebuildDerivedIndexes } from '@/lib/ingest-local';
 
@@ -10,18 +9,8 @@ export const dynamic = 'force-dynamic';
 
 const SLUG_RE = /^[a-z0-9-]+$/;
 
-// source_type du wiki (avec tiret) → ResourceType (web) pour le libellé d'index.
-const WIKI_TYPE_TO_RT: Record<string, ResourceType> = {
-  article: 'article',
-  'report-pdf': 'report_pdf',
-  tweet: 'tweet',
-  interview: 'interview',
-  presentation: 'presentation',
-  'meeting-notes': 'meeting_note',
-  transcript: 'transcript',
-  'personal-notes': 'personal_note',
-};
-const wikiTypeLabel = (t: string) => typeLabel(WIKI_TYPE_TO_RT[t] ?? 'unknown');
+// Libellé d'un `source_type` (slug kebab brut) — fonction pure du slug (lib/ui).
+const wikiTypeLabel = (t: string) => typeLabel(t);
 
 /**
  * Supprime DÉTERMINISTIQUEMENT une ressource : retire la ressource canonique +

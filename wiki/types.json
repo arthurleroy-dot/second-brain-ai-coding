@@ -1,0 +1,12 @@
+{
+  "types": [
+    "article",
+    "report-pdf",
+    "personal-notes",
+    "meeting-notes",
+    "interview",
+    "presentation",
+    "transcript",
+    "unknown"
+  ]
+}

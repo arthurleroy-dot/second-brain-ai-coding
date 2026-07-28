@@ -7,7 +7,6 @@ import {
   GraphData,
   OriginEntry,
   OriginValue,
-  ResourceType,
   Source,
   ThemeCandidate,
   ThemeEntry,
@@ -17,10 +16,8 @@ import {
 import { listWikiDir, readWikiFile } from '@/lib/wiki-fs';
 import {
   ALL_ORIGINS,
-  ALL_TYPES,
-  TYPE_TO_FOLDER,
+  BUILTIN_TYPE_SLUGS,
   originLabel,
-  resolveSourceType,
   typeLabel,
 } from '@/lib/ui';
 
@@ -54,8 +51,13 @@ function cleanOrigin(v: unknown): OriginValue | null {
   return s === 'interne' || s === 'externe' ? s : null;
 }
 
-function normalizeType(rawType: unknown): ResourceType {
-  return typeof rawType === 'string' ? resolveSourceType(rawType) : 'unknown';
+/**
+ * Normalise le `source_type` du frontmatter : pass-through du slug kebab brut (plus
+ * d'écrasement en `unknown` via table). Système OUVERT — un slug inédit reste tel quel.
+ */
+function normalizeType(rawType: unknown): string {
+  const s = typeof rawType === 'string' ? rawType.trim() : '';
+  return s || 'unknown';
 }
 
 /** Récupère les entités déclarées en chunk (`entities: [...]` sous un heading). */
@@ -211,20 +213,46 @@ export async function listAuthors(): Promise<AuthorEntry[]> {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** Types de ressource présents (dérivés des ressources) avec compteurs. */
+/**
+ * Types de ressource PRÉSENTS (dérivés des ressources) avec compteurs. Aucune
+ * liste figée : la valeur du filtre `folder` = le slug lui-même. Un type non
+ * utilisé n'apparaît PAS (règle « filtres = réalité »).
+ */
 export async function listTypes(): Promise<TypeEntry[]> {
   const sources = await listAllSources();
-  const counts = new Map<ResourceType, number>();
+  const counts = new Map<string, number>();
   for (const s of sources) {
-    const t = (s.type as ResourceType) ?? 'unknown';
+    const t = s.type || 'unknown';
     counts.set(t, (counts.get(t) ?? 0) + 1);
   }
-  return ALL_TYPES.filter((t) => counts.has(t)).map((t) => ({
-    type: t,
-    folder: TYPE_TO_FOLDER[t],
-    label: typeLabel(t),
-    source_count: counts.get(t) ?? 0,
-  }));
+  return [...counts.entries()]
+    .map(([t, n]) => ({ type: t, folder: t, label: typeLabel(t), source_count: n }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/**
+ * Registre EFFECTIF des types de document = liste complète du menu de dépôt.
+ * `wiki/types.json` (`{ "types": [...] }`) fait AUTORITÉ dès qu'il est non vide :
+ * on renvoie ses slugs TELS QUELS (ordre préservé, dédoublonnés), y compris si
+ * l'utilisateur en a retiré un type par défaut (il ne « repousse » jamais).
+ * Fichier absent / vide / illisible → on retombe sur la GRAINE par défaut
+ * (`BUILTIN_TYPE_SLUGS`) : un premier ajout/suppression/renommage la matérialise.
+ * Pilote UNIQUEMENT le menu de dépôt (filtres/graphe restent dérivés du réel).
+ */
+export async function listTypeRegistry(): Promise<string[]> {
+  const content = await readWikiFile('types.json'); // '' si absent
+  if (content.trim()) {
+    try {
+      const j = JSON.parse(content);
+      if (Array.isArray(j?.types)) {
+        const list = j.types.map((x: unknown) => String(x).trim()).filter(Boolean);
+        if (list.length) return [...new Set<string>(list)];
+      }
+    } catch {
+      /* fichier illisible → on retombe sur la graine */
+    }
+  }
+  return [...BUILTIN_TYPE_SLUGS];
 }
 
 /**
