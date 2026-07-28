@@ -29,7 +29,11 @@ export default function TopicGrid() {
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {topics.map((t) => (
-            <TopicCard key={t.slug} topic={t} />
+            <TopicCard
+              key={t.slug}
+              topic={t}
+              onDeleted={(slug) => setTopics((prev) => prev.filter((x) => x.slug !== slug))}
+            />
           ))}
         </div>
       )}
