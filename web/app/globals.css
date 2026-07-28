@@ -10,3 +10,19 @@ body {
 body {
   @apply bg-gray-50 text-gray-900 antialiased;
 }
+
+/* Fondu d'apparition de la « tête d'écriture » du chat en streaming (C.1) :
+   le morceau de texte nouvellement révélé apparaît en douceur au lieu d'une
+   coupure sèche. Appliqué uniquement au bloc actif (texte brut). */
+@keyframes stream-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.stream-fade-in {
+  animation: stream-fade-in 150ms ease-out;
+}

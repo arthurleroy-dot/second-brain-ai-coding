@@ -58,6 +58,15 @@ export default function ChatWindow({ conversationId, initialMessages = [] }: Pro
   const streaming = state?.streaming ?? false;
   const steps = state?.steps ?? [];
 
+  // Le message en cours d'écriture est TOUJOURS le dernier de la liste tant que
+  // `streaming` est vrai (l'assistant est ajouté par `ensureAssistant` puis
+  // alimenté ; les étapes sont affichées séparément sous la liste). Son id
+  // active le rendu en deux zones (blocs terminés figés + bloc actif en brut).
+  const streamingId =
+    streaming && messages.length > 0 && messages[messages.length - 1].role === 'assistant'
+      ? messages[messages.length - 1].id
+      : null;
+
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
@@ -161,7 +170,7 @@ export default function ChatWindow({ conversationId, initialMessages = [] }: Pro
           </div>
         )}
         {messages.map((m) => (
-          <Message key={m.id} message={m} />
+          <Message key={m.id} message={m} isStreaming={m.id === streamingId} />
         ))}
         {(loading || (streaming && steps.length > 0)) && (
           <div className="flex justify-start">

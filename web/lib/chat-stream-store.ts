@@ -152,20 +152,31 @@ interface Drain {
 
 const drains = new Map<string, Drain>();
 
-const CPS_BASE = 90; // vitesse « repos » (caractères/seconde)
-const CPS_MAX = 1400; // plafond anti-dump quand la file gonfle
-const FRAME_MS = 32; // révélation à ~30 fps : fluide, moitié moins de re-parses markdown
+// Cadence calée sur le débit d'arrivée RÉEL mesuré (~111-129 c/s, cf. B.1). La
+// base est VOLONTAIREMENT SOUS ce débit : la file garde alors un petit tampon
+// permanent (jamais vide) → l'affichage s'écoule en CONTINU à la vitesse de
+// génération, au lieu de sprinter puis se figer entre deux paquets (les
+// « rafales » d'une base trop haute). Le tampon est étalé sur QUEUE_DRAIN_S
+// secondes, ce qui lisse la nature saccadée de l'arrivée (paquets ~62 c toutes
+// les ~0,5 s).
+const CPS_BASE = 90; // plancher de vitesse (c/s) — SOUS le débit mesuré
+const CPS_MAX = 240; // plafond anti-dump : ~240×0.016 ≈ 4 c/image au pire
+const FRAME_MS = 16; // ~60 fps : incréments plus petits, plus fluides (committed mémoïsé)
+const QUEUE_DRAIN_S = 1.0; // horizon d'étalement de la file (s) : + grand = + lisse, un peu + de latence
 
 function nowMs(): number {
   return typeof performance !== 'undefined' ? performance.now() : Date.now();
 }
 
 /**
- * Nombre de caractères à révéler pour `elapsedMs` : croisière à CPS_BASE,
- * accélérée pour viser une file vidée en ~250 ms, plafonnée à CPS_MAX.
+ * Nombre de caractères à révéler pour `elapsedMs`. Vitesse = on étale la file
+ * courante sur QUEUE_DRAIN_S secondes (plancher CPS_BASE, plafond CPS_MAX). Tant
+ * que des paquets arrivent, la file garde un tampon ~= débit×QUEUE_DRAIN_S : la
+ * vitesse reste proche du débit d'arrivée, sans se vider (pas de pause) ni
+ * dumper (plafond bas). Le snap final (finishDrain) absorbe tout reliquat.
  */
 function revealCount(queueLen: number, elapsedMs: number): number {
-  const cps = Math.min(CPS_MAX, Math.max(CPS_BASE, queueLen / 0.25));
+  const cps = Math.min(CPS_MAX, Math.max(CPS_BASE, queueLen / QUEUE_DRAIN_S));
   return Math.max(1, Math.round((cps * elapsedMs) / 1000));
 }
 
@@ -184,7 +195,7 @@ function tick(key: string) {
 
   const now = nowMs();
   const elapsed = now - d.lastTs;
-  // Accumulateur de temps : on ne révèle qu'à ~30 fps même si rAF tourne à 60.
+  // Accumulateur de temps : on révèle au rythme de FRAME_MS (~60 fps).
   if (elapsed < FRAME_MS) {
     scheduleTick(key);
     return;
