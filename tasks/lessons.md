@@ -498,3 +498,18 @@ contrôle labelable — ici le bouton « Gérer les types » — d'où des activ
 **Règle :** un `<label>` n'enveloppe QUE son unique contrôle (ou utilise `htmlFor`). Dès qu'un champ
 porte des boutons d'action à côté de son input/select, utiliser un `<div>` + `htmlFor` — sinon clics
 fantômes vers le premier élément labelable.
+
+## 2026-07-28 — Une valeur-sentinelle (repli) ne doit pas fuiter dans une liste de CHOIX utilisateur
+**Contexte :** le type « inconnu » (`unknown`) apparaissait dans la barre de choix des types du dépôt
+(`/upload`). Or `unknown` n'est PAS un type qu'on choisit : c'est le REPLI d'affichage d'une ressource
+sans type (`normalizeType` → `s || 'unknown'`, `listTypes` groupe les sans-type sous `unknown`). Je
+l'avais malencontreusement mis dans la graine `BUILTIN_TYPE_SLUGS` (et donc dans `wiki/types.json`)
+lors du chantier « types ouverts » du matin — mélangeant valeur-sentinelle et vocabulaire choisissable.
+**Correction :** retirer `unknown` de la graine ET du registre `wiki/types.json` (menu = 8 → 7 types),
+MAIS conserver ses libellé/couleur curés (`Inconnu`/orange) comme repli d'affichage pour une ressource
+sans type. Aucune ressource ne portant `source_type: unknown`, la suppression respecte la cardinale #5.
+Test de non-régression : `unknown` absent de la graine, `typeLabel('unknown')` = `Inconnu` maintenu.
+**Règle :** distinguer deux rôles d'une même constante — (a) valeur de REPLI/sentinelle pour données
+manquantes vs (b) entrée d'une liste de CHOIX utilisateur. La première ne doit jamais peupler la
+seconde. Un fourre-tout « Inconnu » proposé à la sélection est un signal de confusion des deux rôles :
+garder son affichage de repli, l'exclure du menu.

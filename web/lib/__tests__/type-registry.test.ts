@@ -39,6 +39,16 @@ test('typeLabel : vide → Inconnu', () => {
   assert.equal(typeLabel('   '), 'Inconnu');
 });
 
+test("'unknown' n'est PAS un type de menu mais reste un libellé de repli", () => {
+  // Retiré de la graine (jamais choisissable au dépôt)…
+  assert.ok(
+    !BUILTIN_TYPE_SLUGS.includes('unknown' as never),
+    "unknown ne doit pas figurer dans la graine du menu de dépôt",
+  );
+  // …mais garde son affichage curé pour une ressource sans type (normalizeType → 'unknown').
+  assert.equal(typeLabel('unknown'), 'Inconnu');
+});
+
 // ————————————————————————————————————————————————————————————————
 // typeBadgeClass — override curé, sinon palette stable par hash
 

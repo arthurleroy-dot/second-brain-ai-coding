@@ -12,9 +12,11 @@ import { OriginValue } from '@/types';
 // GRAINE par défaut du registre (kebab = vocabulaire wiki). Amorce le menu de dépôt
 // tant que `wiki/types.json` est vide ; dès la 1re écriture, le fichier fait autorité
 // et l'utilisateur peut retirer/renommer n'importe lequel de ces types (aucun n'est
-// « permanent »). Ce sont AUSSI les seuls slugs à libellé/couleur curés ci-dessous —
-// un type retiré du registre garde son affichage curé s'il réapparaît (ex. fallback
-// `unknown`). `tweet` RETIRÉ (aucune ressource ne l'utilise ; filtres dérivés).
+// « permanent »). `unknown` n'y figure PAS : ce n'est jamais un type qu'on choisit au
+// dépôt, seulement le REPLI d'affichage d'une ressource sans type (cf. normalizeType /
+// listTypes → 'unknown' dans wiki-parser) — d'où ses libellé/couleur curés ci-dessous
+// SANS être une entrée de menu. `tweet` RETIRÉ pareillement (aucune ressource ; filtres
+// dérivés). Un type retiré du registre garde son affichage curé s'il réapparaît.
 export const BUILTIN_TYPE_SLUGS = [
   'article',
   'report-pdf',
@@ -23,10 +25,10 @@ export const BUILTIN_TYPE_SLUGS = [
   'interview',
   'presentation',
   'transcript',
-  'unknown',
 ] as const;
 
-// Libellés FR curés des intégrés (les seuls non dérivables du slug).
+// Libellés FR curés (les seuls non dérivables du slug). `unknown` n'est pas un type de
+// menu (cf. graine ci-dessus) mais garde son libellé de REPLI pour les ressources sans type.
 const TYPE_LABEL_OVERRIDES: Record<string, string> = {
   article: 'Article',
   'report-pdf': 'Rapport PDF',
