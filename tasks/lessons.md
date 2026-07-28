@@ -513,3 +513,29 @@ Test de non-régression : `unknown` absent de la graine, `typeLabel('unknown')` 
 manquantes vs (b) entrée d'une liste de CHOIX utilisateur. La première ne doit jamais peupler la
 seconde. Un fourre-tout « Inconnu » proposé à la sélection est un signal de confusion des deux rôles :
 garder son affichage de repli, l'exclure du menu.
+
+## 2026-07-28 — Distribution multiplateforme : `raw/` doit être compatible Windows, et macOS unsigned = « endommagé »
+**Contexte :** premier build CI Mac+Windows. (1) Le job **Windows échouait au checkout** :
+`git.exe failed with exit code 128 · invalid path 'raw/2026 … | … .pdf'`. Windows **interdit**
+`| : ? * < > "` dans les noms de fichiers → git ne peut pas écrire le fichier, ET même en forçant
+l'app ne pourrait jamais poser ce fichier dans `~/second-brain/raw/` sur un PC Windows. 4 sources
+`raw/` portaient `|`/`:`. (2) Le `.dmg` Mac s'ouvrait avec « **SecondBrain est endommagé** » sur
+Apple Silicon — trompeur : l'app n'est pas corrompue, elle est **non signée + en quarantaine**.
+Cause racine (lue dans le code d'electron-builder 26) : `mac.identity: null` → `handleNullIdentity()`
+« skipped macOS code signing » → **aucune** signature ; les modifs d'`afterPack` invalident la
+signature héritée d'Electron → « endommagé ».
+**Correction :** (1) **renommer** les 4 sources (`|`/`:` → `-`) en migration coordonnée et prouvée
+sur copie — fichier raw + sidecar `.meta.md` + clé `_ingested.json` + `source_file` de la fiche
+DOIVENT rester égaux (invariant `manifest-missing` de `wiki-verify`) ; `git` enregistre des renames
+(contenu 100 % identique) ; `log.md` (mention historique en prose) laissé tel quel. (2) `mac.identity: "-"`
+(signature **ad-hoc** valide) → le téléchargement affiche le message doux « développeur non vérifié »
+(clic droit → Ouvrir) au lieu de « endommagé ». `CSC_IDENTITY_AUTO_DISCOVERY=false` reste sans effet
+sur l'ad-hoc (`isSignAllowed` ne teste que « macOS »). Repli utilisateur si « endommagé » persiste :
+`xattr -cr <app> && codesign --force --deep --sign - <app>`. Vrai « zéro Terminal » = notarisation
+Apple payante (hors périmètre v1).
+**Règle :** avant de distribuer, (a) **auditer `raw/` pour les caractères interdits Windows**
+(`git ls-files raw/ | grep -E '[<>:"|?*]'`) — un nom illégal casse le checkout ET l'app côté Windows,
+le renommer est inévitable (entorse encadrée à « raw immuable ») en gardant le triangle
+raw=source_file=clé_ingested cohérent + `wiki-verify` identique ; (b) une app macOS **non signée**
+(`identity: null`) est cassée sur Apple Silicon → **toujours au moins `identity: "-"` (ad-hoc)**.
+Prouver la migration raw sur COPIE (`WIKI_ROOT` isolé) avant le vrai wiki, jamais l'inverse.
