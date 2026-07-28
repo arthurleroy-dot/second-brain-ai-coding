@@ -32,7 +32,7 @@
     "mac": {
       "target": ["dmg"],
       "category": "public.app-category.productivity",
-      "identity": null
+      "identity": "-"
     },
     "win": {
       "target": ["nsis"]

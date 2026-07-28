@@ -6,7 +6,7 @@
       "ingested_at": "2026-07-23",
       "run": "local"
     },
-    "2026 Software Industry Outlook | Deloitte Insights.pdf": {
+    "2026 Software Industry Outlook - Deloitte Insights.pdf": {
       "slug": "2026-software-industry-outlook",
       "ingested_at": "2026-07-23",
       "run": "local"
@@ -16,7 +16,7 @@
       "ingested_at": "2026-07-08",
       "run": "baseline"
     },
-    "AI FinOps in 2026: Why Runtime Cost Governance Can't Wait.md": {
+    "AI FinOps in 2026 - Why Runtime Cost Governance Can't Wait.md": {
       "slug": "ai-finops-2026-runtime-cost-governance-cant-wait",
       "ingested_at": "2026-07-23",
       "run": "local"
@@ -26,12 +26,12 @@
       "ingested_at": "2026-07-08",
       "run": "baseline"
     },
-    "AI Software Development: What Changes from 2026 to 2035.md": {
+    "AI Software Development - What Changes from 2026 to 2035.md": {
       "slug": "ai-software-development-what-changes-2026-2035",
       "ingested_at": "2026-07-23",
       "run": "local"
     },
-    "FinOps for AI: Why LLM Cost Is an Engineering Problem, Not a Finance One.md": {
+    "FinOps for AI - Why LLM Cost Is an Engineering Problem, Not a Finance One.md": {
       "slug": "finops-ai-llm-cost-engineering-not-finance",
       "ingested_at": "2026-07-08",
       "run": "baseline"

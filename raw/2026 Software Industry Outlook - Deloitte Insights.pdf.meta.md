@@ -1,5 +1,5 @@
 ---
-source_file: "2026 Software Industry Outlook | Deloitte Insights.pdf"
+source_file: "2026 Software Industry Outlook - Deloitte Insights.pdf"
 type: article
 author: "Deloitte"
 date: "2026-02-12"

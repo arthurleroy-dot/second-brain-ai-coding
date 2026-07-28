@@ -8,7 +8,7 @@ origin: externe
 topics: [outils-et-marche, transformation-organisationnelle, securite-et-risques, finops-ia, agentic-coding]
 entities: [claude-code]
 url: "https://www.deloitte.com/us/en/insights/industry/technology-media-telecom-outlooks/software-industry-outlook.html"
-source_file: "2026 Software Industry Outlook | Deloitte Insights.pdf"
+source_file: "2026 Software Industry Outlook - Deloitte Insights.pdf"
 ---
 
 > Par [[../authors/deloitte|Deloitte]] · [[../by-date/2026/2026-02/2026-02|2026-02]] · Thèmes : [[../themes/outils-et-marche|Outils et Marché]], [[../themes/transformation-organisationnelle|Transformation Organisationnelle]], [[../themes/securite-et-risques|Sécurité et Risques]], [[../themes/finops-ia|FinOps IA]], [[../themes/agentic-coding|Agentic Coding]]

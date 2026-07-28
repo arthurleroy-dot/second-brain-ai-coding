@@ -52,6 +52,19 @@ feras qu'**une seule fois**.
 > Confidentialité et sécurité**, descends jusqu'au message concernant SecondBrain,
 > et clique **« Ouvrir quand même »**.
 
+> **Cas « SecondBrain est endommagé et ne peut pas être ouvert ».** Ce message
+> (trompeur) veut juste dire que macOS bloque une app non certifiée téléchargée
+> depuis le navigateur — l'app n'est **pas** corrompue. S'il apparaît, ouvre
+> **Terminal** (Spotlight `⌘+Espace` → « Terminal »), colle la ligne suivante et
+> valide, puis relance l'app :
+>
+> ```
+> xattr -cr /Applications/SecondBrain.app && codesign --force --deep --sign - /Applications/SecondBrain.app
+> ```
+>
+> (Elle retire le drapeau « quarantaine » et re-signe l'app localement ; `xattr` et
+> `codesign` sont fournis d'origine avec macOS, rien à installer.)
+
 ### Sur Windows
 
 1. Au lancement, l'écran bleu **« Windows a protégé votre ordinateur »**

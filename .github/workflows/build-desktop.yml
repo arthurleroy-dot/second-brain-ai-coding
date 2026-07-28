@@ -31,7 +31,12 @@ jobs:
 
       - name: Build web standalone + package installer
         env:
-          # macOS : app NON signée en v1 → empêcher electron-builder de chercher un certificat.
+          # macOS : signature AD-HOC (mac.identity: "-") — pas de Developer ID, pas de
+          # notarisation en v1, mais une signature ad-hoc VALIDE évite l'alerte trompeuse
+          # « app endommagée » sur Apple Silicon (le téléchargement affiche alors le
+          # message doux « développeur non vérifié » → clic droit → Ouvrir suffit).
+          # CSC_IDENTITY_AUTO_DISCOVERY=false empêche seulement la recherche d'un vrai
+          # certificat sur le runner ; sans effet sur la signature ad-hoc explicite.
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: |
           npm run build:web

@@ -7,7 +7,7 @@ source_type: article
 origin: externe
 topics: [finops-ia, outils-et-marche]
 url: "https://eci.com"
-source_file: "AI FinOps in 2026: Why Runtime Cost Governance Can't Wait.md"
+source_file: "AI FinOps in 2026 - Why Runtime Cost Governance Can't Wait.md"
 ---
 
 > Par [[../authors/eci-research|ECI Research]] · [[../by-date/2026/2026|2026]] · Thèmes : [[../themes/finops-ia|FinOps IA]], [[../themes/outils-et-marche|Outils et Marché]]
