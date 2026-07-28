@@ -3,7 +3,7 @@ type: entity
 entity_type: tool
 slug: cursor
 label: "Cursor"
-aliases: ["Cursor"]
+aliases: []
 ---
 
 # Cursor

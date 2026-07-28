@@ -3,7 +3,7 @@ type: entity
 entity_type: person
 slug: simon-willison
 label: "Simon Willison"
-aliases: ["Simon Willison"]
+aliases: []
 ---
 
 # Simon Willison

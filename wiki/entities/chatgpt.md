@@ -3,7 +3,7 @@ type: entity
 entity_type: tool
 slug: chatgpt
 label: "ChatGPT"
-aliases: ["ChatGPT"]
+aliases: []
 ---
 
 # ChatGPT

@@ -3,7 +3,7 @@ type: entity
 entity_type: tool
 slug: claude-code
 label: "Claude Code"
-aliases: ["claude code", "claude-code", "claude code cli"]
+aliases: ["claude-code", "claude code cli"]
 ---
 
 # Claude Code

@@ -409,3 +409,23 @@ Réparer la cause structurelle, pas l'instance. (Preuve : ces server components 
 `force-dynamic`, un `curl | grep` du HTML rendu par le `next dev` déjà lancé suffit à démontrer
 l'affichage réel sans lancer d'instance ni toucher au wiki — penser à retirer les marqueurs
 `<!-- -->` que React insère entre texte statique et dynamique.)
+
+## 2026-07-27 — Un filtre d'affichage ne nettoie pas la donnée : traiter la SOURCE, pas le symptôme
+**Contexte :** pour masquer les alias == label (bruit), j'avais mis un filtre uniquement à
+l'affichage (`<AliasLine>`). Arthur : « pourquoi tu ne supprimes pas l'alias alors ? ». Le
+filtre laissait la donnée sale, d'où une incohérence : les vues LISTE (`/entities`, `/themes`)
+comptent `aliases.length` BRUT → badge « 1 alias » pour une fiche dont la page de détail
+n'affiche rien.
+**Correction :** appliquer la règle sur 3 couches — (1) SOURCE : le moteur d'écriture
+(`wiki-mutate`, 4 points create/merge × entité/thème) ne stocke plus d'alias == label ;
+(2) DONNÉES : nettoyage ponctuel SURGICAL des fichiers existants (ne réécrire que la ligne
+`aliases:`, byte-identique ailleurs) — 16 fichiers, validé en dry-run puis `git diff` +
+`wiki:verify` (avertissements identiques avant/après) ; (3) AFFICHAGE : garder le filtre comme
+filet. La règle vit dans UN module sans dépendance (`lib/alias-rule.ts`) importé en relatif par
+le moteur (qui interdit les imports `@/…`) ET par la vue → zéro divergence possible.
+**Règle :** un filtre d'affichage cache un symptôme ; il ne rend pas la donnée cohérente (les
+autres consommateurs — compteurs, graphe, recherche — voient toujours la donnée brute). Pour une
+règle « telle valeur est du bruit », la porter à la SOURCE (empêcher l'écriture) + nettoyer
+l'existant + garder l'affichage comme filet, et loger la règle dans un module unique partagé.
+Toujours dry-run + diff surgical + `wiki:verify` (comparer les avertissements avant/après) avant
+d'écrire dans le vrai wiki.

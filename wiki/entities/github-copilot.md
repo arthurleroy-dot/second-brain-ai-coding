@@ -3,7 +3,7 @@ type: entity
 entity_type: tool
 slug: github-copilot
 label: "GitHub Copilot"
-aliases: ["GitHub Copilot"]
+aliases: []
 ---
 
 # GitHub Copilot

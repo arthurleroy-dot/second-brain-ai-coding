@@ -3,7 +3,7 @@ type: entity
 entity_type: model
 slug: claude-opus
 label: "Claude Opus"
-aliases: ["Claude Opus"]
+aliases: []
 ---
 
 # Claude Opus

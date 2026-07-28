@@ -3,7 +3,7 @@ type: entity
 entity_type: company
 slug: openai
 label: "OpenAI"
-aliases: ["OpenAI"]
+aliases: []
 ---
 
 # OpenAI

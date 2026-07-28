@@ -3,7 +3,7 @@ type: entity
 entity_type: model
 slug: gpt-5
 label: "GPT-5"
-aliases: ["GPT-5"]
+aliases: []
 ---
 
 # GPT-5

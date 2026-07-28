@@ -2,7 +2,7 @@
 type: theme
 slug: evaluation-des-agents
 label: "Évaluation des agents de code"
-aliases: ["Évaluation des agents de code"]
+aliases: []
 resource_count: 2
 last_updated: "2026-07-24"
 ---

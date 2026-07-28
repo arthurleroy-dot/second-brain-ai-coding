@@ -3,7 +3,7 @@ type: entity
 entity_type: model
 slug: gemini-3
 label: "Gemini 3"
-aliases: ["Gemini 3"]
+aliases: []
 ---
 
 # Gemini 3

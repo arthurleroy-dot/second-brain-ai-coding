@@ -3,7 +3,7 @@ type: entity
 entity_type: company
 slug: anthropic
 label: "Anthropic"
-aliases: ["Anthropic"]
+aliases: []
 ---
 
 # Anthropic

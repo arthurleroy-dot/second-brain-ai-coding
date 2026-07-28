@@ -3,7 +3,7 @@ type: entity
 entity_type: tool
 slug: mcp
 label: "MCP"
-aliases: ["MCP"]
+aliases: []
 ---
 
 # MCP

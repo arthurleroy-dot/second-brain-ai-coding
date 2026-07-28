@@ -31,6 +31,7 @@ import {
   purgeCandidatesForEntity,
   type FileOp,
 } from '../wiki-mutate';
+import { meaningfulAliases } from '../alias-rule';
 
 const slugify = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -247,7 +248,62 @@ test('removeManifestKey retire la clé source_file', () => {
 });
 
 // ————————————————————————————————————————————————————————————————
+// meaningfulAliases — règle UNIQUE partagée (source + affichage)
+
+test('meaningfulAliases : retire les alias == label (casse/espaces), dédoublonne, garde les vraies variantes', () => {
+  // alias identique au label → retiré
+  assert.deepEqual(meaningfulAliases(['Cursor'], 'Cursor'), []);
+  // casse/espaces insensibles : « claude code » == « Claude Code »
+  assert.deepEqual(
+    meaningfulAliases(['claude code', 'claude-code', 'claude code cli'], 'Claude Code'),
+    ['claude-code', 'claude code cli'],
+  );
+  // vraies variantes conservées (diffèrent vraiment du titre)
+  assert.deepEqual(meaningfulAliases(['data bricks'], 'Databricks'), ['data bricks']);
+  assert.deepEqual(meaningfulAliases(['n8n.io', 'n8n workflow'], 'n8n'), ['n8n.io', 'n8n workflow']);
+  // dédoublonnage (insensible casse) + trim
+  assert.deepEqual(meaningfulAliases(['Foo', ' foo ', 'Bar'], 'X'), ['Foo', 'Bar']);
+  // vides ignorés
+  assert.deepEqual(meaningfulAliases(['', '  '], 'X'), []);
+});
+
+// ————————————————————————————————————————————————————————————————
 // applyEntityDecision — create
+
+test('applyEntityDecision (create) : un alias égal au label N’EST PAS écrit (filtre à la source)', () => {
+  const resource = `---
+slug: alpha
+title: "Alpha"
+author: "A"
+date: "2026"
+source_type: article
+origin: externe
+topics: []
+url: "u"
+source_file: "a.md"
+---
+
+> Par [[../authors/a|A]]
+
+## Contexte
+
+SWE-bench est cité ici.
+`;
+  const ops = applyEntityDecision({
+    action: 'create',
+    // Le seul « variant » est identique au nom (== label) → doit être filtré.
+    candidate: { name: 'SWE-bench', normalized: 'swe-bench', variants: ['SWE-bench'], seen_in: [{ resource: 'alpha', section: 'contexte', context: 'x' }] },
+    decision: { target_slug: null, entity_type: 'tool', slug: 'swe-bench' },
+    resources: { alpha: resource },
+    entityPage: null,
+    graph: GRAPH,
+    candidatesJson: CANDS,
+    today: '2026-07-10',
+  });
+  const page = byPath(ops, 'wiki/entities/swe-bench.md')!.content;
+  assert.ok(page.includes('aliases: []'), 'aliases: [] (alias == label non écrit)');
+  assert.ok(!page.includes('"SWE-bench"') || page.includes('label: "SWE-bench"'), 'SWE-bench ne figure QUE comme label, pas comme alias');
+});
 
 test('applyEntityDecision (create) relie, crée la page et met à jour le graphe', () => {
   const resource = `---

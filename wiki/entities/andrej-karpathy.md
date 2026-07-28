@@ -3,7 +3,7 @@ type: entity
 entity_type: person
 slug: andrej-karpathy
 label: "Andrej Karpathy"
-aliases: ["Andrej Karpathy"]
+aliases: []
 ---
 
 # Andrej Karpathy

@@ -3,7 +3,7 @@ type: entity
 entity_type: company
 slug: google
 label: "Google"
-aliases: ["Google"]
+aliases: []
 ---
 
 # Google

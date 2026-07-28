@@ -3,7 +3,7 @@ type: entity
 entity_type: tool
 slug: swe-bench
 label: "SWE-bench"
-aliases: ["SWE-bench"]
+aliases: []
 ---
 
 # SWE-bench

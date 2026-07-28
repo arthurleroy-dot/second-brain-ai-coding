@@ -14,9 +14,12 @@
  *
  * Volontairement SANS import `@/…` (comme wiki-verify.ts) pour rester importable
  * par les tests via chemin relatif et par les routes via l'alias. Seule dépendance
- * externe : gray-matter (lecture des frontmatters), déjà utilisée partout.
+ * externe : gray-matter (lecture des frontmatters), déjà utilisée partout. Seul
+ * import interne : `./alias-rule` (relatif, pur, sans dépendance) — la règle des
+ * alias « utiles » partagée avec l'affichage.
  */
 import matter from 'gray-matter';
+import { meaningfulAliases } from './alias-rule';
 
 // ————————————————————————————————————————————————————————————————
 // Types
@@ -522,6 +525,11 @@ function buildThemeBlock(m: ResourceMeta, seens: SeenIn[]): string {
   return `${header}\n${meta}\n\n${bullets}`;
 }
 
+/** Extrait le label (quoté ou non) d'un frontmatter d'entité/thème. */
+function labelOf(fm: string): string {
+  return fm.match(/^label:\s*"?([^"\n]+?)"?\s*$/m)?.[1]?.trim() ?? '';
+}
+
 // ————————————————————————————————————————————————————————————————
 // APPLY : décision entité
 
@@ -596,8 +604,9 @@ export function applyEntityDecision(input: EntityDecisionInput): FileOp[] {
   if (action === 'create') {
     const label = candidate.name;
     const entityType = decision.entity_type!;
-    const aliasList = candidate.variants.length
-      ? `[${candidate.variants.map((v) => JSON.stringify(v)).join(', ')}]`
+    const cleanAliases = meaningfulAliases(candidate.variants, label);
+    const aliasList = cleanAliases.length
+      ? `[${cleanAliases.map((v) => JSON.stringify(v)).join(', ')}]`
       : '[]';
     let page =
       `---\ntype: entity\nentity_type: ${entityType}\nslug: ${effectiveSlug}\n` +
@@ -613,7 +622,7 @@ export function applyEntityDecision(input: EntityDecisionInput): FileOp[] {
     let page = input.entityPage ?? '';
     const { fm, rest } = splitFrontmatter(page);
     let newFm = fm;
-    for (const alias of [candidate.name, ...candidate.variants]) {
+    for (const alias of meaningfulAliases([candidate.name, ...candidate.variants], labelOf(fm))) {
       newFm = patchInlineArray(newFm, 'aliases', alias, { quote: true });
     }
     let newBody = rest;
@@ -685,8 +694,9 @@ export function applyThemeDecision(input: ThemeDecisionInput): FileOp[] {
 
   // Page thème.
   if (action === 'create') {
-    const aliasLine = candidate.variants.length
-      ? `\naliases: [${candidate.variants.map((v) => JSON.stringify(v)).join(', ')}]`
+    const cleanAliases = meaningfulAliases(candidate.variants, label);
+    const aliasLine = cleanAliases.length
+      ? `\naliases: [${cleanAliases.map((v) => JSON.stringify(v)).join(', ')}]`
       : '';
     const blocks = [...byResource.entries()]
       .filter(([slug]) => metas[slug])
@@ -707,7 +717,7 @@ export function applyThemeDecision(input: ThemeDecisionInput): FileOp[] {
     let page = input.themePage ?? '';
     const { fm, rest } = splitFrontmatter(page);
     let newFm = fm;
-    for (const alias of [candidate.name, ...candidate.variants]) {
+    for (const alias of meaningfulAliases([candidate.name, ...candidate.variants], labelOf(fm))) {
       newFm = patchInlineArray(newFm, 'aliases', alias, { quote: true });
     }
     newFm = bumpScalarInt(newFm, 'resource_count', byResource.size);
@@ -1071,6 +1081,40 @@ export function deleteEntity(input: DeleteEntityInput): FileOp[] {
     const purged = purgeCandidatesForEntity(input.candidatesJson, slug, input.slugify);
     if (purged !== null) ops.push({ path: 'wiki/entities/_candidates.json', content: purged });
   }
+
+  return ops;
+}
+
+// ————————————————————————————————————————————————————————————————
+// DELETE : thème vide (miroir de deleteEntity — geste EXPLICITE, restreint aux
+// thèmes que plus AUCUNE ressource ne cite : l'appelant garantit la vacuité).
+
+export interface DeleteThemeInput {
+  slug: string;
+  graph: string; // contenu wiki/graph.json
+}
+
+/**
+ * Supprime un thème VIDE du registre. Précondition (vérifiée côté route) : aucune
+ * ressource ne cite le thème (`source_count === 0`) — sinon la projection le
+ * recréerait à la prochaine ingestion. Retire la fiche `wiki/themes/<slug>.md` et
+ * le nœud `theme:<slug>` + ses arêtes du graphe. Le bullet dans `index.md` est
+ * retiré par `rebuildDerivedIndexes` (reconstruction depuis le registre sur disque),
+ * appelé ensuite. Fonction PURE (l'appelant applique les `FileOp`).
+ */
+export function deleteTheme(input: DeleteThemeInput): FileOp[] {
+  const { slug } = input;
+  const ops: FileOp[] = [];
+  const tid = `theme:${slug}`;
+
+  // 1. La fiche de registre du thème.
+  ops.push({ path: `wiki/themes/${slug}.md`, delete: true });
+
+  // 2. graph.json : retirer le nœud theme:<slug> + toute arête le touchant.
+  const graph = parseGraph(input.graph);
+  graph.nodes = graph.nodes.filter((n) => n.id !== tid);
+  graph.edges = graph.edges.filter((e) => e.source !== tid && e.target !== tid);
+  ops.push({ path: 'wiki/graph.json', content: serializeGraph(graph) });
 
   return ops;
 }

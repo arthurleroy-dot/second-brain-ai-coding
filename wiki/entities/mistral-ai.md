@@ -3,7 +3,7 @@ type: entity
 entity_type: company
 slug: mistral-ai
 label: "Mistral AI"
-aliases: ["Mistral AI"]
+aliases: []
 ---
 
 # Mistral AI
