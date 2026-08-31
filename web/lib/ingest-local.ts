@@ -829,8 +829,12 @@ export function rebuildNav(
   themeLabels: Record<string, string>,
 ): string {
   const { fm, rest } = splitFrontmatter(markdown);
-  // Retire toute ligne de nav existante (auteur/date OU thèmes dégénérée).
-  const navRe = /^>\s*(Par\s+|Th[èe]mes\s*:)/i;
+  // Retire toute ligne de nav existante. Une nav débute TOUJOURS par l'un de ces
+  // marqueurs (segments joints par ` · `, dans l'ordre auteur → date → thèmes) :
+  // `> Par …` (avec auteur), `> [[../by-date/…` (SANS auteur), ou `> Thèmes : …`
+  // (ni auteur ni date). L'ancien motif ne couvrait pas le cas « sans auteur » →
+  // nav périmée non retirée (ré-édition) et nav dupliquée à l'ingestion. Corrigé ici.
+  const navRe = /^>\s*(Par\s+|Th[èe]mes\s*:|\[\[\.\.\/by-date\/)/i;
   const bodyNoNav = rest
     .split('\n')
     .filter((line) => !navRe.test(line.trim()))

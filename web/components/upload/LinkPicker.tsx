@@ -36,6 +36,8 @@ interface LinkPickerProps {
   onChange: (v: LinksValue) => void;
   granularity: Record<string, Gran>;
   onGranularityChange: (v: Record<string, Gran>) => void;
+  /** Masque les sélecteurs de granularité (édition : tout traité en `auto`, cf. D4). */
+  showGranularity?: boolean;
 }
 
 function slugify(s: string): string {
@@ -55,7 +57,7 @@ function slugify(s: string): string {
  * Le registre s'auto-étend : les types déjà présents viennent de /api/entities.
  */
 const LinkPicker = forwardRef<LinkPickerHandle, LinkPickerProps>(function LinkPicker(
-  { value, onChange, granularity, onGranularityChange },
+  { value, onChange, granularity, onGranularityChange, showGranularity = true },
   ref,
 ) {
   const [types, setTypes] = useState<TypeInfo[]>([]);
@@ -273,20 +275,22 @@ const LinkPicker = forwardRef<LinkPickerHandle, LinkPickerProps>(function LinkPi
               </div>
             )}
 
-            <label className="block text-[11px] text-gray-500">
-              Granularité
-              <select
-                value={granularity[type] ?? 'auto'}
-                onChange={(e) =>
-                  onGranularityChange({ ...granularity, [type]: e.target.value as Gran })
-                }
-                className="mt-0.5 w-full rounded-lg border border-gray-300 px-2 py-1 text-[11px]"
-              >
-                <option value="auto">Auto (l'agent décide)</option>
-                <option value="resource">Ressource entière</option>
-                <option value="chunk">Sections concernées</option>
-              </select>
-            </label>
+            {showGranularity && (
+              <label className="block text-[11px] text-gray-500">
+                Granularité
+                <select
+                  value={granularity[type] ?? 'auto'}
+                  onChange={(e) =>
+                    onGranularityChange({ ...granularity, [type]: e.target.value as Gran })
+                  }
+                  className="mt-0.5 w-full rounded-lg border border-gray-300 px-2 py-1 text-[11px]"
+                >
+                  <option value="auto">Auto (l'agent décide)</option>
+                  <option value="resource">Ressource entière</option>
+                  <option value="chunk">Sections concernées</option>
+                </select>
+              </label>
+            )}
           </div>
         );
       })}

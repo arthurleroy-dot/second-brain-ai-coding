@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Download } from 'lucide-react';
+import { ArrowLeft, Download, Pencil } from 'lucide-react';
 import { getSourceDetail } from '@/lib/wiki-query';
 import { resourceBodyForDisplay } from '@/lib/wiki-md';
 import { typeBadgeClass, typeLabel, formatDate } from '@/lib/ui';
@@ -86,6 +86,12 @@ export default async function SourceDetailPage({
           <ArrowLeft size={16} /> Sources
         </Link>
         <span className="truncate text-sm font-medium text-gray-900">{source.title}</span>
+        <Link
+          href={`/sources/${source.slug}/modifier`}
+          className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+        >
+          <Pencil size={13} /> Modifier les informations
+        </Link>
       </div>
 
       {isPdf ? (

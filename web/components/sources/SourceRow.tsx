@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ExternalLink, Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { Source } from '@/types';
 import { typeBadgeClass, typeLabel, formatDate } from '@/lib/ui';
 import DeleteSourceModal from '@/components/sources/DeleteSourceModal';
@@ -34,14 +34,19 @@ export default function SourceRow({
               {source.topics.length > 0 && <> · {source.topics.join(', ')}</>}
             </div>
           </div>
-          {source.url && (
-            <ExternalLink
-              size={14}
-              className="shrink-0 text-gray-400"
-              aria-label="Source externe disponible"
-            />
-          )}
         </div>
+      </Link>
+
+      {/* Modifier : Link SIBLING du Link de ligne (navigation propre, hors du Link de
+          détail), révélé au survol. Placé à gauche du bouton Supprimer. */}
+      <Link
+        href={`/sources/${source.slug}/modifier`}
+        aria-label="Modifier les informations de la ressource"
+        title="Modifier les informations de la ressource"
+        onClick={(e) => e.stopPropagation()}
+        className="absolute right-9 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-gray-300 opacity-0 transition hover:bg-gray-100 hover:text-gray-700 focus:opacity-100 group-hover:opacity-100"
+      >
+        <Pencil size={15} />
       </Link>
 
       {/* Suppression : bouton SIBLING du Link (hors navigation), révélé au survol. */}

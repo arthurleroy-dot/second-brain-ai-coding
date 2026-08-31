@@ -19,6 +19,8 @@ interface ThemePickerProps {
   onChange: (v: string[]) => void;
   granularity: Gran;
   onGranularityChange: (v: Gran) => void;
+  /** Masque le sélecteur de granularité (édition : tout traité en `auto`, cf. D4). */
+  showGranularity?: boolean;
 }
 
 // Normalisation légère pour le filtrage : minuscule + suppression des diacritiques
@@ -34,7 +36,7 @@ function norm(s: string): string {
  * liste de noms (l'agent slugifie et crée/relie selon docs/entities.md).
  */
 const ThemePicker = forwardRef<ThemePickerHandle, ThemePickerProps>(function ThemePicker(
-  { value, onChange, granularity, onGranularityChange },
+  { value, onChange, granularity, onGranularityChange, showGranularity = true },
   ref,
 ) {
   const [themes, setThemes] = useState<ThemeInfo[]>([]);
@@ -172,7 +174,7 @@ const ThemePicker = forwardRef<ThemePickerHandle, ThemePickerProps>(function The
         </p>
       )}
 
-      {value.length > 0 && (
+      {showGranularity && value.length > 0 && (
         <label className="block text-[11px] text-gray-500">
           Granularité
           <select
