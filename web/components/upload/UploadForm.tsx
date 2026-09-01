@@ -8,6 +8,7 @@ import IngestStatus from './IngestStatus';
 import LinkPicker, { LinksValue, Gran, LinkPickerHandle } from './LinkPicker';
 import ThemePicker, { ThemePickerHandle } from './ThemePicker';
 import ManageTypesModal from './ManageTypesModal';
+import { validateDateInput } from '@/lib/date-input';
 
 type Mode = 'paste' | 'upload';
 type TypeOpt = { slug: string; label: string };
@@ -46,7 +47,14 @@ export default function UploadForm() {
   // Champs partagés entre les deux onglets.
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
-  const [date, setDate] = useState('');
+  // Date de la source : PRÉ-REMPLIE à aujourd'hui, à CONFIRMER avant tout dépôt.
+  // `today` figé au montage (cf. D5 : UTC, cohérent serveur ; hydratation négligeable
+  // en contexte mono-machine Electron/dev). `dateConfirmed` verrouille le champ.
+  const [today] = useState(() => new Date().toISOString().slice(0, 10)); // 'AAAA-MM-JJ'
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dateConfirmed, setDateConfirmed] = useState(false);
+  const [dateError, setDateError] = useState<string | null>(null);
+  const [dateWarning, setDateWarning] = useState<string | null>(null); // futur, non bloquant
   const [depositedBy, setDepositedBy] = useState('');
   // Type : démarre sur Auto ('') — l'IA déduit le type du contenu (repli déterministe
   // `unknown`). Miroir du champ Origine « Auto ». Plus de défaut concret trompeur.
@@ -184,7 +192,10 @@ export default function UploadForm() {
     setMode('paste');
     setTitle('');
     setAuthor('');
-    setDate('');
+    setDate(today);
+    setDateConfirmed(false);
+    setDateError(null);
+    setDateWarning(null);
     // Type par défaut : Auto ('') — l'IA déduit (miroir de l'origine Auto). Plus de
     // défaut concret trompeur.
     setType(AUTO_TYPE);
@@ -202,6 +213,32 @@ export default function UploadForm() {
     setNewTypeOrigin('externe');
     setCreateError(null);
     clear();
+  };
+
+  // Toute modification de la valeur ANNULE la confirmation → la date déposée est
+  // toujours EXACTEMENT celle qui a été confirmée (impossible de confirmer puis changer).
+  const onDateChange = (v: string) => {
+    setDate(v);
+    setDateConfirmed(false);
+    setDateError(null);
+    setDateWarning(null);
+  };
+
+  const confirmDate = () => {
+    const res = validateDateInput(date, today);
+    if (!res.ok) {
+      setDateError(res.error);
+      setDateWarning(null);
+      return;
+    }
+    setDateError(null);
+    // Date future = avertissement orange NON bloquant (cas légitime : présentation à venir).
+    setDateWarning(res.isFuture ? 'Cette date est dans le futur — inhabituel pour une source.' : null);
+    setDateConfirmed(true); // verrouille le champ
+  };
+
+  const editDate = () => {
+    setDateConfirmed(false); // garde la valeur, redevient éditable
   };
 
   const submit = async () => {
@@ -223,6 +260,13 @@ export default function UploadForm() {
         return;
       }
       payloadFile = file;
+    }
+
+    // Garde date : le dépôt est BLOQUÉ tant que la date n'a pas été confirmée. Le bouton
+    // « Déposer » reste cliquable (cf. D2 / Nielsen Norman) — on affiche l'erreur au clic.
+    if (!dateConfirmed) {
+      setDateError('Vérifie et confirme la date avant de déposer.');
+      return;
     }
 
     setSubmitting(true);
@@ -542,16 +586,6 @@ export default function UploadForm() {
           />
         </label>
 
-        <label className="text-xs text-gray-600">
-          Date (optionnel — YYYY, YYYY-MM ou YYYY-MM-DD)
-          <input
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            placeholder="2026-06"
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
-          />
-        </label>
-
         {mode === 'paste' && type === 'article' && (
           <label className="text-xs text-gray-600">
             URL de l'article (optionnel)
@@ -595,6 +629,68 @@ export default function UploadForm() {
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
+
+      {/* Cadre Date mis en valeur, juste au-dessus de « Déposer » (D4 : lecture
+          « confirmer la date → déposer »). Bordures : rouge (erreur) / vert (confirmée)
+          / vert-marque (à confirmer). Classes dans components/** → scannées par Tailwind. */}
+      <div
+        className={[
+          'rounded-xl border-2 px-4 py-3',
+          dateError
+            ? 'border-red-500 bg-red-50'
+            : dateConfirmed
+              ? 'border-emerald-500 bg-emerald-50'
+              : 'border-[#0F6E56]/40 bg-[#F3FAF7]',
+        ].join(' ')}
+      >
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-gray-700">
+            📅 Date de la source
+            <span className="ml-1 font-normal text-gray-500">— requis</span>
+          </span>
+          {dateConfirmed ? (
+            <span className="text-xs font-medium text-emerald-700">✓ confirmée</span>
+          ) : (
+            <span className="text-xs text-gray-400">à confirmer</span>
+          )}
+        </div>
+
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            value={date}
+            onChange={(e) => onDateChange(e.target.value)}
+            readOnly={dateConfirmed}
+            placeholder="2026-06"
+            className={[
+              'w-full rounded-lg border px-3 py-1.5 text-sm',
+              dateConfirmed ? 'border-emerald-300 bg-white text-gray-500' : 'border-gray-300',
+            ].join(' ')}
+          />
+          {dateConfirmed ? (
+            <button
+              type="button"
+              onClick={editDate}
+              className="shrink-0 rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
+            >
+              Modifier
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={confirmDate}
+              className="shrink-0 rounded-lg bg-[#0F6E56] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#0c5a47]"
+            >
+              Confirmer
+            </button>
+          )}
+        </div>
+
+        <p className="mt-1 text-[11px] text-gray-400">
+          Format : AAAA · AAAA-MM · AAAA-MM-JJ. Corrige-la si la source est plus ancienne que le dépôt.
+        </p>
+        {dateWarning && <p className="mt-1 text-[11px] text-amber-600">⚠ {dateWarning}</p>}
+        {dateError && <p className="mt-1 text-xs text-red-600">⚠ {dateError}</p>}
+      </div>
 
       <div className="flex justify-end">
         <button

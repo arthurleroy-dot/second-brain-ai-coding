@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { typeLabel } from '@/lib/ui';
+import { validateDateInput } from '@/lib/date-input';
 import LinkPicker, { LinksValue, LinkPickerHandle } from '@/components/upload/LinkPicker';
 import ThemePicker, { ThemePickerHandle } from '@/components/upload/ThemePicker';
 
@@ -42,6 +43,7 @@ export default function EditForm({ slug, initial }: { slug: string; initial: Edi
   const [types, setTypes] = useState<TypeOpt[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [today] = useState(() => new Date().toISOString().slice(0, 10));
 
   const linkRef = useRef<LinkPickerHandle>(null);
   const themeRef = useRef<ThemePickerHandle>(null);
@@ -66,6 +68,16 @@ export default function EditForm({ slug, initial }: { slug: string; initial: Edi
 
   const submit = async () => {
     setError(null);
+    // Validation de FORMAT seule (pas de confirmation forcée en édition, cf. D3) : une
+    // ressource déjà ingérée a une date vérifiée ; on empêche juste d'en saisir une cassée.
+    const d = date.trim();
+    if (d) {
+      const res = validateDateInput(d, today);
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       // Ramasse les brouillons tapés mais non validés (`+`/Entrée) AVANT de bâtir le
