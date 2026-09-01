@@ -65,6 +65,41 @@ function main() {
     console.log(`[copy-standalone-assets] public/ copié → ${publicDst}`);
   }
 
+  // @napi-rs/canvas (module NATIF du rendu PDF→PNG) → <base>/node_modules/@napi-rs.
+  // POURQUOI copier à la main : `@napi-rs/canvas` est chargé par un `import()` DYNAMIQUE
+  // (via unpdf, cf. web/lib/pdf-render.ts) et déclaré `serverComponentsExternalPackages`
+  // (next.config.js) → le tracing nft de `next build` ne l'embarque PAS de façon fiable
+  // dans standalone/node_modules. Sans lui, la route /api/raw-image plante à l'exécution
+  // (« @napi-rs/canvas is not available »). On copie tout le scope `@napi-rs` (le package
+  // `canvas` + le sous-package binaire de la plateforme, ex. `canvas-darwin-arm64` /
+  // `canvas-win32-x64-msvc`). En CI, le binaire est celui du runner courant (matrice
+  // macos/windows native → `npm install` pose le bon `.node`), donc pas de cross-compile.
+  const napiSrc = path.join(repoRoot, 'web', 'node_modules', '@napi-rs');
+  if (fs.existsSync(napiSrc)) {
+    const napiDst = path.join(base, 'node_modules', '@napi-rs');
+    fs.rmSync(napiDst, { recursive: true, force: true });
+    fs.cpSync(napiSrc, napiDst, { recursive: true });
+    const nodeFiles = fs
+      .readdirSync(napiDst)
+      .flatMap((d) => {
+        const dir = path.join(napiDst, d);
+        return fs.existsSync(dir) && fs.statSync(dir).isDirectory()
+          ? fs.readdirSync(dir).filter((f) => f.endsWith('.node')).map((f) => `${d}/${f}`)
+          : [];
+      });
+    console.log(
+      `[copy-standalone-assets] @napi-rs copié → ${path.relative(repoRoot, napiDst)} ` +
+        `(binaire(s) : ${nodeFiles.length ? nodeFiles.join(', ') : 'AUCUN ✗'})`,
+    );
+    if (nodeFiles.length === 0) {
+      console.error('[copy-standalone-assets] ⚠ aucun binaire .node @napi-rs — le rendu PDF cassera.');
+      process.exit(1);
+    }
+  } else {
+    console.error(`[copy-standalone-assets] Manquant : ${napiSrc} (lance \`npm --prefix web install\`)`);
+    process.exit(1);
+  }
+
   console.log(
     `[copy-standalone-assets] OK — base=${path.relative(repoRoot, base)} ; ` +
       `.next/static copié (${path.relative(repoRoot, staticDst)}).`,

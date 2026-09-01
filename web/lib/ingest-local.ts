@@ -7,7 +7,8 @@ import { extractText, getDocumentProxy } from 'unpdf';
 import mammoth from 'mammoth';
 import JSZip from 'jszip';
 import { DATA_ROOT, RAW_ROOT, readRepoFile, applyFileOps, listWikiDir } from '@/lib/wiki-fs';
-import { getAnthropic, getModel } from '@/lib/claude';
+import { getAnthropic, getModel, getVisionModel } from '@/lib/claude';
+import { runVisionPass } from '@/lib/vision-ingest';
 import { slugify, listTypeRegistry, listTypeRegistryFull } from '@/lib/wiki-parser';
 import { typeLabel, BUILTIN_TYPE_ORIGIN } from '@/lib/ui';
 import { OriginValue } from '@/types';
@@ -445,6 +446,23 @@ export interface GenResult {
 
 /** Barème Sonnet 4.5 (USD / 1M tokens) — cf. spec §R8. */
 const RATE = { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 };
+/** Barème Haiku 4.5 (USD / 1M tokens) — passe vision (tokens image compris dans input). */
+const RATE_HAIKU = { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 };
+
+/** Barème indexé par modèle (heuristique sur le nom : « haiku » → barème Haiku). */
+function rateForModel(model: string): typeof RATE {
+  return /haiku/i.test(model) ? RATE_HAIKU : RATE;
+}
+
+/** Coût d'un usage AU BARÈME DU MODÈLE donné (généralise estimateCost à la passe vision). */
+export function estimateCostFor(model: string, u: Usage): number {
+  const r = rateForModel(model);
+  const inTok = u.input_tokens ?? 0;
+  const outTok = u.output_tokens ?? 0;
+  const cw = u.cache_creation_input_tokens ?? 0;
+  const cr = u.cache_read_input_tokens ?? 0;
+  return (inTok * r.input + outTok * r.output + cw * r.cacheWrite + cr * r.cacheRead) / 1_000_000;
+}
 
 export function estimateCost(u: Usage): number {
   const inTok = u.input_tokens ?? 0;
@@ -1155,6 +1173,7 @@ export async function runIngestion(): Promise<void> {
     const multi = pending.length > 1;
 
     const today = nowIso().slice(0, 10);
+    const visionModel = getVisionModel();
     const registries = await loadRegistries();
     const staticPrompt = await fs.readFile(PROMPT_PATH, 'utf-8');
     // Système = prompt statique + registre des TYPES connus + snapshot registres
@@ -1175,8 +1194,24 @@ export async function runIngestion(): Promise<void> {
       const lbl = (base: string) => (multi ? `${file} — ${base}` : base);
       try {
         phase('extract', lbl('Extraction du texte'), file);
-        const raw = await extractSourceText(file);
-        if (!raw.trim()) throw new Error(`Extraction vide pour ${file}`);
+        // PDF : passe VISION (Étape A) — extraction PAR PAGE + aiguillage + Haiku sur les
+        // pages visuelles → string assemblée. Autres formats : extraction texte simple.
+        // Le garde-fou « texte vide » ne s'applique qu'APRÈS la vision (page 100 % image →
+        // OCR Haiku la récupère). Coût vision cumulé au barème du visionModel.
+        let raw: string;
+        let visionCost = 0;
+        if (path.extname(file).toLowerCase() === '.pdf') {
+          phase('vision', lbl('Lecture des visuels'), file);
+          const vp = await runVisionPass(file, { model: visionModel, log });
+          raw = vp.raw;
+          for (const c of vp.costs) visionCost += c.gatewayCost ?? estimateCostFor(visionModel, c.usage);
+          if (vp.routed.length)
+            log(`[${file}] vision : ${vp.routed.length}/${vp.totalPages} page(s) routée(s) → coût vision $${visionCost.toFixed(4)}`);
+        } else {
+          raw = await extractSourceText(file);
+        }
+        if (!raw.trim())
+          throw new Error(`Aucun texte extractible de « ${file} » (document scanné ou vide, y compris après la passe vision).`);
         const sidecarText = await readRawSidecar(file);
         const sidecar = parseSidecar(sidecarText);
         const { declaredEntities, declaredThemes } = resolveDeclarations(sidecar, registries);
@@ -1184,13 +1219,15 @@ export async function runIngestion(): Promise<void> {
 
         phase('analyze', lbl("Analyse et rédaction par l'IA"), file);
         const gen = await callModel(system, user, (d) => events.emitDelta(d));
-        const cost = gen.gatewayCost ?? estimateCost(gen.usage);
+        const modelCost = gen.gatewayCost ?? estimateCost(gen.usage);
+        const cost = modelCost + visionCost;
         totalCost += cost;
         perFile.push({ file, costUsd: Number(cost.toFixed(6)) });
         log(
           `[${file}] in=${gen.usage.input_tokens} out=${gen.usage.output_tokens} ` +
             `cache_read=${gen.usage.cache_read_input_tokens ?? 0} cache_write=${gen.usage.cache_creation_input_tokens ?? 0} ` +
-            `→ coût ${gen.gatewayCost != null ? 'gateway' : 'estimé'} $${cost.toFixed(4)}`,
+            `→ coût modèle ${gen.gatewayCost != null ? 'gateway' : 'estimé'} $${modelCost.toFixed(4)}` +
+            (visionCost > 0 ? ` + vision $${visionCost.toFixed(4)} = $${cost.toFixed(4)}` : ''),
         );
 
         phase('project', lbl('Structuration de la fiche'), file);

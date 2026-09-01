@@ -169,7 +169,8 @@ passe de ~6,64 $ à **~0,12 $/ressource**. `runIngestion()` :
   tout se fait **sur la machine, gratuitement, en pur JavaScript** ; on n'envoie que le
   texte au modèle, jamais le binaire :
   - `.md`/`.txt` : lus directement.
-  - `.pdf` : `unpdf`.
+  - `.pdf` : `unpdf`, **par page** (`extractText(pdf, {mergePages:false})`), pour
+    alimenter la passe vision ci-dessous.
   - `.docx` (Word) : `mammoth` (`extractRawText`) — paragraphes, titres, listes, tableaux.
   - `.pptx` (PowerPoint) : `jszip` ouvre l'archive OOXML ; on lit les diapos
     `ppt/slides/slideN.xml` **dans l'ordre numérique**, on concatène le texte des `<a:t>`
@@ -180,9 +181,40 @@ passe de ~6,64 $ à **~0,12 $/ressource**. `runIngestion()` :
     produire une page vide ou de gâcher un appel IA — typiquement un **document scanné /
     composé d'images**. (Ne s'applique PAS aux `.md`/`.txt` : un fichier texte vide reste
     valide.)
-  - **Limites** : pas d'**OCR** (texte à l'intérieur d'images ou PDF scanné non lu), et
-    pour un `.pptx` on extrait le **texte** des zones de texte et des notes, pas la
-    fidélité visuelle (schémas, disposition, texte gravé dans une image).
+  - **Limites** : pour un `.pptx` on extrait le **texte** des zones de texte et des
+    notes, pas la fidélité visuelle (schémas, disposition, texte gravé dans une image) —
+    la passe vision est **PDF uniquement** en v1 (PPTX reporté).
+- **Passe VISION du PDF — deux étapes, deux modèles** (`web/lib/vision-ingest.ts`, cf.
+  `tasks/specs/2026-09-01-ingestion-vision-pdf.md`). Les schémas, tableaux-images,
+  courbes, timelines et pages **scannées** sont perdus par l'extraction texte. La passe
+  vision les récupère **page par page**, à coût minimal :
+  - **Étape A — aiguillage gratuit + Haiku sur les pages visuelles.** Pour chaque page :
+    3 signaux pdf.js (aucun appel IA) — (1) couche texte quasi-vide, (2) grosse image
+    matricielle > 40 % de la page, (3) motif « schéma » (beaucoup de tracé vectoriel +
+    fragments texte courts) — décident si la page est « visuelle ». Sur ces pages
+    seulement : rendu PNG (`@napi-rs/canvas`) + appel au **modèle vision le moins cher**
+    (`visionModel`, défaut **`claude-haiku-4-5`**, réglable) qui renvoie un fragment
+    markdown : OCR **verbatim** du texte non extrait et/ou **bloc figure** (§2.3 bis de
+    [wiki-spec.md](wiki-spec.md)). Assemblage d'une string page-ordonnée.
+  - **Étape B — ingestion habituelle, texte seul.** La string assemblée passe dans
+    l'appel `callModel` existant : l'IA d'ingestion **reproduit les blocs figure
+    verbatim** et leur **ajoute les annotations `topics:`/`entities:`** (elle a le
+    registre), exactement comme pour toute section. La vision n'agit que sur la string
+    `raw` en amont ; tout le pipeline aval (projection, graphe, vues) est inchangé.
+  - **Coût** : ~0,0016 $ d'entrée/page (Haiku, ~1600 tokens image) → un deck ~14 pages
+    ≈ 0,05 $, cumulé au coût d'ingestion. **Tolérance aux pannes** : un échec d'appel
+    vision (modèle non routé, timeout) laisse la page en texte seul sans faire échouer le
+    document. Le garde-fou « texte vide » ne se déclenche qu'**après** la vision.
+  - **Rendu d'image à la demande** : la route `GET /api/raw-image/<fichier>?page=N`
+    (`web/app/api/raw-image/[...file]/route.ts`) rend le PNG d'une page à la volée (rien
+    n'est stocké ; `raw/` reste l'unique vérité). C'est ce que charge le navigateur pour
+    la ligne image d'un bloc figure — dans le chat comme sur la fiche.
+  - **Rattrapage page par page** : `POST /api/resource/<slug>/revise-figures {pages:[…]}`
+    re-traite en vision **uniquement** les pages demandées et greffe/remplace leur bloc
+    figure (ancre = l'URL image `?page=N`) — depuis la fiche ressource (PDF gauche /
+    transcription droite), quand l'aiguillage a raté une page ou mal transcrit une figure.
+  - **Toujours pas d'OCR généraliste hors PDF** : un `.docx`/`.pptx` scanné n'est pas
+    OCRisé (mammoth/jszip ne rendent que du texte).
 - **L'unique appel IA** (`callModel`) : `anthropic.messages.create` via le client
   partagé `getAnthropic()` (`web/lib/claude.ts`, auth `x-api-key`, cf.
   [platform.md](platform.md) §6). Le **prompt système** = `prompts/ingest-prompt.md`

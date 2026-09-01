@@ -73,11 +73,31 @@ Le sidecar de métadonnées (s'il est fourni) **fait autorité** : reprends-en
    listes, tableaux) le texte de la source **tel quel** ; recolle les mots coupés en
    fin de ligne ; retire uniquement les scories d'extraction (numéros de page,
    en-têtes/pieds de page répétés). **N'ajoute, ne reformule, ne résume, ne traduis,
-   ne corrige RIEN d'autre.**
+   ne corrige RIEN d'autre.** *(Seule exception à « retire les numéros de page » : le
+   `?page=N` de la ligne image d'un bloc figure — voir « Blocs figure » ci-dessous — se
+   conserve tel quel : c'est une ancre, pas une scorie.)*
 
-Le blockquote de navigation (point 1) et les annotations `topics:`/`entities:` par
-section (point 2) sont les **SEULS** ajouts structurels autorisés. Tout le reste du
-corps est le texte de la source, mot pour mot.
+Le blockquote de navigation (point 1), les annotations `topics:`/`entities:` par
+section (point 2) **et les blocs figure déjà présents dans le texte fourni** (voir
+ci-dessous) sont les **SEULS** ajouts structurels autorisés. Tout le reste du corps est
+le texte de la source, mot pour mot.
+
+## Blocs figure (passe vision) — reproduis-les tels quels et annote-les
+
+Le texte fourni peut déjà contenir des **blocs figure** produits en amont par la passe
+vision (lecture des schémas/tableaux-images/timelines d'un PDF). Un bloc figure est une
+section `##` reconnaissable à sa **légende marquée « description machine, non-verbatim »**
+suivie d'une ligne image `![…](/api/raw-image/…?page=N)`. Pour chacun :
+
+- **Reproduis-le VERBATIM** : ne reformule NI la légende, NI les étiquettes du « Texte
+  littéral », NI la représentation (tableau/liste/structure) ; **n'altère PAS la ligne
+  image** (garde l'URL `![…](/api/raw-image/<fichier>?page=N)` mot pour mot, `page=N`
+  compris). Ne fusionne pas, ne réordonne pas, ne « nettoie » pas un bloc figure.
+- **Ajoute-lui les annotations** `topics:`/`entities:` sous son heading, **comme pour
+  toute section** (mêmes formes exactes, mêmes règles de détection ci-dessous) : un bloc
+  figure est une section indexable, il doit porter ses thèmes/entités.
+- Le marqueur « description machine, non-verbatim » et la référence de page sont
+  **autorisés** (ce sont des repères structurels de la passe vision) — ne les supprime pas.
 
 **Ligne rouge — nettoyage ≠ reformulation.** Le « nettoyage » se limite à (a) retirer
 les scories non-contenu (numéros de page, en-têtes/pieds répétés) et (b) recoller les

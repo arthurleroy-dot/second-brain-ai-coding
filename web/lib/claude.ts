@@ -31,6 +31,11 @@ export function getModel(): string {
   return getAiSettings().model;
 }
 
+/** Modèle de la passe vision (défaut Haiku) — cf. ai-settings.visionModel. */
+export function getVisionModel(): string {
+  return getAiSettings().visionModel;
+}
+
 export function isClaudeConfigured(): boolean {
   return Boolean(getAiSettings().apiKey);
 }

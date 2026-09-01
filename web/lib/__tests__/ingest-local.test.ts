@@ -105,6 +105,23 @@ test('estimateCost applique le barème Sonnet §R8', async () => {
   assert.ok(Math.abs(c2 - 0.12) < 1e-9, `attendu 0,12 $, obtenu ${c2}`);
 });
 
+test('estimateCostFor : barème Haiku pour la passe vision, Sonnet inchangé sinon', async () => {
+  const { estimateCostFor, estimateCost } = await load();
+  // Haiku : 1M input → 1 $ (input = 1 $/1M).
+  assert.ok(Math.abs(estimateCostFor('claude-haiku-4-5', { input_tokens: 1_000_000, output_tokens: 0 }) - 1.0) < 1e-9);
+  // Haiku barème complet : 1M×(1+5+1,25+0,10) = 7,35 $.
+  const full = estimateCostFor('claude-haiku-4-5', {
+    input_tokens: 1_000_000,
+    output_tokens: 1_000_000,
+    cache_creation_input_tokens: 1_000_000,
+    cache_read_input_tokens: 1_000_000,
+  });
+  assert.ok(Math.abs(full - 7.35) < 1e-9, `attendu 7,35 $, obtenu ${full}`);
+  // Modèle non-haiku : identique à estimateCost (barème Sonnet).
+  const u = { input_tokens: 15_000, output_tokens: 5_000 };
+  assert.ok(Math.abs(estimateCostFor('claude-sonnet-4-5', u) - estimateCost(u)) < 1e-9);
+});
+
 test('consumeModelStream : re-capte usage + rawText + deltas (non-régression coût §4)', async () => {
   const { consumeModelStream, estimateCost, parseGeneration } = await load();
 

@@ -420,6 +420,16 @@ RÈGLES DE RÉPONSE :
 - Si la question fixe une facette (date, auteur, entité, thème, origine, type), ta réponse ET ta ligne
   SOURCES ne doivent contenir QUE des ressources qui respectent TOUTES ces facettes — écarte
   silencieusement les autres (mauvaise année, mauvais auteur…).
+- IMAGES / FIGURES (IMPORTANT) : certaines sections de fiches sont des « blocs figure »
+  (schéma, organigramme, tableau-image, timeline, planning d'un PDF) et contiennent une ligne
+  markdown image de la forme \`![légende](/api/raw-image/<fichier>?page=N)\`. **Dès qu'une
+  section que tu exploites pour ta réponse contient une telle ligne image, tu DOIS l'inclure
+  dans ta réponse** : recopie-la EXACTEMENT (URL inchangée), placée près du passage concerné.
+  L'utilisateur veut VOIR la figure sans avoir à la redemander — ne demande jamais « veux-tu
+  l'image ? », ne l'omets pas, n'attends pas qu'on te la réclame. (Ex. : une question sur le
+  budget, le planning ou l'architecture dont la donnée vient d'un bloc figure → inclus l'image
+  de ce bloc.) Ne fabrique JAMAIS d'URL d'image ; n'inclus que des lignes image réellement
+  présentes dans une fiche ouverte via \`read_wiki_page\`.
 - Termine TOUJOURS ta réponse par une ligne dédiée :
   SOURCES: [{"slug":"...","title":"...","type":"...","author":"...","date":"..."}]
   N'y mets QUE des fiches (resources/<slug>.md) réellement OUVERTES avec read_wiki_page pendant

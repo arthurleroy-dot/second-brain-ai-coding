@@ -60,9 +60,19 @@ tasks/   ← todo.md + lessons.md + specs/ (plans validés → implémentation)
 6. **Verbatim** : une ressource reproduit le texte de la source **mot pour mot**,
    dans sa langue d'origine. L'IA met en markdown ; elle ne reformule, ne résume, ne
    traduit ni n'ajoute jamais. Seuls ajouts autorisés = repères structurels
-   (blockquote de navigation, annotations `topics:`/`entities:` par section) ; seul
-   « nettoyage » = retirer les scories d'extraction (n° de page, en-têtes/pieds
-   répétés) et recoller les mots coupés en fin de ligne.
+   (blockquote de navigation, annotations `topics:`/`entities:` par section, **et le
+   « bloc figure »** — voir ci-dessous) ; seul « nettoyage » = retirer les scories
+   d'extraction (n° de page, en-têtes/pieds répétés) et recoller les mots coupés en
+   fin de ligne. **Exception « bloc figure » (passe vision PDF, cf.
+   `tasks/specs/2026-09-01-ingestion-vision-pdf.md`)** : une figure d'un PDF (schéma,
+   tableau-image, courbe, timeline, organigramme) que l'extraction texte ne capte pas
+   est décrite par un **bloc figure** = une section `##` portant une légende
+   **explicitement marquée « description machine, non-verbatim »**, une ligne image
+   `![…](/api/raw-image/<fichier>?page=N)` et une transcription verbatim des
+   étiquettes. Ce bloc et **sa référence de page** sont l'unique contenu autorisé à
+   sortir du strict verbatim (leur `page=N` échappe donc à la consigne « retirer les
+   numéros de page ») — parce qu'il est signalé comme tel. Tout le reste du corps
+   demeure verbatim.
 
 ## Où lire quoi
 

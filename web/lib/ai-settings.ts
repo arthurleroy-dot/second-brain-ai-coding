@@ -22,12 +22,18 @@ import { DATA_ROOT } from '@/lib/wiki-fs';
 
 const SETTINGS_PATH = path.join(DATA_ROOT, '.data', 'ai-settings.json');
 export const DEFAULT_MODEL = 'claude-sonnet-4-5';
+// Modèle de la PASSE VISION (lecture des images de PDF). Isolé sur le moins cher
+// avec vision (Haiku) : les tokens image sont le poste coûteux. Réglable pour escalade
+// (Sonnet) ou si une gateway ne route pas Haiku. Exposition UI /reglages reportée (v2).
+export const DEFAULT_VISION_MODEL = 'claude-haiku-4-5';
 export const ANTHROPIC_DIRECT_URL = 'https://api.anthropic.com';
 
 export interface AiSettings {
   apiKey: string;
   baseUrl: string;
   model: string;
+  /** Modèle de la passe vision (défaut Haiku). Vit dans le même store que `model`. */
+  visionModel: string;
 }
 
 // Lecture SYNCHRONE (readFileSync) : appelée par getAnthropic()/getModel() à chaque
@@ -39,6 +45,7 @@ function readStore(): AiSettings | null {
       apiKey: typeof s.apiKey === 'string' ? s.apiKey : '',
       baseUrl: typeof s.baseUrl === 'string' ? s.baseUrl : '',
       model: typeof s.model === 'string' ? s.model : '',
+      visionModel: typeof s.visionModel === 'string' ? s.visionModel : '',
     };
   } catch {
     return null;
@@ -57,11 +64,13 @@ export function getAiSettings(): AiSettings {
       apiKey: process.env.ANTHROPIC_API_KEY ?? '',
       baseUrl: process.env.ANTHROPIC_BASE_URL ?? '',
       model: process.env.ANTHROPIC_MODEL || DEFAULT_MODEL,
+      visionModel: process.env.ANTHROPIC_VISION_MODEL || DEFAULT_VISION_MODEL,
     };
   return {
     apiKey: s.apiKey || process.env.ANTHROPIC_API_KEY || '',
     baseUrl: s.baseUrl ?? '',
     model: s.model || process.env.ANTHROPIC_MODEL || DEFAULT_MODEL,
+    visionModel: s.visionModel || process.env.ANTHROPIC_VISION_MODEL || DEFAULT_VISION_MODEL,
   };
 }
 
@@ -117,6 +126,9 @@ export async function saveAiSettings(patch: {
     apiKey: patch.apiKey && patch.apiKey.trim() ? patch.apiKey.trim() : cur?.apiKey ?? '',
     baseUrl: patch.baseUrl ?? '',
     model: patch.model && patch.model.trim() ? patch.model.trim() : DEFAULT_MODEL,
+    // Non exposé par /reglages (v1) : on PRÉSERVE la valeur du store (ou défaut Haiku)
+    // pour qu'un enregistrement des réglages ne l'efface pas.
+    visionModel: cur?.visionModel && cur.visionModel.trim() ? cur.visionModel.trim() : DEFAULT_VISION_MODEL,
   };
   await writeJsonAtomic(SETTINGS_PATH, next);
 }

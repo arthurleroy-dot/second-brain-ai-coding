@@ -37,9 +37,27 @@ exports.default = async function afterPack(context) {
   fs.cpSync(src, dst, { recursive: true });
 
   const hasNext = fs.existsSync(path.join(dst, 'node_modules', 'next'));
+  // Binaire natif du rendu PDF→PNG : DOIT être dans standalone/node_modules (copié par
+  // copy-standalone-assets.js). Sans lui, /api/raw-image plante dans l'app packagée →
+  // on échoue AVANT de fabriquer l'installeur (le point de risque de la spec vision).
+  const canvasDir = path.join(dst, 'node_modules', '@napi-rs', 'canvas');
+  const hasCanvas = fs.existsSync(canvasDir);
+  const canvasBinaries = hasCanvas
+    ? fs
+        .readdirSync(path.join(dst, 'node_modules', '@napi-rs'))
+        .flatMap((d) => {
+          const dir = path.join(dst, 'node_modules', '@napi-rs', d);
+          return fs.statSync(dir).isDirectory()
+            ? fs.readdirSync(dir).filter((f) => f.endsWith('.node'))
+            : [];
+        })
+    : [];
   console.log(
     `[after-pack] standalone copié → ${dst} ` +
-      `(node_modules/next ${hasNext ? 'présent ✓' : 'ABSENT ✗'})`,
+      `(node_modules/next ${hasNext ? 'présent ✓' : 'ABSENT ✗'} · ` +
+      `@napi-rs/canvas ${canvasBinaries.length ? `présent ✓ [${canvasBinaries.join(', ')}]` : 'ABSENT ✗'})`,
   );
   if (!hasNext) throw new Error('[after-pack] node_modules/next manquant après copie');
+  if (canvasBinaries.length === 0)
+    throw new Error('[after-pack] binaire natif @napi-rs/canvas manquant — /api/raw-image cassera dans l’app packagée');
 };

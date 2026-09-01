@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Download, Pencil } from 'lucide-react';
+import { ArrowLeft, Pencil } from 'lucide-react';
 import { getSourceDetail } from '@/lib/wiki-query';
 import { resourceBodyForDisplay } from '@/lib/wiki-md';
 import { typeBadgeClass, typeLabel, formatDate } from '@/lib/ui';
 import FullContentProse from '@/components/sources/FullContentProse';
 import OriginalLinkButton from '@/components/sources/OriginalLinkButton';
+import ReviseFigures from '@/components/sources/ReviseFigures';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +24,6 @@ export default async function SourceDetailPage({
 
   const { source, body, rawFile, isPdf } = detail;
   const display = resourceBodyForDisplay(body);
-  const viewUrl = isPdf && rawFile ? rawUrl(rawFile) : null;
   const downloadUrl = isPdf && rawFile ? rawUrl(rawFile, true) : null;
   // « Voir l'original » : uniquement pour un article/texte (pas de PDF embarqué).
   const isTextArticle = !isPdf;
@@ -97,17 +97,9 @@ export default async function SourceDetailPage({
       {isPdf ? (
         // PDF : visualiseur à gauche, contenu (verbatim) + métadonnées à droite.
         <div className="flex flex-1 overflow-hidden">
-          <div className="relative w-[60%] overflow-hidden border-r border-gray-200 bg-gray-50">
-            {downloadUrl && (
-              <a
-                href={downloadUrl}
-                className="absolute right-4 top-4 z-10 flex items-center gap-1.5 rounded-lg bg-white/95 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm ring-1 ring-gray-200 hover:bg-white"
-              >
-                <Download size={14} /> Télécharger
-              </a>
-            )}
-            {viewUrl && (
-              <iframe src={viewUrl} title={source.title} className="h-full w-full border-0" />
+          <div className="w-[60%] overflow-hidden border-r border-gray-200 bg-gray-50">
+            {rawFile && (
+              <ReviseFigures slug={source.slug} sourceFile={rawFile} downloadUrl={downloadUrl} />
             )}
           </div>
           <div className="w-[40%] overflow-y-auto px-6 py-6">

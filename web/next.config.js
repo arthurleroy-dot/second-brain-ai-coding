@@ -9,7 +9,10 @@ const nextConfig = {
   output: 'standalone',
   experimental: {
     // gray-matter (parsing frontmatter markdown) gardé hors du bundling agressif.
-    serverComponentsExternalPackages: ['gray-matter'],
+    // @napi-rs/canvas : module NATIF (.node) chargé dynamiquement par unpdf pour le
+    // rendu PDF→PNG (pdf-render.ts). Webpack ne peut pas bundler un binaire natif →
+    // il DOIT rester externe, sinon `import('@napi-rs/canvas')` casse au build/exec.
+    serverComponentsExternalPackages: ['gray-matter', '@napi-rs/canvas'],
     // Racine de tracing FIXÉE au dossier web/. Sans ça, l'ajout d'un package.json à la
     // racine du dépôt (coquille Electron) ferait remonter la racine de tracing d'un cran
     // et imbriquerait la sortie sous standalone/web/server.js (+ risquerait d'aspirer les

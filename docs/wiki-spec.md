@@ -94,12 +94,40 @@ Contenu de la section...
 La ligne `entities:` est optionnelle et n'apparaît que sur les sections qui
 mentionnent effectivement une entité du registre (voir [entities.md](entities.md)).
 
+#### 2.3 bis Bloc figure (passe vision PDF)
+
+Une figure d'un PDF (schéma, tableau-image, courbe, timeline, organigramme) que
+l'extraction texte ne capte pas est représentée par un **bloc figure** = une section
+`##` normale (indexée comme les autres), au format suivant :
+
+```markdown
+## {Titre court de la figure}
+`topics: [slug…]`
+`entities: [slug…]`
+
+{Phrase de légende terminée par un point.} *(Figure — description machine, page {N} de la source, non-verbatim.)*
+
+![{Titre}](/api/raw-image/{fichier}?page={N})
+
+**Texte littéral :** « {label1} » · « {label2} » · …
+
+{Représentation selon le type : tableau markdown | liste de phases | « A → B → C » | axes+forme}
+```
+
+- La **1ʳᵉ ligne de prose** DOIT être la légende terminée par un point (→ `takeaway` propre).
+- La ligne `![…](/api/raw-image/{fichier}?page={N})` est l'**ancre de page** du rattrapage
+  (§ rattrapage) ; `{fichier}` = `source_file` exact.
+- La passe vision (Haiku) émet le bloc **sans** annotations `topics:`/`entities:` ; c'est
+  l'IA d'ingestion qui les ajoute (elle a le registre), comme pour toute section.
+
 ### 2.4 Contenu
 
 - **Intégral et fidèle** : reproduire toute l'information, chaque chiffre, chaque
   exemple, chaque citation nommée. **Verbatim : recopie mot pour mot, même langue.**
   Reformulation/résumé/traduction/ajout interdits ; seuls le nettoyage des scories
-  d'extraction et la mise en markdown sont permis.
+  d'extraction, la mise en markdown, **et le bloc figure marqué « description machine »
+  (§2.3 bis)** sont permis. Le `page=N` d'un bloc figure est la SEULE référence de page
+  conservée (le reste des numéros de page = scorie à retirer).
 - Pas de résumé court : une source longue → une page longue.
 
 ---

@@ -15,6 +15,104 @@ Format :
 
 ---
 
+## 2026-09-01 — Vision PDF, retours d'usage : image chat par DÉFAUT + sélection par cases à cocher
+**Contexte :** après livraison de la passe vision, Arthur a testé en vrai. Deux corrections.
+**Corrections :**
+1. **L'image d'un chunk doit apparaître SANS qu'on la redemande.** Ma consigne chat était timide
+   (« quand une figure *aide* à répondre, réémets sa ligne image ») avec l'exemple « montre-moi
+   l'organigramme » → l'agent l'a lue comme « seulement si l'utilisateur réclame l'image » : il a
+   répondu le budget en texte, puis n'a montré la figure qu'après « montre-moi la photo ».
+   → Rendu la consigne IMPÉRATIVE et par défaut : « Dès qu'une section que tu exploites contient
+   une ligne image `![](/api/raw-image/…)`, tu DOIS l'inclure ; ne demande jamais, ne l'omets pas. »
+2. **Sélection des pages à rattraper = cases à cocher POSÉES SUR LES PAGES.** Taper « 7, 12 » est
+   impraticable ; Arthur veut cocher directement la page qu'il regarde. (C'était la v2 reportée par
+   la spec — il la voulait tout de suite.) 1re version : cases dans un panneau séparé à droite →
+   refusée (« les cases doivent être sur les pages elles-mêmes »). Contrainte technique : on **ne
+   peut pas** superposer des contrôles sur le **visualiseur PDF natif** (`<iframe>` `/api/raw`, boîte
+   fermée). Solution retenue (validée par Arthur) : **remplacer l'`<iframe>` par une colonne
+   d'IMAGES de pages** (`/api/raw-image?page=N`), une case posée sur chaque page (clic sur la page =
+   coche), point orange si figure déjà présente, bouton « Re-traiter » collant en haut. GET de
+   l'endpoint renvoie `{totalPages, figurePages}`. Compromis assumé : plus de zoom/sélection-texte
+   natifs → bouton « Télécharger » conservé pour le vrai PDF.
+**Règles :**
+- Pour un comportement « montre l'artefact » (image, fichier, aperçu), écrire une instruction
+  **impérative et par défaut**, pas conditionnelle (« aide à répondre » ⇒ le modèle attend qu'on
+  réclame). Un exemple du type « montre-moi X » dans le prompt PRIME l'idée « seulement sur demande » :
+  éviter, ou l'accompagner du cas « même sans demande explicite ».
+- Une action « choisir dans une liste finie » (ici : quelles pages) est plus ergonomique en
+  **cases à cocher** qu'en champ texte à parser. Et « choisir en regardant le contenu » veut dire
+  la case **sur l'élément lui-même**, pas dans un panneau à côté. Corollaire : on ne peut RIEN
+  superposer sur un **PDF affiché en `<iframe>` natif** ; pour poser des contrôles sur les pages,
+  rendre les pages en **images** (route de rendu à la demande) et dessiner par-dessus.
+
+## 2026-09-01 — Ne pas inventer de complexité pour un problème que l'instinct simple d'Arthur dissout
+**Contexte :** en concevant l'index de chunks, j'ai (1) sur-signalé un « risque n°1 »
+(sections mal annotées introuvables) alors que c'est une propriété **préexistante** de tout
+le système de tags, pas un défaut de la refonte ; (2) échafaudé deux règles de découpe
+concurrentes (A « par niveau » vs B « héritage d'annotations ») pour gérer le cas d'un `##`
+parent au corps vide — problème né de MON choix d'indexer `##`+`###`.
+**Correction :** Arthur a repris les deux points : « je ne comprends pas pourquoi ce problème
+apparaît avec cette refonte » puis « je veux garder le même chunking, les chunks sont donnés
+par `##` ». Découper au `##` seul **fait disparaître** le cas vide → plus de A/B.
+**Règle :** avant de proposer un mécanisme (règle, option, garde-fou), vérifier s'il ne
+répond pas à un problème que MON propre design a créé — un cadrage plus simple le dissout
+souvent. Et distinguer un **risque nouveau** introduit par un changement d'une **condition
+préexistante** : ne pas facturer au changement ce qui existait déjà. Défaut = suivre
+l'instinct simple d'Arthur, argumenter seulement si la simplicité coûte vraiment quelque chose.
+
+## 2026-09-01 — Vision PDF : rendu unpdf, module natif en standalone, aiguillage, config Haiku
+**Contexte :** implémentation de la passe vision (schémas/tableaux d'un PDF lus par Haiku).
+Quatre écarts par rapport à la spec, tous résolus et prouvés.
+**Écarts & règles :**
+1. **`renderPageAsImage` d'unpdf en Node** exige (a) `canvasImport: () => import('@napi-rs/canvas')`
+   passé EXPLICITEMENT, et (b) que le PDF soit fourni **en octets bruts** OU via un proxy créé
+   AVEC un `CanvasFactory` adossé au canvas natif (`createIsomorphicCanvasFactory`). Un proxy
+   « nu » (`getDocumentProxy(bytes)`, celui de l'extraction texte) fait retomber pdfjs sur son
+   canvas interne stubué → `Error: @napi-rs/canvas is not available in this environment` dès
+   qu'une page dessine un motif. D'où `openPdf()` (`web/lib/pdf-render.ts`) : un SEUL parse
+   équipé du bon factory, réutilisable pour extraction + aiguillage + rendu.
+2. **Module natif `.node` en Next standalone** : `@napi-rs/canvas` est chargé par `import()`
+   DYNAMIQUE (via unpdf) → le tracing nft de `next build` ne l'embarque PAS de façon fiable dans
+   `standalone/node_modules`. Solution = même patron que la leçon 2026-07-21 (electron-builder
+   saute les node_modules) : **copie manuelle** du scope `@napi-rs` dans `copy-standalone-assets.js`
+   + garde-fou `after-pack.js` qui échoue si le binaire manque. **`asarUnpack` NE s'applique PAS**
+   ici : le serveur Next tourne depuis `Resources/standalone/` (process Node séparé), pas depuis
+   l'asar — le natif doit être dans `standalone/node_modules`, pas désasarisé. Le binaire est
+   celui du runner (matrice CI macos/windows native → `npm install` pose le bon `.node`), donc
+   pas de cross-compile à forcer. Aussi : externaliser dans `serverComponentsExternalPackages`
+   (webpack ne peut pas bundler un `.node`).
+3. **Seuils d'aiguillage calibrés** sur le deck Erget (14 p., diagrammes) : `TEXT_MIN=20`,
+   `IMG_AREA_FRAC=0.4`, `PATH_MIN=40` (+ `MIN_TEXT_ITEMS=30`, `MAX_AVG_ITEM_LEN=18` pour le
+   signal « schéma »). Résultat mesuré : 13/14 pages routées (p13, plus prose, reste en texte).
+   Aire image = |det(CTM)| du carré unité, en suivant save/restore/transform de `getOperatorList`.
+4. **Config Haiku réelle** = Anthropic **direct** (baseUrl vide dans `ai-settings.json`), pas la
+   gateway. Conséquence : `x-litellm-response-cost` **absent** → coût via `estimateCostFor` (barème
+   Haiku 1$/5$, confirmé par la doc claude-api). `claude-haiku-4-5` (alias) route bien en direct et
+   supporte la vision : appel réel prouvé (~0,5 ¢/page image, in≈3300 tokens).
+**Preuve sans toucher le vrai wiki :** rattrapage page 3 d'Erget piloté sur une **copie isolée**
+(`DATA_ROOT`/`WIKI_ROOT`/`RAW_ROOT` scratch + `ai-settings.json` copié pour la clé) → bloc figure
+greffé, 5/5 sections d'origine préservées, `wiki:verify` 0 erreur, coût $0,006. (Copie + clé
+supprimées après coup.)
+
+## 2026-08-31 — « Ouvrir l'app en local » pendant qu'on code = serveur DEV, pas build ni app installée
+**Contexte :** Arthur a demandé « ouvre l'application en local ». J'ai d'abord
+reconstruit le bundle Electron « standalone » (build FIGÉ) puis constaté que
+l'app visible était la version INSTALLÉE (`/Applications/SecondBrain.app`),
+en retard sur le code du dossier de travail. J'ai ensuite proposé de relancer
+« le code du repo » — encore via le build packagé.
+**Correction :** il ne veut ni l'app installée, ni un build figé : il veut le code
+**du dossier de travail courant** qui tourne **avec ses modifications reflétées en
+direct** (il s'apprête à modifier le projet).
+**Règle :** quand Arthur demande d'« ouvrir l'app en local » alors qu'on va
+travailler sur le projet, lancer le **serveur de dev Next.js** (`npm --prefix web
+run dev`, rechargement à chaud) et ouvrir l'URL (`http://localhost:3000`, retombe
+sur 3001 si occupé) dans le navigateur — PAS `electron .` sur le build standalone,
+PAS l'app installée. En dev, `DATA_ROOT` retombe sur la racine du repo
+([web/lib/wiki-fs.ts](../web/lib/wiki-fs.ts) L8) → l'app lit `wiki/`+`raw/`+`.data/`
+de CE dossier. L'UI n'a aucune dépendance dure à Electron (le pont ne sert qu'au
+n° de version dans /réglages), donc le navigateur suffit. Le build standalone +
+Electron ne sert que pour tester le PACKAGING ou produire le `.dmg`.
+
 ## 2026-07-08 — Git = seule source de vérité du wiki
 **Contexte :** l'ancienne plateforme écrivait le wiki dans Supabase, créant une
 seconde source de vérité désynchronisée du markdown.
