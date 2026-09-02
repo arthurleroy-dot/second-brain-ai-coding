@@ -76,11 +76,20 @@ Le sidecar de métadonnées (s'il est fourni) **fait autorité** : reprends-en
    ne corrige RIEN d'autre.** *(Seule exception à « retire les numéros de page » : le
    `?page=N` de la ligne image d'un bloc figure — voir « Blocs figure » ci-dessous — se
    conserve tel quel : c'est une ancre, pas une scorie.)*
+   - **Code** : quand la source contient du **code** (extrait de programme, commande,
+     configuration, pseudo-code affiché comme tel), encadre-le en **bloc de code
+     markdown** ```` ```langage ```` (choisis le langage s'il est évident : `python`,
+     `ts`, `bash`, `json`… sinon ```` ``` ```` nu). C'est de la **mise en forme, pas une
+     reformulation** — recopie le code **mot pour mot**, indentation comprise ; n'en
+     corrige ni complète rien (au même titre qu'un tableau). Le code inline court (un
+     identifiant, un appel) reste en `` `inline-code` `` comme aujourd'hui.
 
 Le blockquote de navigation (point 1), les annotations `topics:`/`entities:` par
-section (point 2) **et les blocs figure déjà présents dans le texte fourni** (voir
-ci-dessous) sont les **SEULS** ajouts structurels autorisés. Tout le reste du corps est
-le texte de la source, mot pour mot.
+section (point 2), **les blocs figure déjà présents dans le texte fourni** (voir
+ci-dessous), **les blocs de code (mise en forme verbatim, point 3)** et **les blocs
+formule (transcription LaTeX signalée « reconstruite », voir ci-dessous)** sont les
+**SEULS** ajouts structurels autorisés. Tout le reste du corps est le texte de la
+source, mot pour mot.
 
 ## Blocs figure (passe vision) — reproduis-les tels quels et annote-les
 
@@ -104,6 +113,48 @@ les scories non-contenu (numéros de page, en-têtes/pieds répétés) et (b) re
 mots coupés en fin de ligne. Il ne doit JAMAIS servir de prétexte à réordonner,
 corriger, « améliorer » ou reformuler un mot de contenu. En cas de doute sur un mot,
 recopie-le tel quel.
+
+## Blocs formule (maths) — transcris en LaTeX et signale-les
+
+Quand la source contient une **formule mathématique** — équation, matrice, vecteur, somme,
+fraction, exposant/indice — **y compris dessinée en caractères** (matrices en crochets
+Unicode `⎡ ⎣ ⎢ ⎤ ⎦`, ASCII-art, ou Unicode « cassé » issu d'un copier-coller d'une page web
+où les maths étaient rendues), **transcris-la en LaTeX** dans un **bloc formule** au format
+EXACT :
+
+```
+$$
+{LaTeX de la formule}
+$$
+*(Formule reconstruite — non-verbatim.)*
+```
+
+- Ouverture `$$` et fermeture `$$` **chacune sur sa propre ligne** ; le LaTeX entre les deux.
+- Toujours en **display `$$…$$`** (jamais de simple `$…$` inline — il est désactivé côté
+  rendu pour ne pas confondre avec les prix en dollars).
+- Exemple — la source
+  ```
+  ⎡ 1  2  3 ⎤              ⎡ 1  4 ⎤
+  A  =  ⎣ 4  5  6 ⎦       Aᵀ  =  ⎢ 2  5 ⎥
+                                 ⎣ 3  6 ⎦
+  ```
+  devient
+  ```
+  $$
+  A = \begin{bmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \end{bmatrix}
+  \qquad
+  A^\top = \begin{bmatrix} 1 & 4 \\ 2 & 5 \\ 3 & 6 \end{bmatrix}
+  $$
+  *(Formule reconstruite — non-verbatim.)*
+  ```
+- **Trois paliers (RÈGLE ABSOLUE, comme les blocs figure)** : palier littéral — transcris
+  **exactement** les symboles, nombres, indices, exposants **présents** (mot pour mot) ;
+  palier structurel — respecte la structure lue (dimensions d'une matrice, ordre des
+  termes) ; palier sens — **INTERDIT** : n'interprète pas, ne calcule pas, ne complète pas,
+  ne « corrige » pas une formule qui te semble fausse (transcris ce qui est écrit).
+- Recopie le marqueur `*(Formule reconstruite — non-verbatim.)*` **tel quel** sous la
+  formule (em dash `—`, italique) : il signale que c'est une transcription non-verbatim et
+  sert d'ancre à la révision ultérieure.
 
 ## Liens — règle stricte
 

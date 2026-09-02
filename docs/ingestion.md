@@ -201,6 +201,15 @@ passe de ~6,64 $ à **~0,12 $/ressource**. `runIngestion()` :
     verbatim** et leur **ajoute les annotations `topics:`/`entities:`** (elle a le
     registre), exactement comme pour toute section. La vision n'agit que sur la string
     `raw` en amont ; tout le pipeline aval (projection, graphe, vues) est inchangé.
+  - **Code et formules (toute source, pas seulement les PDF).** La passe texte produit
+    désormais deux formes de plus (cf. `prompts/ingest-prompt.md` + §2.3 ter de
+    [wiki-spec.md](wiki-spec.md), spec `tasks/specs/2026-09-02-rendu-code-et-formules-maths.md`) :
+    (a) le **code** encadré en bloc ```` ```langage ```` (pur verbatim, mise en forme) ;
+    (b) les **maths** transcrites en **bloc formule** LaTeX `$$…$$` + marqueur
+    `*(Formule reconstruite — non-verbatim.)*` (seconde dérogation signalée au verbatim).
+    Le corps produit par l'IA transite **tel quel** (`parseGeneration` → `projectResource`
+    écrit le corps verbatim) : **aucune** touche à `ingest-local.ts`/`wiki-project.ts`. Le
+    rendu (coloration + KaTeX) est côté affichage (`web/components/Markdown.tsx`).
   - **Coût** : ~0,0016 $ d'entrée/page (Haiku, ~1600 tokens image) → un deck ~14 pages
     ≈ 0,05 $, cumulé au coût d'ingestion. **Tolérance aux pannes** : un échec d'appel
     vision (modèle non routé, timeout) laisse la page en texte seul sans faire échouer le
@@ -215,6 +224,16 @@ passe de ~6,64 $ à **~0,12 $/ressource**. `runIngestion()` :
     transcription droite), quand l'aiguillage a raté une page ou mal transcrit une figure.
   - **Toujours pas d'OCR généraliste hors PDF** : un `.docx`/`.pptx` scanné n'est pas
     OCRisé (mammoth/jszip ne rendent que du texte).
+- **Révision IA des formules** (miroir texte du rattrapage vision, cf.
+  `tasks/specs/2026-09-02-rendu-code-et-formules-maths.md`) : `GET /api/resource/<slug>/revise-formulas`
+  liste les blocs formule (index d'apparition + LaTeX) ; `POST {index, instruction}`
+  re-génère **une seule** formule via le modèle **texte** d'ingestion (`getModel()`) en
+  suivant une **consigne en langage naturel** (ex. « la 2ᵉ ligne devrait être 4 5 6 »),
+  greffe chirurgicale du LaTeX (`web/lib/formula-block.ts` — l'ancre est l'index, le couple
+  `$$…$$` + marqueur), puis re-projection déterministe. Le frontmatter est **inchangé** (pas
+  de « retract ») ; `lockHeld()` → 409 pour se sérialiser avec une ingestion en cours.
+  Depuis la fiche ressource (`web/components/sources/ReviseFormulas.tsx`, auto-masqué si
+  aucune formule). Le code, lui, est du pur verbatim (fiable) : pas de révision dédiée en v1.
 - **L'unique appel IA** (`callModel`) : `anthropic.messages.create` via le client
   partagé `getAnthropic()` (`web/lib/claude.ts`, auth `x-api-key`, cf.
   [platform.md](platform.md) §6). Le **prompt système** = `prompts/ingest-prompt.md`

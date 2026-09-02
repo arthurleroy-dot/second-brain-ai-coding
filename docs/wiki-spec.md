@@ -120,14 +120,50 @@ l'extraction texte ne capte pas est représentée par un **bloc figure** = une s
 - La passe vision (Haiku) émet le bloc **sans** annotations `topics:`/`entities:` ; c'est
   l'IA d'ingestion qui les ajoute (elle a le registre), comme pour toute section.
 
+#### 2.3 ter Bloc formule (maths reconstruites)
+
+Une **formule mathématique** de la source (équation, matrice, vecteur, somme, fraction,
+exposant/indice) — **y compris dessinée en caractères** (crochets Unicode `⎡ ⎣ ⎢ ⎤ ⎦`,
+ASCII-art, ou Unicode « cassé » d'un copier-coller web) — est **transcrite en LaTeX** dans
+un **bloc formule** au format EXACT (display math + marqueur de reconstruction dessous) :
+
+```markdown
+$$
+A = \begin{bmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \end{bmatrix}
+\qquad
+A^\top = \begin{bmatrix} 1 & 4 \\ 2 & 5 \\ 3 & 6 \end{bmatrix}
+$$
+*(Formule reconstruite — non-verbatim.)*
+```
+
+- Ouverture `$$` et fermeture `$$` **chacune sur sa propre ligne** ; le LaTeX entre les deux.
+- **Display `$$…$$` seulement** — jamais de simple `$…$` inline (désactivé côté rendu pour ne
+  pas confondre avec les prix en dollars, cf. `Markdown.tsx` : `singleDollarTextMath: false`).
+- La ligne suivante = le **marqueur** littéral `*(Formule reconstruite — non-verbatim.)*`
+  (em dash `—`) : il signale la transcription non-verbatim (honnêteté, règle 6) ET sert
+  d'**ancre** à la révision (index d'apparition, cf. `web/lib/formula-block.ts`). Il n'est
+  PAS retiré à l'affichage (`stripChunkAnnotations` ne le touche pas).
+- **Trois paliers (comme le bloc figure)** : littéral (symboles/nombres/indices/exposants
+  exacts) ; structurel (dimensions, ordre des termes) ; sens — **INTERDIT** (ne pas
+  interpréter, calculer, compléter ni « corriger » une formule qui semble fausse).
+- C'est la **seconde et dernière dérogation** au strict verbatim (après le bloc figure),
+  autorisée **parce qu'elle est explicitement marquée**. La source brute reste dans `raw/`.
+
+**Code (mise en forme, pas une dérogation).** Le code de la source (extrait de programme,
+commande, config, pseudo-code) est encadré en **bloc de code markdown** ```` ```langage ````
+(langage si évident, sinon ```` ``` ```` nu), **recopié mot pour mot** (indentation comprise)
+— du **pur verbatim**, au même titre qu'un tableau. Le code inline court reste en
+`` `inline-code` ``. Rendu coloré par `rehype-highlight` (cf. `Markdown.tsx`).
+
 ### 2.4 Contenu
 
 - **Intégral et fidèle** : reproduire toute l'information, chaque chiffre, chaque
   exemple, chaque citation nommée. **Verbatim : recopie mot pour mot, même langue.**
   Reformulation/résumé/traduction/ajout interdits ; seuls le nettoyage des scories
-  d'extraction, la mise en markdown, **et le bloc figure marqué « description machine »
-  (§2.3 bis)** sont permis. Le `page=N` d'un bloc figure est la SEULE référence de page
-  conservée (le reste des numéros de page = scorie à retirer).
+  d'extraction, la mise en markdown (**y compris les blocs de code ```` ```langage ````,
+  §2.3 ter**), **le bloc figure marqué « description machine » (§2.3 bis)** et **le bloc
+  formule marqué « reconstruite » (§2.3 ter)** sont permis. Le `page=N` d'un bloc figure
+  est la SEULE référence de page conservée (le reste des numéros de page = scorie à retirer).
 - Pas de résumé court : une source longue → une page longue.
 
 ---

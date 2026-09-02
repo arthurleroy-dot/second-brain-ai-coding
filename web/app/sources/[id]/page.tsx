@@ -7,6 +7,7 @@ import { typeBadgeClass, typeLabel, formatDate } from '@/lib/ui';
 import FullContentProse from '@/components/sources/FullContentProse';
 import OriginalLinkButton from '@/components/sources/OriginalLinkButton';
 import ReviseFigures from '@/components/sources/ReviseFigures';
+import ReviseFormulas from '@/components/sources/ReviseFormulas';
 
 export const dynamic = 'force-dynamic';
 
@@ -104,14 +105,13 @@ export default async function SourceDetailPage({
           </div>
           <div className="w-[40%] overflow-y-auto px-6 py-6">
             {Meta}
-            <h1 className="mt-5 text-lg font-semibold leading-snug text-gray-900">
+            <h1 className="mb-5 mt-5 text-lg font-semibold leading-snug text-gray-900">
               {source.title}
             </h1>
-            {display && (
-              <div className="mt-5">
-                <FullContentProse content={display} />
-              </div>
-            )}
+            {/* Révision des formules (auto-masqué si aucune ; rare sur PDF — les maths
+                d'un PDF passent par la passe figure). */}
+            <ReviseFormulas slug={source.slug} />
+            {display && <FullContentProse content={display} />}
           </div>
         </div>
       ) : (
@@ -121,6 +121,8 @@ export default async function SourceDetailPage({
             {isTextArticle && <OriginalLinkButton url={source.url} />}
             <div className="mt-4">{Meta}</div>
             <h1 className="mb-6 mt-5 text-2xl font-semibold text-gray-900">{source.title}</h1>
+            {/* Révision IA des formules (auto-masqué si la ressource n'en contient pas). */}
+            <ReviseFormulas slug={source.slug} />
             <FullContentProse content={display} />
           </article>
         </div>

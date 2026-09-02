@@ -60,19 +60,25 @@ tasks/   ← todo.md + lessons.md + specs/ (plans validés → implémentation)
 6. **Verbatim** : une ressource reproduit le texte de la source **mot pour mot**,
    dans sa langue d'origine. L'IA met en markdown ; elle ne reformule, ne résume, ne
    traduit ni n'ajoute jamais. Seuls ajouts autorisés = repères structurels
-   (blockquote de navigation, annotations `topics:`/`entities:` par section, **et le
-   « bloc figure »** — voir ci-dessous) ; seul « nettoyage » = retirer les scories
-   d'extraction (n° de page, en-têtes/pieds répétés) et recoller les mots coupés en
-   fin de ligne. **Exception « bloc figure » (passe vision PDF, cf.
-   `tasks/specs/2026-09-01-ingestion-vision-pdf.md`)** : une figure d'un PDF (schéma,
-   tableau-image, courbe, timeline, organigramme) que l'extraction texte ne capte pas
-   est décrite par un **bloc figure** = une section `##` portant une légende
+   (blockquote de navigation, annotations `topics:`/`entities:` par section, **le
+   « bloc figure »** et **le « bloc formule »** — voir ci-dessous) ; seul « nettoyage »
+   = retirer les scories d'extraction (n° de page, en-têtes/pieds répétés) et recoller
+   les mots coupés en fin de ligne. **Le code** (extrait de programme, commande, config)
+   se met en forme en bloc ```` ```langage ```` : c'est du **pur verbatim** (mise en
+   forme, comme un tableau), pas une dérogation. **Exception « bloc figure » (passe
+   vision PDF, cf. `tasks/specs/2026-09-01-ingestion-vision-pdf.md`)** : une figure d'un
+   PDF (schéma, tableau-image, courbe, timeline, organigramme) que l'extraction texte ne
+   capte pas est décrite par un **bloc figure** = une section `##` portant une légende
    **explicitement marquée « description machine, non-verbatim »**, une ligne image
    `![…](/api/raw-image/<fichier>?page=N)` et une transcription verbatim des
-   étiquettes. Ce bloc et **sa référence de page** sont l'unique contenu autorisé à
-   sortir du strict verbatim (leur `page=N` échappe donc à la consigne « retirer les
-   numéros de page ») — parce qu'il est signalé comme tel. Tout le reste du corps
-   demeure verbatim.
+   étiquettes. Ce bloc et **sa référence de page** sont autorisés à sortir du strict
+   verbatim (leur `page=N` échappe donc à la consigne « retirer les numéros de page »)
+   — parce qu'il est signalé comme tel. **Seconde dérogation signalée — « bloc formule »
+   (cf. `tasks/specs/2026-09-02-rendu-code-et-formules-maths.md`)** : une formule
+   mathématique (y compris dessinée en caractères Unicode/ASCII) est **transcrite en
+   LaTeX** dans un bloc `$$…$$` suivi du marqueur littéral `*(Formule reconstruite —
+   non-verbatim.)*`, autorisée **parce qu'elle est explicitement marquée** ainsi. La
+   source brute reste dans `raw/`. Tout le reste du corps demeure verbatim.
 
 ## Où lire quoi
 

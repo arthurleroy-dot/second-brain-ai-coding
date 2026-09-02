@@ -26,3 +26,14 @@ body {
 .stream-fade-in {
   animation: stream-fade-in 150ms ease-out;
 }
+
+/* Coloration du code (rehype-highlight + thème github.css) : le thème pose un fond
+   blanc (#fff) et un padding (1em) sur `.hljs`, ce qui créerait un double-cadrage à
+   l'intérieur du `<pre>` (qui porte déjà arrondi + fond doux + padding). On neutralise
+   donc le fond et le padding internes de `.hljs` — un SEUL cadre, porté par `<pre>` ;
+   le thème ne colore plus que les tokens. `!important` pour battre la règle plus
+   spécifique `pre code.hljs { padding: 1em }` du thème. */
+.hljs {
+  background: transparent !important;
+  padding: 0 !important;
+}

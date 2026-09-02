@@ -1,87 +1,20 @@
 'use client';
 
 import { memo, useEffect, useRef } from 'react';
-import ReactMarkdown, { type Components } from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { ChevronRight } from 'lucide-react';
 import { Message as MessageType } from '@/types';
+import Markdown from '@/components/Markdown';
 import SourceChip from '@/components/chat/SourceChip';
 import StepTrail from '@/components/chat/StepTrail';
 import { splitStreamingMarkdown } from '@/lib/streaming-markdown';
 
-// Map de rendu markdown partagée entre le rendu figé (message complet) et le
-// rendu « committed » du streaming — définie une seule fois pour ne pas la
-// dupliquer ni recréer un objet à chaque render.
-const MARKDOWN_COMPONENTS: Components = {
-  h1: ({ children }) => (
-    <h1 className="mb-2 mt-3 text-base font-semibold first:mt-0">{children}</h1>
-  ),
-  h2: ({ children }) => (
-    <h2 className="mb-1.5 mt-3 text-[15px] font-semibold first:mt-0">{children}</h2>
-  ),
-  h3: ({ children }) => (
-    <h3 className="mb-1 mt-2.5 text-sm font-semibold first:mt-0">{children}</h3>
-  ),
-  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-  ul: ({ children }) => (
-    <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>
-  ),
-  ol: ({ children }) => (
-    <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0">{children}</ol>
-  ),
-  li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-  em: ({ children }) => <em className="italic">{children}</em>,
-  a: ({ children, href }) => (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="text-blue-600 underline underline-offset-2 hover:text-blue-700"
-    >
-      {children}
-    </a>
-  ),
-  code: ({ children }) => (
-    <code className="rounded bg-gray-200 px-1 py-0.5 font-mono text-[0.85em]">
-      {children}
-    </code>
-  ),
-  pre: ({ children }) => (
-    <pre className="mb-2 overflow-x-auto rounded-lg bg-gray-800 p-3 text-xs text-gray-100 last:mb-0">
-      {children}
-    </pre>
-  ),
-  blockquote: ({ children }) => (
-    <blockquote className="mb-2 border-l-2 border-gray-300 pl-3 italic text-gray-600 last:mb-0">
-      {children}
-    </blockquote>
-  ),
-  table: ({ children }) => (
-    <div className="mb-2 overflow-x-auto last:mb-0">
-      <table className="w-full border-collapse text-xs">{children}</table>
-    </div>
-  ),
-  th: ({ children }) => (
-    <th className="border border-gray-300 bg-gray-50 px-2 py-1 text-left font-semibold">
-      {children}
-    </th>
-  ),
-  td: ({ children }) => (
-    <td className="border border-gray-300 px-2 py-1 align-top">{children}</td>
-  ),
-  hr: () => <hr className="my-3 border-gray-200" />,
-};
-
 // Rendu markdown mémoïsé du préfixe « engagé » (blocs terminés). memo compare
-// `text` par valeur → ReactMarkdown ne re-parse que quand un bloc se termine
+// `text` par valeur → le composant ne re-parse que quand un bloc se termine
 // (le préfixe grandit), pas à chaque caractère révélé pendant le streaming.
+// La coloration du code et les formules KaTeX viennent du composant partagé
+// `<Markdown>` (variante `chat`) — même rendu que les pages ressource.
 const CommittedMarkdown = memo(function CommittedMarkdown({ text }: { text: string }) {
-  return (
-    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
-      {text}
-    </ReactMarkdown>
-  );
+  return <Markdown variant="chat" content={text} />;
 });
 
 // Bloc « actif » : le bloc markdown en cours d'écriture, rendu en texte brut
@@ -139,11 +72,7 @@ function Message({
       </>
     );
   } else {
-    body = (
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
-        {message.content}
-      </ReactMarkdown>
-    );
+    body = <Markdown variant="chat" content={message.content} />;
   }
 
   return (
