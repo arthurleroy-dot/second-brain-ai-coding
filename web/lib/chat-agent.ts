@@ -9,8 +9,6 @@ import { listWikiDir, readWikiFile, wikiExists } from '@/lib/wiki-fs';
  * `/raw` est inaccessible (v1).
  */
 
-export const MAX_PAGE_CHARS = 30_000;
-
 export const WIKI_TOOLS: Anthropic.Messages.Tool[] = [
   {
     name: 'read_wiki_page',
@@ -60,7 +58,6 @@ const LISTING_NOISE = /^(_candidates\.json|_ingested\.json|.*\.canvas)$/;
 export async function executeWikiTool(
   name: string,
   input: unknown,
-  maxChars: number = MAX_PAGE_CHARS,
 ): Promise<WikiToolResult> {
   const rawPath = (input as { path?: unknown })?.path;
   if (typeof rawPath !== 'string') {
@@ -82,14 +79,6 @@ export async function executeWikiTool(
       };
     }
     const content = await readWikiFile(p);
-    if (content.length > maxChars) {
-      return {
-        content:
-          content.slice(0, maxChars) +
-          `\n[--- CONTENU TRONQUÉ : ${content.length} caractères au total, ${maxChars} affichés ---]`,
-        isError: false,
-      };
-    }
     return { content, isError: false };
   }
 

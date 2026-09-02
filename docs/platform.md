@@ -80,7 +80,7 @@ Le chat est un **agent** qui navigue lui-même dans le wiki markdown par paliers
 
 - **Boucle agentique** (`web/lib/chat-agent.ts`) : `runWikiAgent` enchaîne des
   appels streamés (`max_tokens: 8000`) avec deux outils — `read_wiki_page`
-  (contenu verbatim, frontmatter inclus, tronqué à 30 000 caractères ; `.md`
+  (contenu verbatim intégral, frontmatter inclus, aucune troncature ; `.md`
   uniquement) et `list_wiki_folder` (noms seulement, bruit filtré) — sécurité
   chemin déléguée à `resolveUnder` (`wiki-fs.ts`), `/raw` inaccessible.
   Disjoncteurs : `MAX_ITERATIONS = 15` + deadline absolue (~280 s) → nudge

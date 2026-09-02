@@ -49,11 +49,22 @@ test('read_wiki_page : non-.md (graph.json, canvas) → is_error', async () => {
   assert.equal(canvas.isError, true);
 });
 
-test('read_wiki_page : troncature effective avec maxChars bas', async () => {
-  const r = await executeWikiTool('read_wiki_page', { path: 'index.md' }, 50);
+test('read_wiki_page : renvoie le contenu INTÉGRAL, sans aucune troncature', async () => {
+  // Prend la plus grosse fiche du wiki pour prouver qu'aucune limite ne s'applique
+  // (le bug d'origine coupait à 30 000 caractères — des fiches en font 90 000+).
+  const resDir = path.join(WIKI_ROOT, 'resources');
+  const files = fs.readdirSync(resDir).filter((f) => f.endsWith('.md'));
+  let biggest = files[0];
+  for (const f of files) {
+    if (fs.statSync(path.join(resDir, f)).size > fs.statSync(path.join(resDir, biggest)).size) {
+      biggest = f;
+    }
+  }
+  const onDisk = fs.readFileSync(path.join(resDir, biggest), 'utf-8');
+  const r = await executeWikiTool('read_wiki_page', { path: `resources/${biggest}` });
   assert.equal(r.isError, false);
-  assert.match(r.content, /CONTENU TRONQUÉ : \d+ caractères au total, 50 affichés/);
-  assert.ok(r.content.startsWith((await executeWikiTool('read_wiki_page', { path: 'index.md' })).content.slice(0, 50)));
+  assert.equal(r.content, onDisk); // identique au fichier, octet pour octet
+  assert.doesNotMatch(r.content, /TRONQUÉ/); // aucun marqueur de coupure résiduel
 });
 
 test('read_wiki_page : path manquant → is_error', async () => {
